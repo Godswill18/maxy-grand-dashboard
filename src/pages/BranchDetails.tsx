@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useBranchStore } from '../store/useBranchStore'; // Changed path
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { BranchModal } from '../components/modals/BranchModal'; // Changed path
 import { Badge } from '@/components/ui/badge';
-import { useStaffStore } from '../store/useStaffStore';
+import { useStaffStore } from '../store/useUserStore';
 
 export default function BranchDetails() {
   const { id } = useParams<{ id: string }>();
@@ -42,7 +42,7 @@ export default function BranchDetails() {
     }
     // fetch admins so we can resolve the manager id to a name
     fetchAdmins();
-  }, [id, fetchBranchById]);
+  }, [id, fetchBranchById, fetchAdmins]);
 
   const handleDelete = async () => {
     if (!id) return;
@@ -56,6 +56,24 @@ export default function BranchDetails() {
       setIsDeleting(false);
     }
   };
+
+  const managerName = useMemo(() => {
+    if (adminsLoading) return 'Loading...';
+    
+    // Ensure admins is an array and the branch has a manager
+    if (!Array.isArray(admins) || !currentBranch?.manager) {
+      return currentBranch?.manager || 'N/A';
+    }
+
+    const mgr = admins.find((a) => a._id === currentBranch.manager);
+    
+    if (mgr) {
+      return `${mgr.firstName} ${mgr.lastName}`;
+    }
+
+    // Fallback if not found
+    return currentBranch.manager || 'N/A';
+  }, [admins, adminsLoading, currentBranch?.manager]);
 
   if (isLoading && !currentBranch) {
     return (
@@ -166,14 +184,7 @@ export default function BranchDetails() {
               <User className="h-5 w-5 mt-1 text-primary" />
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Manager</p>
-                <p className="text-lg text-foreground">{
-                  (() => {
-                    const mgr = admins.find((a) => a._id === currentBranch.manager);
-                    if (mgr) return `${mgr.firstName} ${mgr.lastName}`;
-                    if (adminsLoading) return 'Loading...';
-                    return currentBranch.manager || 'N/A';
-                  })()
-                }</p>
+                <p className="text-lg text-foreground">{managerName}</p>
               </div>
             </div>
             <div className="flex items-start gap-3">

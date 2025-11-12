@@ -15,7 +15,7 @@ import { Loader2 } from 'lucide-react';
 import { useBranchStore, Branch } from '../../store/useBranchStore'; // Changed path
 import { toast } from 'sonner';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { useStaffStore } from '../../store/useStaffStore';
+import { useStaffStore } from '../../store/useUserStore';
 
 interface BranchModalProps {
   isOpen: boolean;
@@ -114,7 +114,7 @@ export function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
       toast.success(`Branch ${isEditMode ? 'updated' : 'created'} successfully!`);
       onClose();
     } else {
-      toast.error('An error occurred. Please try again.');
+      toast.error('An error occurred. kindly check your inputs.');
     }
   };
 
@@ -149,10 +149,10 @@ export function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
                   <SelectValue placeholder={adminsLoading ? 'Loading managers...' : 'Select a manager'} />
                 </SelectTrigger>
                 <SelectContent>
-                  {admins.length === 0 ? (
+                  {(admins || []).length === 0 ? (
                     <SelectItem value="null" disabled>{adminsLoading ? 'Loading...' : 'No admins found'}</SelectItem>
                   ) : (
-                    admins.map((admin) => (
+                    (admins || []).map((admin) => (
                       <SelectItem key={admin._id} value={admin._id}>
                         {admin.firstName} {admin.lastName}
                       </SelectItem>

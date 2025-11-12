@@ -115,3 +115,22 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+.rbc-today {
+  background-color: rgba(47, 146, 125, 0.15) !important; /* subtle tint */
+  border: 1px solid #2F927D !important; /* your accent color */
+}
+
+/* For dark mode */
+.dark .rbc-today {
+  background-color: #621c1c !important; /* dark cell background */
+  border: 1px solid #2F927D !important; /* accent border */
+}
+
+/* Optional: make events pop nicely in both themes */
+.rbc-event {
+  background-color: #2F927D !important;
+  border-radius: 6px !important;
+  color: #fff !important;
+  font-weight: 500 !important;
+}

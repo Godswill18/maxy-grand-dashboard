@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton"; // For loading
 import { AlertCircle, Mail, Phone, MapPin, Loader2 } from "lucide-react";
-import { useStaffStore, StaffUser } from "@/store/useStaffStore"; // Use alias path
+import { useStaffStore, StaffUser } from "@/store/useUserStore"; // Use alias path
 import { toast } from "sonner";
 
 // Capitalize helper
@@ -103,7 +103,7 @@ export default function Staffs() {
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {staff.map((staffMember, index) => (
+  {(staff || []).map((staffMember, index) => (
           <Card 
             key={staffMember._id} 
             className="hover:shadow-lg transition-all animate-in fade-in slide-in-from-bottom" 

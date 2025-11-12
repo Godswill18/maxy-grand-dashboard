@@ -59,30 +59,30 @@ export function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-background flex w-full">
-      {/* Sidebar Component */}
-      <Sidebar
-        isSidebarOpen={isSidebarOpen}
-        setIsSidebarOpen={setIsSidebarOpen}
-        handleLogout={handleLogout} // Pass the new handler
-        navigation={navigation}
-        userName={userName}
-        userRole={userRole}
-      />
-
-      {/* Main content area (Header + Page) */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header Component */}
-        <Header
+      
+      <div className="min-h-screen bg-background flex w-full">
+        {/* Sidebar (fixed) */}
+        <Sidebar
+          isSidebarOpen={isSidebarOpen}
           setIsSidebarOpen={setIsSidebarOpen}
-          isDark={isDark}
-          setIsDark={setIsDark}
+          handleLogout={handleLogout}
           navigation={navigation}
+          userName={userName}
+          userRole={userRole}
         />
 
-        {/* Page content */}
-        <main className="flex-1 overflow-auto">
-          <div className="p-4 lg:p-6">{children}</div>
-        </main>
+        {/* Main content area */}
+        <div className="flex-1 flex flex-col min-w-0 lg:ml-64">
+          <Header
+            setIsSidebarOpen={setIsSidebarOpen}
+            isDark={isDark}
+            setIsDark={setIsDark}
+            navigation={navigation}
+          />
+          <main className="flex-1 overflow-auto">
+            <div className="p-4 lg:p-6">{children}</div>
+          </main>
+        </div>
       </div>
     </div>
   );

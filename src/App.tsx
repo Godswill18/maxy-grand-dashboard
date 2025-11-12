@@ -57,6 +57,7 @@ import RoomAssignment from "@/pages/receptionist/RoomAssignment";
 import BookingManagement from "@/pages/receptionist/BookingManagement";
 import BranchDetails from "@/pages/BranchDetails";
 import Settings from "./pages/Settings";
+import RoomDetailPage from "./pages/RoomDetails";
 
 const queryClient = new QueryClient();
 
@@ -156,8 +157,9 @@ const App = () => (
             <Route path="/staffs" element={<Staffs />} />
             <Route path="/users" element={<Users />} />
             <Route path="/branches" element={<Branches />} />
-            <Route path="/branch/:id" element={<BranchDetails />} />
+            <Route path="/branches/:id" element={<BranchDetails />} />
             <Route path="/rooms" element={<Rooms />} />
+            <Route path="/rooms/:id" element={<RoomDetailPage />} />
             <Route path="/bookings" element={<Bookings />} />
             <Route path="/cleaners" element={<Cleaners />} />
             <Route path="/transactions" element={<Transactions />} />

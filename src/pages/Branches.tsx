@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin, Users, Bed, Loader2, AlertCircle, Building, Plus } from "lucide-react";
 import { useBranchStore } from "../store/useBranchStore"; // Changed path
-import { useStaffStore } from "../store/useStaffStore";
+import { useStaffStore } from "../store/useUserStore";
 import { BranchModal } from "../components/modals/BranchModal"; // Changed path
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -14,14 +14,15 @@ export default function Branches() {
   const navigate = useNavigate();
   const { branches, isLoading, error, fetchBranches, updateBranch } = useBranchStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { admins, fetchAdmins, isLoading: adminsLoading } = useStaffStore();
+  const { admins, staff, fetchAdmins, fetchAllStaff, isLoading: adminsLoading } = useStaffStore();
 
   useEffect(() => {
     // Fetch branches when component mounts
     fetchBranches();
     // Fetch admins so we can resolve manager ids to names
     fetchAdmins();
-  }, [fetchBranches]);
+    fetchAllStaff();
+  }, [fetchBranches, fetchAdmins, fetchAllStaff]);
 
   const handleToggleActive = async (branchId: string, currentStatus: boolean) => {
     const success = await updateBranch(branchId, { isActive: !currentStatus });
@@ -80,21 +81,26 @@ export default function Branches() {
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {branches.map((branch, index) => (
+  {(branches || []).map((branch, index) => (
           <Card key={branch._id} className="hover:shadow-lg transition-all animate-in fade-in slide-in-from-bottom" style={{ animationDelay: `${index * 50}ms` }}>
             <CardContent className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h3 className="font-semibold text-xl text-foreground">{branch.name}</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Manager: {
+                    Manager:&nbsp;
+                    {adminsLoading ? (
+                      <span>Loading...</span>
+                    ) : (
                       (() => {
-                        const mgr = admins.find((a) => a._id === branch.manager);
-                        if (mgr) return `${mgr.firstName} ${mgr.lastName}`;
-                        if (adminsLoading) return 'Loading...';
-                        return branch.manager || 'N/A';
+                        const manager =
+                          admins.find((a) => a._id === branch.manager) ||
+                          staff.find((s) => s._id === branch.manager);
+                        return manager
+                          ? `${manager.firstName} ${manager.lastName}`
+                          : 'N/A';
                       })()
-                    }
+                    )}
                   </p>
                 </div>
                 <Switch 
@@ -127,7 +133,7 @@ export default function Branches() {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => navigate(`/branch/${branch._id}`)}
+                  onClick={() => navigate(`/branches/${branch._id}`)}
                 >
                   View Details
                 </Button>

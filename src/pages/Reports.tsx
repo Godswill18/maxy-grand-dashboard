@@ -1,13 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Download } from 'lucide-react';
 import {
   AreaChart,
   Area,
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -17,128 +14,206 @@ import {
   PieChart,
   Pie,
   Cell,
-} from "recharts";
+} from 'recharts';
+import {
+  useReportState,
+  useReportActions,
+  ReportPeriod,
+} from '@/store/useReportStore'; // Using your path
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Skeleton } from '@/components/ui/skeleton';
 
-const revenueData = [
-  { month: "Jan", revenue: 45000, expenses: 28000 },
-  { month: "Feb", revenue: 52000, expenses: 30000 },
-  { month: "Mar", revenue: 48000, expenses: 29000 },
-  { month: "Apr", revenue: 61000, expenses: 32000 },
-  { month: "May", revenue: 58000, expenses: 31000 },
-  { month: "Jun", revenue: 67000, expenses: 34000 },
+// Colors for the Pie chart
+const COLORS = [
+  'hsl(var(--primary))',
+  'hsl(var(--secondary))',
+  'hsl(var(--info))',
+  'hsl(var(--warning))',
 ];
-
-const occupancyData = [
-  { branch: "Downtown", occupancy: 85 },
-  { branch: "Airport", occupancy: 78 },
-  { branch: "Beach", occupancy: 92 },
-  { branch: "City Center", occupancy: 73 },
-];
-
-const bookingSourceData = [
-  { name: "Direct", value: 45 },
-  { name: "Online Travel Agency", value: 35 },
-  { name: "Phone", value: 12 },
-  { name: "Walk-in", value: 8 },
-];
-
-const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--info))", "hsl(var(--warning))"];
+// Using VITE_API_URL from the store, but defining a fallback here just in case
+const BACKEND_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
 export default function Reports() {
+  // Get state and actions from the Zustand store
+  const { timeseriesData, sourceData, period, isLoading, error } =
+    useReportState();
+  const { setPeriod, fetchReportData, initSocket, disconnectSocket, exportToExcel } =
+    useReportActions();
+
+  // On component mount:
+  // 1. Fetch initial data for the default period ('month')
+  // 2. Initialize the socket connection
+  useEffect(() => {
+    fetchReportData();
+    initSocket(BACKEND_URL);
+
+    // Cleanup on unmount
+    return () => {
+      disconnectSocket();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
+
+  const ChartTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="rounded-lg border bg-card p-2 text-card-foreground shadow-sm">
+          <p className="font-bold">{label}</p>
+          <p className="text-sm" style={{ color: 'hsl(var(--primary))' }}>
+            Revenue: ${payload[0].value.toLocaleString()}
+          </p>
+          <p className="text-sm" style={{ color: 'hsl(var(--secondary))' }}>
+            Bookings: {payload[1].value}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Analytics & Reports</h1>
-          <p className="text-muted-foreground">Detailed performance analytics and insights</p>
+          <h1 className="text-3xl font-bold text-foreground">
+            Analytics & Reports
+          </h1>
+          <p className="text-muted-foreground">
+            Real-time performance analytics and insights
+          </p>
         </div>
-        <Button>
+        <Button onClick={exportToExcel} disabled={isLoading || timeseriesData.length === 0}>
           <Download className="h-4 w-4 mr-2" />
           Export Report
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* --- Period Toggle --- */}
+      <div className="flex justify-center">
+        <ToggleGroup
+          type="single"
+          value={period}
+          onValueChange={(value: ReportPeriod) => {
+            if (value) setPeriod(value);
+            fetchReportData();
+          }}
+          className="w-full sm:w-auto"
+        >
+          <ToggleGroupItem value="day" className="flex-1">Day</ToggleGroupItem>
+          <ToggleGroupItem value="month" className="flex-1">Month</ToggleGroupItem>
+          <ToggleGroupItem value="year" className="flex-1">Year</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
+      {/* --- Error Display --- */}
+      {error && (
+        <Card className="border-destructive bg-destructive/10">
+          <CardHeader>
+            <CardTitle className="text-destructive">Error</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-destructive">{error}</p>
+            <Button variant="destructive" onClick={fetchReportData} className="mt-4">
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* --- Main Analytics Grid --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* --- Revenue & Bookings Chart --- */}
         <Card className="lg:col-span-2 animate-in fade-in slide-in-from-top">
           <CardHeader>
-            <CardTitle>Revenue vs Expenses</CardTitle>
+            <CardTitle>Cash Inflow & Bookings</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="month" className="text-xs" />
-                <YAxis className="text-xs" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                  formatter={(value: number) => `$${value.toLocaleString()}`}
-                />
-                <Legend />
-                <Area type="monotone" dataKey="revenue" stackId="1" stroke="hsl(var(--success))" fill="hsl(var(--success))" fillOpacity={0.6} name="Revenue" />
-                <Area type="monotone" dataKey="expenses" stackId="2" stroke="hsl(var(--destructive))" fill="hsl(var(--destructive))" fillOpacity={0.6} name="Expenses" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {isLoading ? (
+              <Skeleton className="h-[300px] w-full" />
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={timeseriesData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="label" className="text-xs" />
+                  {/* Primary Y-Axis (Revenue) */}
+                  <YAxis
+                    yAxisId="left"
+                    className="text-xs"
+                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                  />
+                  {/* Secondary Y-Axis (Bookings) */}
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    className="text-xs"
+                  />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Legend />
+                  <Area
+                    type="monotone"
+                    dataKey="totalRevenue"
+                    yAxisId="left"
+                    stroke="hsl(var(--primary))"
+                    fill="hsl(var(--primary))"
+                    fillOpacity={0.6}
+                    name="Revenue"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="totalBookings"
+                    yAxisId="right"
+                    stroke="hsl(var(--secondary))"
+                    fill="hsl(var(--secondary))"
+                    fillOpacity={0.6}
+                    name="Bookings"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="animate-in fade-in slide-in-from-left">
-          <CardHeader>
-            <CardTitle>Branch Occupancy Rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={occupancyData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="branch" className="text-xs" />
-                <YAxis className="text-xs" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                  formatter={(value: number) => `${value}%`}
-                />
-                <Bar dataKey="occupancy" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} name="Occupancy %" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
+        {/* --- Booking Types Chart --- */}
         <Card className="animate-in fade-in slide-in-from-right">
           <CardHeader>
-            <CardTitle>Booking Sources</CardTitle>
+            {/* FIX: Title corrected to match controller data */}
+            <CardTitle>Booking Types</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={bookingSourceData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {bookingSourceData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            {isLoading ? (
+              <Skeleton className="h-[300px] w-full" />
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={sourceData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) =>
+                      `${name}: ${(percent * 100).toFixed(0)}%`
+                    }
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {sourceData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
