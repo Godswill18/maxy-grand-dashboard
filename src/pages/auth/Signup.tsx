@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,11 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Hotel, Mail, Lock, User, Phone, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "../../store/useAuthStore"; // Import the store
+import { useBranchStore } from "@/store/useBranchStore";
 
 export default function Signup() {
   const navigate = useNavigate();
   // Get state and actions from the store
   const { signup, isLoading, user } = useAuthStore();
+  const { branches, fetchActiveBranches, isLoading: isBranchLoading, error } = useBranchStore();
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -21,7 +23,12 @@ export default function Signup() {
     password: "",
     confirmPassword: "",
     role: "",
+    hotelId: "",
   });
+
+  useEffect(() => {
+    fetchActiveBranches();
+  }, [fetchActiveBranches]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,32 +51,11 @@ export default function Signup() {
         phoneNumber: formData.phone, // Match backend key
         password: formData.password,
         role: formData.role, // Match backend enum (guessing)
+        hotelId: formData.hotelId, // Match backend key
       });
 
       toast.success("Account created successfully!");
-      // Since signup now logs us in, App.tsx will handle the redirect.
-      // We can manually navigate as a fallback.
-      // const signedUpUser = useAuthStore.getState().user;
-      // switch (signedUpUser?.role) {
-      //   case 'waiter':
-      //     navigate('/waiter');
-      //     break;
-      //     case 'cleaner':
-      //     navigate('/cleaner');
-      //     break;
-      //     case 'receptionist':
-      //     navigate('/receptionist');
-      //     break;
-      //     case 'superadmin':
-      //     navigate('/');
-      //     break;
-      //     case 'admin':
-      //     navigate('/');
-      //     break;
-      //   // ... add other role navigations
-      //   default:
-      //     navigate('/');
-      // }
+     navigate("/login");
 
     } catch (err: any) {
       toast.error(err.message || "Signup failed");
@@ -160,6 +146,37 @@ export default function Signup() {
                 />
               </div>
             </div>
+
+             {/* --- Hotel Branch --- */}
+           <div className="space-y-2">
+            <Label htmlFor="hotelId">Hotel Branch</Label>
+            <Select
+              value={formData.hotelId}
+              onValueChange={(v) => handleChange("hotelId", v)}
+              disabled={isBranchLoading}
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={
+                    isBranchLoading ? "Loading branches..." : "Select your hotel branch"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {branches.length > 0 ? (
+                  branches.map((branch) => (
+                    <SelectItem key={branch._id} value={branch._id}>
+                      {branch.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="none" disabled>
+                    {error ? "Failed to load branches" : "No branches available"}
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
 
             {/* --- Role --- */}
             <div className="space-y-2">

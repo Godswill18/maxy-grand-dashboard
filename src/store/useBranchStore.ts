@@ -23,6 +23,7 @@ interface BranchState {
   isLoading: boolean;
   error: string | null;
   fetchBranches: () => Promise<void>;
+  fetchActiveBranches: () => Promise<void>;
   fetchBranchById: (id: string) => Promise<void>;
   createBranch: (newBranchData: Omit<Branch, '_id'>) => Promise<boolean>;
   updateBranch: (id: string, updatedData: Partial<Branch>) => Promise<boolean>;
@@ -55,6 +56,25 @@ export const useBranchStore = create<BranchState>((set) => ({
     const { apiUrl, headers } = getApiConfig();
     try {
       const response = await fetch(`${apiUrl}/getHotel-branch-admin`, {
+        method: 'GET',
+        headers,
+        credentials: 'include' as RequestCredentials,
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to fetch branches');
+      }
+      set({ branches: data.data, isLoading: false });
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+    }
+  },
+
+  fetchActiveBranches: async () => {
+    set({ isLoading: true, error: null });
+    const { apiUrl, headers } = getApiConfig();
+    try {
+      const response = await fetch(`${apiUrl}/getActive-branch`, {
         method: 'GET',
         headers,
         credentials: 'include' as RequestCredentials,

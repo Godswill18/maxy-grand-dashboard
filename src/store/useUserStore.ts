@@ -46,7 +46,8 @@ interface StaffState {
   fetchAllStaff: () => Promise<void>;
   fetchGuests: () => Promise<void>;
   updateStaffStatus: (userId: string, isActive: boolean) => Promise<void>;
-  getUserById: (userId: string) => Promise<StaffUser | GuestUser | null>; // 👈 added
+  updateStaffRole: (userId: string, newRole: string) => Promise<void>;
+  getUserById: (userId: string) => Promise<StaffUser | GuestUser | null>; 
   initializeSocket: () => void;
   disconnectSocket: () => void;
 }
@@ -174,6 +175,33 @@ export const useStaffStore = create<StaffState>((set, get) => ({
       set({ staff: prevStaff, error: err.message });
     }
   },
+
+  updateStaffRole: async (userId: string, newRole: string) => {
+  try {
+    const response = await fetch(`${VITE_API_URL}/api/users/update-staff-role/${userId}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ newRole }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Failed to update staff role");
+    }
+
+    const data = await response.json();
+
+    set((state) => ({
+      staff: state.staff.map((s) =>
+        s._id === userId ? { ...s, role: data.data.role } : s
+      ),
+    }));
+  } catch (err: any) {
+    console.error("Error updating staff role:", err.message);
+    set({ error: err.message });
+  }
+},
 
   initializeSocket: () => {
     if (get().socket) return;

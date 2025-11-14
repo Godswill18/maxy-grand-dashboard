@@ -99,7 +99,7 @@ export const useAuthStore = create<AuthState>()(
 
           // NOTE: Your backend 'signUp' controller also logs the user in.
           // We set the user state here to reflect that.
-          set({ user: result.data as User, isLoading: false });
+          set({ isLoading: false });
         } catch (err: any) {
           set({ isLoading: false, error: err.message });
           // Re-throw the error so the component can catch it

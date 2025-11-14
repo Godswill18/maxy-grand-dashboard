@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"; // For loading
 import { AlertCircle, Mail, Phone, MapPin, Loader2 } from "lucide-react";
 import { useStaffStore, StaffUser } from "@/store/useUserStore"; // Use alias path
 import { toast } from "sonner";
+import { useAuthStore } from "@/store/useAuthStore";
 
 // Capitalize helper
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -26,8 +27,11 @@ export default function Staffs() {
     fetchAllStaff, 
     initializeSocket, 
     disconnectSocket,
-    updateStaffStatus
+    updateStaffStatus,
+    updateStaffRole,
   } = useStaffStore();
+  const { user } = useAuthStore();
+const userRole = user?.role;
 
   useEffect(() => {
     // Connect to sockets and fetch initial data
@@ -124,6 +128,24 @@ export default function Staffs() {
                   onCheckedChange={(checked) => handleToggleActive(staffMember, checked)}
                   disabled={staffMember.role === 'superadmin' || staffMember.role === 'guest'}
                 />
+
+
+              </div>
+
+              <div className="mb-4 flex items-center gap-4 ">
+
+                {userRole === "superadmin" && (
+                  <select
+                    value={staffMember.role}
+                    onChange={(e) => updateStaffRole(staffMember._id, e.target.value)}
+                    className="border border-input bg-background text-sm rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="receptionist">Receptionist</option>
+                    <option value="cleaner">Cleaner</option>
+                    <option value="waiter">Waiter</option>
+                  </select>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -139,6 +161,7 @@ export default function Staffs() {
                   <MapPin className="h-4 w-4" />
                   <span>{staffMember.hotelId?.name || 'No branch assigned'}</span>
                 </div>
+                
               </div>
             </CardContent>
           </Card>
