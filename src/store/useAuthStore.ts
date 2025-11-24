@@ -8,7 +8,8 @@ interface User {
   lastName: string;
   email: string;
   role: 'superadmin' | 'admin' | 'waiter' | 'cleaner' | 'receptionist'; // Use specific roles
-  // Add any other user properties you need
+  hotelId?: string;
+  token?: string; // Include token if needed
 }
 
 // Define the shape of the store's state
@@ -22,6 +23,8 @@ interface AuthState {
   signup: (userData: any) => Promise<void>;
   getMe: () => Promise<User>;
   logout: () => Promise<void>;
+
+
 }
 
 // Define the API base URL (you can move this to a .env file)
@@ -55,12 +58,15 @@ export const useAuthStore = create<AuthState>()(
               token: data.token,
               isAuthenticated: true,
             });
+
+            
             if (data.token) {
               sessionStorage.setItem("token", data.token);
             }
             return { success: true, message: "Login successful" };
           }
           set({ error: data.message || data.error || "Login failed." });
+          window.location.href = "/login";
           return { success: false, message: data.message || data.error || "Login failed." };
         } catch (error) {
           const message = error instanceof Error ? error.message : "A network or server error occurred.";
@@ -107,6 +113,8 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      
+
       // --- GET ME ACTION ---
        getMe: async () => {
         set({ isLoading: true, error: null });
@@ -117,7 +125,7 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (res.status === 401) {
-            set({ user: null, isAuthenticated: false });
+           set({ user: null, isAuthenticated: false, token: null, error: 'Unauthorized' });
             sessionStorage.removeItem('token');
             throw new Error('Unauthorized');
           }
@@ -130,11 +138,12 @@ export const useAuthStore = create<AuthState>()(
           set({ user: data, isAuthenticated: true });
           if (data.token) {
             sessionStorage.setItem('token', data.token);
+            set({ token: data.token }); // <-- Also update token in state
           }
           return data;
         } catch (error) {
           const message = error instanceof Error ? error.message : 'A network or server error occurred.';
-          set({ error: message });
+          set({ error: message, user: null, isAuthenticated: false, token: null });
           sessionStorage.removeItem('token');
           throw error;
         } finally {
@@ -156,8 +165,9 @@ export const useAuthStore = create<AuthState>()(
           console.error('Logout API call failed:', err.message);
           sessionStorage.removeItem('token');
         } finally {
+          sessionStorage.removeItem('token');
           // Always clear the user from the store
-          set({ user: null, isLoading: false, error: null });
+          set({ user: null, isLoading: false, error: null, token: null, isAuthenticated: false });
         }
       },
     }),

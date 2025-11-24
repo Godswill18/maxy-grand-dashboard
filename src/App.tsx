@@ -53,7 +53,7 @@ import CleaningTasks from "./pages/cleaner/CleaningTasks";
 import RoomStatus from "./pages/cleaner/RoomStatus";
 import TaskHistory from "./pages/cleaner/TaskHistory";
 import CheckInOut from "./pages/receptionist/CheckInOut";
-import RoomAssignment from "./pages/receptionist/RoomAssignment";
+import RoomReceptionist from "./pages/receptionist/RoomReceptionist";
 import BookingManagement from "./pages/receptionist/BookingManagement";
 import BranchDetails from "./pages/BranchDetails";
 import Settings from "./pages/Settings";
@@ -122,6 +122,7 @@ const RoleBasedLayout = () => {
  */
 const ProtectedRoutes = () => {
   const { user } = useAuthStore();
+  
   return user ? <RoleBasedLayout /> : <Navigate to="/login" replace />;
 };
 
@@ -251,7 +252,10 @@ const App = () => (
               <Route path="/manager/staff" element={<StaffManagement />} />
               <Route path="/manager/analytics" element={<BranchAnalytics />} />
               <Route path="/manager/requests" element={<ManagerRequests />} />
+              <Route path="/manager/rooms" element={<Rooms />} />
+              <Route path="/manager/rooms/:id" element={<RoomDetailPage />} />
               <Route path="/manager/operations" element={<Operations />} />
+              <Route path="/manager/house-keeping" element={<Operations />} />
               <Route path="/manager/settings" element={<ManagerSettings />} />
             </Route>
 
@@ -270,7 +274,7 @@ const App = () => (
             <Route element={<RoleProtectedRoute allowedRoles={['receptionist']} />}>
               <Route path="/receptionist" element={<ReceptionistDashboard />} />
               <Route path="/receptionist/checkin" element={<CheckInOut />} />
-              <Route path="/receptionist/rooms" element={<RoomAssignment />} />
+              <Route path="/receptionist/rooms" element={<RoomReceptionist />} />
               <Route path="/receptionist/bookings" element={<BookingManagement />} />
               <Route path="/receptionist/payments" element={<PaymentProcessing />} />
             </Route>

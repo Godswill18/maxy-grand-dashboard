@@ -1,9 +1,9 @@
 // src/components/Bookings.tsx
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, User, Bed, DollarSign, Loader2, AlertCircle, Trash } from "lucide-react";
+import { Calendar, User, Bed, DollarSign, Loader2, AlertCircle, Trash, Search, CalendarIcon } from "lucide-react";
 import { useBookingStore } from "../store/useBookingStore"; 
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -27,6 +27,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import BookingCalendar from "@/components/BookingCalendar"; // add at the top
 import { format } from "date-fns"; // ensure imported
+import { Calendar as DatePickerCalendar } from "@/components/ui/calendar"; // NEW
+import { DateRange } from "react-day-picker"; // NEW
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 // Map bookingStatus to colors
 const statusColors: Record<string, string> = {
@@ -98,6 +102,8 @@ export default function Bookings() {
     initSocketListeners,
     closeSocketListeners,
   } = useBookingStore();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   // --- Fetch data and set up listeners on mount ---
   useEffect(() => {
@@ -110,12 +116,102 @@ export default function Bookings() {
     };
   }, [fetchBookings, initSocketListeners, closeSocketListeners]);
 
+  // --- NEW: Filtered bookings using useMemo ---
+  const filteredBookings = useMemo(() => {
+    let filtered = [...bookings];
+
+    // 1. Filter by search query (guest name)
+    if (searchQuery) {
+      filtered = filtered.filter((booking) =>
+        booking.guestName.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // 2. Filter by date range
+    if (dateRange?.from && dateRange?.to) {
+      const filterStart = new Date(dateRange.from);
+      const filterEnd = new Date(dateRange.to);
+      
+      // Set time to cover the entire day
+      filterStart.setHours(0, 0, 0, 0);
+      filterEnd.setHours(23, 59, 59, 999);
+
+      filtered = filtered.filter((booking) => {
+        const bookingCheckIn = new Date(booking.checkInDate);
+        const bookingCheckOut = new Date(booking.checkOutDate);
+
+        // Check for overlap:
+        // (Booking starts before filter ends) AND (Booking ends after filter starts)
+        return bookingCheckIn <= filterEnd && bookingCheckOut >= filterStart;
+      });
+    }
+
+    return filtered;
+  }, [bookings, searchQuery, dateRange]);
+  
+  // Helper to reset filters
+  const resetFilters = () => {
+    setSearchQuery("");
+    setDateRange(undefined);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Booking Management</h1>
         <p className="text-muted-foreground">View and manage all room bookings</p>
       </div>
+
+      {/* --- NEW: Filter UI --- */}
+      <Card>
+        <CardContent className="p-4 flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Filter by guest name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className="w-full md:w-[300px] justify-start text-left font-normal"
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateRange?.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, "LLL dd, y")} -{" "}
+                      {format(dateRange.to, "LLL dd, y")}
+                    </>
+                  ) : (
+                    format(dateRange.from, "LLL dd, y")
+                  )
+                ) : (
+                  <span>Pick a date range</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <DatePickerCalendar
+                initialFocus
+                mode="range"
+                defaultMonth={dateRange?.from}
+                selected={dateRange}
+                onSelect={setDateRange}
+                numberOfMonths={2}
+              />
+            </PopoverContent>
+          </Popover>
+          <Button onClick={resetFilters} variant="ghost">
+            Reset
+          </Button>
+        </CardContent>
+      </Card>
+      {/* --- End of Filter UI --- */}
 
       {/* --- Loading State --- */}
       {isLoading && (
@@ -141,16 +237,22 @@ export default function Bookings() {
       )}
 
       {/* --- Future Bookings Calendar --- */}
-    <BookingCalendar bookings={bookings} />
+    <BookingCalendar bookings={filteredBookings} />
 
     {/* --- Upcoming Bookings --- */}
     <div className="mt-6">
       <h2 className="text-2xl font-semibold mb-3">Upcoming Bookings</h2>
-      {bookings
+      {filteredBookings // <-- Use filteredBookings
         .filter((b) => new Date(b.checkInDate) > new Date())
         .sort((a, b) => new Date(a.checkInDate).getTime() - new Date(b.checkInDate).getTime())
-        .map((b) => (
-          <div key={b._id} className="border-b py-3 flex justify-between">
+        .length === 0 ? (
+          <p className="text-sm text-muted-foreground">No upcoming bookings match your filter.</p>
+        ) : (
+          filteredBookings // <-- Use filteredBookings again
+            .filter((b) => new Date(b.checkInDate) > new Date())
+            .sort((a, b) => new Date(a.checkInDate).getTime() - new Date(b.checkInDate).getTime())
+            .map((b) => (
+             <div key={b._id} className="border-b py-3 flex justify-between">
             <div>
               <p className="font-semibold">{b.guestName}</p>
               <p className="text-sm text-muted-foreground">
@@ -159,19 +261,20 @@ export default function Bookings() {
             </div>
             <Badge>{b.bookingStatus}</Badge>
           </div>
-        ))}
+          ))
+        )}
     </div>
 
       {/* --- Data State --- */}
       {!isLoading && !error && (
         <div className="grid grid-cols-1 gap-4">
-          {bookings.length === 0 ? (
+          {filteredBookings.length === 0 ? (
              <div className="text-center text-muted-foreground py-16">
               <h3 className="text-xl font-semibold">No Bookings Found</h3>
               <p>New bookings will appear here in real-time.</p>
             </div>
           ) : (
-            bookings.map((booking, index) => (
+            filteredBookings.map((booking, index) => (
             <Card 
               key={booking._id} 
               className="hover:shadow-lg transition-all animate-in fade-in slide-in-from-left" 

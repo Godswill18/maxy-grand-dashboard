@@ -3,7 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRoomStore } from "@/store/useRoomStore";
-import { useBranchStore } from "@/store/useBranchStore"
+import { useBranchStore } from "@/store/useBranchStore";
+import { useAuthStore } from "@/store/useAuthStore"; // 1. Import Auth Store
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,9 +26,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner"; // Using sonner for toast notifications\
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Fixed import path
 
 // Validation schema
 const formSchema = z.object({
@@ -45,12 +46,18 @@ const formSchema = z.object({
 export function CreateRoomModal() {
   const { isModalOpen, closeModal, createRoom, isLoading, error } = useRoomStore();
   const { branches, fetchBranches, isLoading: isBranchesLoading } = useBranchStore();
-  const [fileInputKey, setFileInputKey] = useState(Date.now().toString()); // To reset file input
+  const { user } = useAuthStore(); // 2. Get user context
+  
+  const [fileInputKey, setFileInputKey] = useState(Date.now().toString());
+
+  // Check roles
+  const isAdmin = user?.role === 'admin';
+  const isSuperAdmin = user?.role === 'superadmin';
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      hotelId: "", // You might get this from context or a prop
+      hotelId: "", 
       name: "",
       roomNumber: "",
       description: "",
@@ -62,29 +69,30 @@ export function CreateRoomModal() {
     },
   });
 
-    // ✅ Fetch branches on mount
+  // Fetch branches on mount
   useEffect(() => {
     fetchBranches();
   }, [fetchBranches]);
 
+  // 3. Automatically set the hotelId if user is Admin
+  useEffect(() => {
+    if (isAdmin && user?.hotelId) {
+      form.setValue("hotelId", user.hotelId);
+    }
+  }, [isAdmin, user?.hotelId, form]);
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     const formData = new FormData();
     
-    // Append all text fields
     formData.append("hotelId", values.hotelId);
     formData.append("name", values.name);
     formData.append("roomNumber", values.roomNumber);
     formData.append("description", values.description);
-    
-    // Your backend expects 'amenities' - it's unclear if it's an array or string.
-    // This sends it as a comma-separated string.
     formData.append("amenities", values.amenities);
-    
     formData.append("price", values.price.toString());
     formData.append("capacity", values.capacity.toString());
     formData.append("isAvailable", values.isAvailable.toString());
 
-    // Append all image files
     if (values.images) {
       for (let i = 0; i < values.images.length; i++) {
         formData.append("images", values.images[i]);
@@ -96,7 +104,11 @@ export function CreateRoomModal() {
     if (result.success) {
       toast.success("Room created successfully!");
       form.reset();
-      setFileInputKey(Date.now().toString()); // Reset file input
+      // Re-apply admin hotelId reset after successful submission
+      if (isAdmin && user?.hotelId) {
+        form.setValue("hotelId", user.hotelId);
+      }
+      setFileInputKey(Date.now().toString());
       closeModal();
     } else {
       toast.error(`Failed to create room: ${error}`);
@@ -105,7 +117,7 @@ export function CreateRoomModal() {
 
   return (
     <Dialog open={isModalOpen} onOpenChange={closeModal}>
-      <DialogContent className="sm:max-w-[625px]">
+      <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Room</DialogTitle>
           <DialogDescription>
@@ -143,7 +155,7 @@ export function CreateRoomModal() {
               />
             </div>
             
-                         {/* ✅ Hotel Branch Dropdown */}
+            {/* ✅ Updated Hotel Branch Dropdown */}
             <FormField
               control={form.control}
               name="hotelId"
@@ -152,10 +164,14 @@ export function CreateRoomModal() {
                   <FormLabel>Hotel Branch</FormLabel>
                   <FormControl>
                     <Select
+                      // 4. Disable if Admin
+                      disabled={isAdmin} 
                       onValueChange={field.onChange}
+                      // Ensure value is passed so it shows selected even when disabled
+                      value={field.value} 
                       defaultValue={field.value}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={isAdmin ? "opacity-70 cursor-not-allowed bg-muted" : ""}>
                         <SelectValue
                           placeholder={
                             isBranchesLoading
@@ -166,14 +182,17 @@ export function CreateRoomModal() {
                       </SelectTrigger>
                       <SelectContent>
                         {branches?.length > 0 ? (
-                          branches.map((branch) => (
+                          branches
+                            // 5. Optional: Filter list for Admin (extra safety) or show all for SuperAdmin
+                            .filter(branch => isSuperAdmin || (isAdmin && branch._id === user.hotelId))
+                            .map((branch) => (
                             <SelectItem key={branch._id} value={branch._id}>
                               {branch.name}
                             </SelectItem>
                           ))
                         ) : (
-                          <SelectItem disabled value="">
-                            No branches available
+                          <SelectItem disabled value="no-branches">
+                            {isBranchesLoading ? "Loading..." : "No branches available"}
                           </SelectItem>
                         )}
                       </SelectContent>
@@ -183,7 +202,6 @@ export function CreateRoomModal() {
                 </FormItem>
               )}
             />
-
 
             <FormField
               control={form.control}
@@ -201,7 +219,6 @@ export function CreateRoomModal() {
             
             <FormField
               control={form.control}
-      
               name="amenities"
               render={({ field }) => (
                 <FormItem>
@@ -251,7 +268,7 @@ export function CreateRoomModal() {
                   <FormLabel>Room Images</FormLabel>
                   <FormControl>
                     <Input
-                      key={fileInputKey} // Add this key
+                      key={fileInputKey}
                       type="file"
                       multiple
                       onChange={(e) => field.onChange(e.target.files)}

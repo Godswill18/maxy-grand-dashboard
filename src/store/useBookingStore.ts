@@ -35,6 +35,7 @@ interface BookingState {
   fetchBookings: () => Promise<void>;
   updateBookingStatus: (id: string, bookingStatus: Booking['bookingStatus']) => Promise<void>;
   deleteBooking: (id: string) => Promise<void>;
+  createBooking: (data: any) => Promise<void>;
   
   // Socket.io listeners
   initSocketListeners: () => void;
@@ -104,6 +105,32 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       toast.error(`Failed to delete booking: ${error.message}`);
     }
   },
+
+  createBooking: async (data) => {
+  set({ isLoading: true, error: null });
+
+  try {
+    const res = await axios.post(`${VITE_API_URL}/api/bookings/create`, data, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      withCredentials: true,
+    });
+
+    // refresh guest list
+    await get().fetchBookings();
+
+    toast.success('Booking created successfully');
+
+    set({ isLoading: false });
+  } catch (err: any) {
+    set({
+      isLoading: false,
+      error: err.response?.data?.error || "Booking failed",
+    });
+  }
+},
+
 
   // --- 2. SOCKET.IO LISTENERS (for real-time updates) ---
 

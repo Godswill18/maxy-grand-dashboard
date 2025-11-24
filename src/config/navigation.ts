@@ -68,6 +68,7 @@ export const managerNav: NavItem[] = [
   { name: "Staff Management", href: "/manager/staff", icon: Users },
   { name: "Branch Analytics", href: "/manager/analytics", icon: TrendingUp },
   { name: "Requests", href: "/manager/requests", icon: FileText },
+  { name: "Rooms", href: "/manager/rooms", icon: Bed },
   { name: "Operations", href: "/manager/operations", icon: ClipboardList },
   { name: "Settings", href: "/manager/settings", icon: Settings },
 ];
@@ -85,7 +86,7 @@ export const cleanerNav: NavItem[] = [
 export const receptionistNav: NavItem[] = [
   { name: "Dashboard", href: "/receptionist", icon: LayoutDashboard },
   { name: "Check-In/Out", href: "/receptionist/checkin", icon: UserCheck },
-  { name: "Room Assignment", href: "/receptionist/rooms", icon: BedDouble },
+  { name: "Rooms", href: "/receptionist/rooms", icon: BedDouble },
   { name: "Bookings", href: "/receptionist/bookings", icon: Calendar },
   { name: "Payments", href: "/receptionist/payments", icon: CreditCard },
 ];

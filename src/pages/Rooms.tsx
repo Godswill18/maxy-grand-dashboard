@@ -1,28 +1,39 @@
 // src/components/Rooms.tsx
-import { useEffect, useMemo, useState } from "react"; // <-- Import useState
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin } from "lucide-react";
-import { useRoomStore } from "../store/useRoomStore"; // <-- Fix: Relative path
-import { CreateRoomModal } from "@/components/CreateRoomModal"; // <-- Fix: Relative path
+import { MapPin, BedDouble, CheckCircle, Sparkles, DoorOpen } from "lucide-react"; // Added icons
+import { useRoomStore } from "../store/useRoomStore";
+import { CreateRoomModal } from "@/components/CreateRoomModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
-import { useBranchStore } from "../store/useBranchStore"; // <-- Fix: Relative path
+import { useBranchStore } from "../store/useBranchStore";
+import { useAuthStore } from "../store/useAuthStore";
 
 const statusColors: Record<string, string> = {
-  Available: "bg-success text-success-foreground",
-  Occupied: "bg-destructive text-destructive-foreground",
-  Booked: "bg-warning text-warning-foreground",
-  Inactive: "bg-muted text-muted-foreground",
+  available: "bg-success text-success-foreground", // Lowercase to match backend usually
+  occupied: "bg-destructive text-destructive-foreground",
+  booked: "bg-warning text-warning-foreground",
+  cleaning: "bg-info text-info-foreground",
+  maintenance: "bg-muted text-muted-foreground",
 };
 
-// --- Fix: Define backend URL without import.meta ---
-// This value is based on the fallback in your store.
-// Adjust this if your backend runs on a different port.
 const VITE_BACKEND_IMAGE_URL = 'http://localhost:5000';
 
-// A loading skeleton component for the card
+// --- Skeleton for Stat Cards ---
+const StatCardSkeleton = () => (
+  <Card>
+    <CardContent className="p-6 flex items-center justify-between">
+      <div>
+        <Skeleton className="h-4 w-24 mb-2" />
+        <Skeleton className="h-8 w-12" />
+      </div>
+      <Skeleton className="h-10 w-10 rounded-full" />
+    </CardContent>
+  </Card>
+);
+
 const RoomCardSkeleton = () => (
   <Card>
     <CardContent className="p-6">
@@ -44,33 +55,40 @@ const RoomCardSkeleton = () => (
 );
 
 export default function Rooms() {
-  const { rooms, isLoading, error, fetchRooms, openModal } = useRoomStore();
+  const { rooms, isLoading, error, fetchRoomsAdmin, openModal } = useRoomStore();
   const { branches, fetchBranches, isLoading: isBranchesLoading } = useBranchStore();
+  const { user } = useAuthStore();
+  const isSuperAdmin = user?.role === 'superadmin';
 
-  // --- 1. Add state for the selected filter ---
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
 
-  // Fetch data when the component mounts
   useEffect(() => {
-    fetchRooms();
-    fetchBranches();
-  }, [fetchRooms, fetchBranches]);
+    fetchRoomsAdmin();
+    if (isSuperAdmin) {
+      fetchBranches();
+    }
+  }, [fetchRoomsAdmin, fetchBranches, isSuperAdmin]);
 
-  // Create a performance-friendly lookup map for branch names
   const branchNameMap = useMemo(() =>
     new Map(branches.map(branch => [branch._id, branch.name]))
   , [branches]);
 
-  // --- 2. Create a memoized list of filtered rooms ---
   const filteredRooms = useMemo(() => {
-    // If no filter is selected, return all rooms
     if (!selectedBranchId) {
       return rooms;
     }
-    // Otherwise, filter by the selected branch ID
     return rooms.filter(room => room.hotelId === selectedBranchId);
-  }, [rooms, selectedBranchId]); // Re-calculate only when rooms or the filter changes
+  }, [rooms, selectedBranchId]);
 
+  // --- Calculate Statistics ---
+  const stats = useMemo(() => {
+    return {
+      total: filteredRooms.length,
+      // available: filteredRooms.filter(r => r.status === 'available' || r.isAvailable).length, // Handle different backend schemas
+      // cleaning: filteredRooms.filter(r => r.status === 'cleaning').length,
+      // occupied: filteredRooms.filter(r => r.status === 'occupied' ).length,
+    };
+  }, [filteredRooms]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -82,9 +100,68 @@ export default function Rooms() {
         <Button onClick={openModal}>Add New Room</Button>
       </div>
 
-      {/* --- 3. Add the Filter Toggle Bar --- */}
-      {!isBranchesLoading && branches.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+      {/* --- Statistics Cards --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {isLoading ? (
+          <>
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </>
+        ) : (
+          <>
+            <Card>
+              <CardContent className="p-6 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Total Rooms</p>
+                  <h2 className="text-3xl font-bold">{stats.total}</h2>
+                </div>
+                <div className="p-3 bg-primary/10 rounded-full">
+                  <DoorOpen className="h-6 w-6 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+            {/* <Card>
+              <CardContent className="p-6 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Available</p>
+                  <h2 className="text-3xl font-bold text-success">{stats.available}</h2>
+                </div>
+                <div className="p-3 bg-success/10 rounded-full">
+                  <CheckCircle className="h-6 w-6 text-success" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Cleaning</p>
+                  <h2 className="text-3xl font-bold text-info">{stats.cleaning}</h2>
+                </div>
+                <div className="p-3 bg-info/10 rounded-full">
+                  <Sparkles className="h-6 w-6 text-info" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Occupied</p>
+                  <h2 className="text-3xl font-bold text-destructive">{stats.occupied}</h2>
+                </div>
+                <div className="p-3 bg-destructive/10 rounded-full">
+                  <BedDouble className="h-6 w-6 text-destructive" />
+                </div>
+              </CardContent>
+            </Card> */}
+          </>
+        )}
+      </div>
+
+      {/* --- Filter Bar --- */}
+      {isSuperAdmin && !isBranchesLoading && branches.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-2">
           <Button
             variant={selectedBranchId === null ? 'default' : 'outline'}
             onClick={() => setSelectedBranchId(null)}
@@ -105,7 +182,6 @@ export default function Rooms() {
         </div>
       )}
 
-      {/* Handle Loading and Error States */}
       {isLoading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => <RoomCardSkeleton key={i} />)}
@@ -118,25 +194,24 @@ export default function Rooms() {
         </div>
       )}
 
-      {/* Render Rooms */}
       {!isLoading && !error && (
         <>
-          {/* --- 4. Add check for empty filtered results --- */}
           {filteredRooms.length === 0 ? (
             <div className="text-center text-muted-foreground py-16">
               <h3 className="text-xl font-semibold">No Rooms Found</h3>
-              <p>No rooms match the selected filter.</p>
+              <p>No rooms match the selected criteria.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* --- 5. Map over filteredRooms instead of all rooms --- */}
               {(filteredRooms || []).map((room, index) => {
-                const status = room.isAvailable ? "Available" : "Inactive";
-                
+                // Normalize status casing for the badge color lookup
+                const rawStatus = room.status || (room.isAvailable ? "available" : "inactive");
+                const status = rawStatus.toLowerCase(); // Ensure it matches keys in statusColors
+                const displayStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1); // Capitalize for display
+
                 const getBranchName = () => {
-                  if (isBranchesLoading) return 'Loading branch...';
                   const name = branchNameMap.get(room.hotelId);
-                  return name || room.hotelId;
+                  return name || (isSuperAdmin ? room.hotelId : "My Branch");
                 };
                 
                 return (
@@ -146,9 +221,9 @@ export default function Rooms() {
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
                     <CardContent className="p-6">
-                      {room.images.length > 0 ? (
+                      {room.images?.length > 0 ? (
                         <img 
-                          src={`${VITE_BACKEND_IMAGE_URL}/${room.images[0]}`}  // <-- Fix: Use variable
+                          src={`${VITE_BACKEND_IMAGE_URL}/${room.images[0]}`}
                           alt={room.name} 
                           className="h-48 w-full object-cover rounded-md mb-4"
                         />
@@ -167,13 +242,15 @@ export default function Rooms() {
                             {room.name}
                           </p>
                         </div>
-                        <Badge className={statusColors[status]}>{status}</Badge>
+                        <Badge className={statusColors[status] || "bg-secondary"}>
+                          {displayStatus}
+                        </Badge>
                       </div>
 
                       <div className="space-y-2 mb-4">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <p className="h-4 w-4">₦</p>
-                          <span className="font-semibold text-foreground">₦ {room.price} / night</span>
+                          <p className="font-bold">₦</p>
+                          <span className="font-semibold text-foreground">₦ {room?.price?.toLocaleString()} / night</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <MapPin className="h-4 w-4" />
@@ -181,7 +258,7 @@ export default function Rooms() {
                         </div>
                       </div>
 
-                      <Link to={`/rooms/${room._id}`}>
+                      <Link to={isSuperAdmin ? `/rooms/${room._id}` : `/manager/rooms/${room._id}`}>
                         <Button variant="outline" className="w-full">View Details</Button>
                       </Link>
                     </CardContent>
@@ -193,7 +270,6 @@ export default function Rooms() {
         </>
       )}
 
-      {/* Render the modal (it's controlled by Zustand) */}
       <CreateRoomModal />
     </div>
   );

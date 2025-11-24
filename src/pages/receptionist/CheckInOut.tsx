@@ -10,8 +10,8 @@ import { UserCheck, LogOut, Search, Phone, Mail, Calendar, BedDouble, Clock } fr
 // --- FIX: Updated import path from aliased to relative ---
 import { useCheckInStore, Guest } from "../../store/useCheckInStore"; // Import from new store
 import { Skeleton } from "@/components/ui/skeleton"; // For loading state
-
-
+import BookGuestForm from "@/components/BookGuestForm";
+import { toast } from "sonner"; // Added import for toast in onConfirm
 
 // Helper to format time (e.g., 9 -> "09")
 const formatTime = (time: number) => time.toString().padStart(2, '0');
@@ -89,10 +89,9 @@ const CheckoutTimer = ({ checkOutIsoDate }: { checkOutIsoDate: string }) => {
 // GuestCard Component
 // Moved logic into its own component to handle dialog state
 const GuestCard = ({ guest }: { guest: Guest }) => {
-  const { checkInGuest, checkOutGuest } = useCheckInStore();
+  const { checkInWithRegistration, checkOutGuest } = useCheckInStore();
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [isCheckOutOpen, setIsCheckOutOpen] = useState(false);
-  const [confirmationCode, setConfirmationCode] = useState("");
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -104,15 +103,9 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
   };
   
 
- const handleCheckIn = async () => {
-    // --- 2. Pass the code from state to the action ---
-    await checkInGuest(guest.id, confirmationCode);
-    
-    // Only close dialog if check-in was successful (the store handles errors)
-    // We can check the store, or just reset the form
-    setIsCheckInOpen(false); 
-    setConfirmationCode(""); // Reset the code
-    // toast.success("Guest checked in successfully!");
+ const handleCheckInConfirm = async (formData: any) => {
+    await checkInWithRegistration(guest.id, formData);
+    setIsCheckInOpen(false);
   };
 
   const handleCheckOut = async () => {
@@ -179,37 +172,18 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
                   Check In
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
                 <DialogHeader>
-                  <DialogTitle>Check-in Guest</DialogTitle>
+                  <DialogTitle>Check-in Guest: {guest.name}</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Guest Name</Label>
-                    <Input value={guest.name} disabled />
-                  </div>
-                  <div>
-                    <Label>Room Number</Label>
-                    <Input value={guest.room} disabled />
-                  </div>
-                <div>
-              {/* --- 3. Rename Label and bind input --- */}
-              <Label>Confirmation Code</Label>
-              <Input 
-                placeholder="Enter confirmation code" 
-                value={confirmationCode}
-                onChange={(e) => setConfirmationCode(e.target.value)}
-                required
-              />
-            </div>
-                  <div>
-                    <Label>Payment Method</Label>
-                    <Input placeholder="Card/Cash" />
-                  </div>
-                  <Button className="w-full" onClick={handleCheckIn}>
-                    Confirm Check-in
-                  </Button>
-                </div>
+                <BookGuestForm 
+                  guestName={guest.name}
+                  bookingId={guest.id}
+                  initialEmail={guest.email}
+                  initialPhone={guest.phone}
+                  onConfirm={handleCheckInConfirm}
+                  onCancel={() => setIsCheckInOpen(false)}
+                />
               </DialogContent>
             </Dialog>
           )}
@@ -293,7 +267,9 @@ const GuestCardSkeleton = () => (
 export default function CheckInOut() {
   const [searchQuery, setSearchQuery] = useState("");
   // Get all state and actions from the Zustand store
-  const { guests, loading, error, fetchGuests } = useCheckInStore();
+  const { guests, loading, error, fetchGuests, createBooking } = useCheckInStore();
+  const [openForm, setOpenForm] = useState(false);
+
 
   // Fetch guests on component mount
   useEffect(() => {
@@ -310,12 +286,52 @@ export default function CheckInOut() {
   const checkedIn = filteredGuests.filter(g => g.status === "Checked In");
   const checkedOut = filteredGuests.filter(g => g.status === "Checked Out");
 
+  // Handler for booking confirmation (for new guests)
+  const handleBookConfirm = async (formData: any) => {
+    try {
+      await createBooking(formData);
+      setOpenForm(false);
+      // Refetch to update the list
+      fetchGuests();
+    } catch (err) {
+      toast.error("Failed to book guest.");
+    }
+  };
+
+  const handleBookCancel = () => {
+    setOpenForm(false);
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Check-In / Check-Out</h1>
-        <p className="text-muted-foreground">Manage guest arrivals and departures</p>
-      </div>
+     
+
+      <div className="flex items-center justify-between">
+  <div>
+    <h1 className="text-3xl font-bold">Check-In / Check-Out</h1>
+    <p className="text-muted-foreground">Manage guest arrivals and departures</p>
+  </div>
+
+  <Dialog open={openForm} onOpenChange={setOpenForm}>
+    <DialogTrigger asChild>
+      <Button className="bg-primary text-white">
+        Book Guest
+      </Button>
+    </DialogTrigger>
+    <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+      <DialogHeader>
+        <DialogTitle>Book New Guest</DialogTitle>
+      </DialogHeader>
+      <BookGuestForm 
+        guestName="" 
+        bookingId="" 
+        onConfirm={handleBookConfirm} 
+        onCancel={handleBookCancel} 
+      />
+    </DialogContent>
+  </Dialog>
+</div>
+
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>

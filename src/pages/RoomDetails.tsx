@@ -2,11 +2,11 @@
 'use client'; // This must be a client component to use hooks
 
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, NavLink, Link } from 'react-router-dom';
 import { useRoomStore } from '@/store/useRoomStore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { DollarSign, Users, Bed, Wifi, Tv, ImagePlus, XCircle, Loader2 } from 'lucide-react'; // Example icons
+import { DollarSign, Users, Bed, Wifi, Tv, ImagePlus, XCircle, Loader2, Home, ChevronRight } from 'lucide-react'; // Example icons
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -196,6 +196,34 @@ useEffect(() => {
   return (
     <>
     <div className="container mx-auto p-6 space-y-8 animate-in fade-in">
+
+     <nav aria-label="Breadcrumb" className="mb-4 flex items-center text-sm text-muted-foreground">
+  {/* 1. Dashboard / Home Root */}
+  <Link 
+    to="/manager" 
+    className="flex items-center hover:text-foreground transition-colors"
+  >
+    <Home className="h-4 w-4" />
+    <span className="sr-only">Dashboard</span>
+  </Link>
+
+  <ChevronRight className="h-4 w-4 mx-2" />
+
+  {/* 2. Parent Link (The "Back to Rooms" part) */}
+  <Link 
+    to="/manager/rooms" 
+    className="hover:text-foreground transition-colors"
+  >
+    Rooms
+  </Link>
+
+  <ChevronRight className="h-4 w-4 mx-2" />
+
+  {/* 3. Current Page (Static text, not a link) */}
+  <span className="font-medium text-foreground">
+    Room Details {/* Replace this with dynamic content like `Room ${roomNumber}` or "Edit Room" */}
+  </span>
+</nav>
       {/* Image Carousel/Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {(currentRoom.images || []).slice(0, 4).map((image, index) => (

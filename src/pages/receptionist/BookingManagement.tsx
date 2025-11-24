@@ -9,112 +9,115 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Plus, Search, User, Phone, Mail, BedDouble } from "lucide-react";
 import { toast } from "sonner";
+import { useBookingStore } from "@/store/useBookingStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useEffect } from "react";
 
-interface Booking {
-  id: string;
+interface BookingFormData {
   guestName: string;
-  email: string;
-  phone: string;
-  roomType: string;
-  roomNumber?: string;
-  checkIn: string;
-  checkOut: string;
+  guestEmail: string;
+  guestPhone: string;
+  checkInDate: string;
+  checkOutDate: string;
+  roomId: string;
   guests: number;
   totalAmount: number;
-  status: "Confirmed" | "Pending" | "Cancelled" | "Completed";
-  bookingDate: string;
   specialRequests?: string;
 }
 
 export default function BookingManagement() {
+  const { bookings, isLoading, fetchBookings, createBooking } = useBookingStore();
+  const { user } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState("");
-  const [bookings, setBookings] = useState<Booking[]>([
-    {
-      id: "BK-1001",
-      guestName: "John Doe",
-      email: "john.doe@email.com",
-      phone: "+234 801 234 5678",
-      roomType: "Deluxe",
-      roomNumber: "205",
-      checkIn: "Dec 22, 2024",
-      checkOut: "Dec 25, 2024",
-      guests: 2,
-      totalAmount: 135000,
-      status: "Confirmed",
-      bookingDate: "Dec 15, 2024",
-      specialRequests: "Non-smoking room"
-    },
-    {
-      id: "BK-1002",
-      guestName: "Sarah Johnson",
-      email: "sarah.j@email.com",
-      phone: "+234 802 345 6789",
-      roomType: "Suite",
-      checkIn: "Dec 23, 2024",
-      checkOut: "Dec 26, 2024",
-      guests: 3,
-      totalAmount: 255000,
-      status: "Pending",
-      bookingDate: "Dec 18, 2024"
-    },
-    {
-      id: "BK-1003",
-      guestName: "Mike Wilson",
-      email: "mike.w@email.com",
-      phone: "+234 803 456 7890",
-      roomType: "Standard",
-      roomNumber: "102",
-      checkIn: "Dec 20, 2024",
-      checkOut: "Dec 22, 2024",
-      guests: 1,
-      totalAmount: 50000,
-      status: "Completed",
-      bookingDate: "Dec 10, 2024"
-    },
-  ]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [formData, setFormData] = useState<BookingFormData>({
+    guestName: "",
+    guestEmail: "",
+    guestPhone: "",
+    checkInDate: "",
+    checkOutDate: "",
+    roomId: "",
+    guests: 1,
+    totalAmount: 0,
+    specialRequests: "",
+  });
+  const [availableRooms, setAvailableRooms] = useState<{ id: string; number: string; type: string }[]>([]); // Mock or fetch real rooms
+
+  useEffect(() => {
+    fetchBookings();
+    // Mock available rooms - in real app, fetch from /api/rooms/available
+    setAvailableRooms([
+      { id: "room1", number: "101", type: "Standard" },
+      { id: "room2", number: "102", type: "Deluxe" },
+      { id: "room3", number: "201", type: "Suite" },
+    ]);
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Confirmed": return "bg-success/10 text-success hover:bg-success/20";
-      case "Pending": return "bg-warning/10 text-warning hover:bg-warning/20";
-      case "Cancelled": return "bg-error/10 text-error hover:bg-error/20";
-      case "Completed": return "bg-info/10 text-info hover:bg-info/20";
+      case "confirmed": return "bg-success/10 text-success hover:bg-success/20";
+      case "pending": return "bg-warning/10 text-warning hover:bg-warning/20";
+      case "cancelled": return "bg-error/10 text-error hover:bg-error/20";
+      case "checked-out": return "bg-info/10 text-info hover:bg-info/20";
       default: return "";
     }
   };
 
-  const cancelBooking = (bookingId: string) => {
-    setBookings(bookings.map(booking =>
-      booking.id === bookingId ? { ...booking, status: "Cancelled" as const } : booking
-    ));
-    toast.success(`Booking ${bookingId} cancelled`);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const confirmBooking = (bookingId: string) => {
-    setBookings(bookings.map(booking =>
-      booking.id === bookingId ? { ...booking, status: "Confirmed" as const } : booking
-    ));
-    toast.success(`Booking ${bookingId} confirmed`);
+  const handleSubmit = async () => {
+    if (!user?.hotelId) {
+      toast.error("Hotel ID not found. Please log in again.");
+      return;
+    }
+    try {
+      await createBooking({
+        ...formData,
+        hotelId: user.hotelId,
+        bookingType: "in-person", // or "online"
+        amountPaid: 0,
+        paymentStatus: "pending",
+        bookingStatus: "confirmed",
+      });
+      setIsDialogOpen(false);
+      setFormData({
+        guestName: "",
+        guestEmail: "",
+        guestPhone: "",
+        checkInDate: "",
+        checkOutDate: "",
+        roomId: "",
+        guests: 1,
+        totalAmount: 0,
+        specialRequests: "",
+      });
+      toast.success("Booking created successfully!");
+    } catch (error) {
+      toast.error("Failed to create booking.");
+    }
   };
 
   const filteredBookings = bookings.filter(booking =>
     booking.guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    booking.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    booking.email.toLowerCase().includes(searchQuery.toLowerCase())
+    booking._id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    booking.guestEmail.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const confirmed = filteredBookings.filter(b => b.status === "Confirmed");
-  const pending = filteredBookings.filter(b => b.status === "Pending");
-  const cancelled = filteredBookings.filter(b => b.status === "Cancelled");
-  const completed = filteredBookings.filter(b => b.status === "Completed");
+  const confirmed = filteredBookings.filter(b => b.bookingStatus === "confirmed");
+  const pending = filteredBookings.filter(b => b.bookingStatus === "pending");
+  const cancelled = filteredBookings.filter(b => b.bookingStatus === "cancelled");
+  const completed = filteredBookings.filter(b => b.bookingStatus === "checked-out");
 
-  const BookingCard = ({ booking }: { booking: Booking }) => (
+  const BookingCard = ({ booking }: { booking: any }) => (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">{booking.guestName}</CardTitle>
-          <Badge className={getStatusColor(booking.status)}>
-            {booking.status}
+          <Badge className={getStatusColor(booking.bookingStatus)}>
+            {booking.bookingStatus.charAt(0).toUpperCase() + booking.bookingStatus.slice(1)}
           </Badge>
         </div>
       </CardHeader>
@@ -122,34 +125,34 @@ export default function BookingManagement() {
         <div className="space-y-2 text-sm">
           <div className="flex items-center gap-2">
             <Mail className="h-4 w-4 text-muted-foreground" />
-            <span className="truncate">{booking.email}</span>
+            <span className="truncate">{booking.guestEmail}</span>
           </div>
           <div className="flex items-center gap-2">
             <Phone className="h-4 w-4 text-muted-foreground" />
-            <span>{booking.phone}</span>
+            <span>{booking.guestPhone}</span>
           </div>
           <div className="flex items-center gap-2">
             <BedDouble className="h-4 w-4 text-muted-foreground" />
-            <span>{booking.roomType} {booking.roomNumber ? `- Room ${booking.roomNumber}` : ""}</span>
+            <span>{booking.roomId.roomNumber ? `Room ${booking.roomId.roomNumber}` : booking.roomId?.roomTypeId?.name}</span>
           </div>
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span>{booking.checkIn} - {booking.checkOut}</span>
+            <span>{new Date(booking.checkInDate).toLocaleDateString()} - {new Date(booking.checkOutDate).toLocaleDateString()}</span>
           </div>
         </div>
 
         <div className="pt-2 border-t space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Guests:</span>
-            <span className="font-medium">{booking.guests}</span>
+            <span className="font-medium">{booking.guests || 1}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Total Amount:</span>
-            <span className="font-bold text-primary">₦{booking.totalAmount.toLocaleString()}</span>
+            <span className="font-bold text-primary">₦{booking.totalAmount?.toLocaleString()}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Booking ID:</span>
-            <span className="font-medium">{booking.id}</span>
+            <span className="font-medium">{booking._id}</span>
           </div>
         </div>
 
@@ -160,18 +163,18 @@ export default function BookingManagement() {
         )}
 
         <div className="flex gap-2">
-          {booking.status === "Pending" && (
+          {booking.bookingStatus === "pending" && (
             <>
-              <Button size="sm" className="flex-1" onClick={() => confirmBooking(booking.id)}>
+              <Button size="sm" className="flex-1" onClick={() => { /* confirm logic */ }}>
                 Confirm
               </Button>
-              <Button size="sm" variant="outline" className="flex-1" onClick={() => cancelBooking(booking.id)}>
+              <Button size="sm" variant="outline" className="flex-1" onClick={() => { /* cancel logic */ }}>
                 Cancel
               </Button>
             </>
           )}
-          {booking.status === "Confirmed" && (
-            <Button size="sm" variant="outline" className="flex-1" onClick={() => cancelBooking(booking.id)}>
+          {booking.bookingStatus === "confirmed" && (
+            <Button size="sm" variant="outline" className="flex-1" onClick={() => { /* cancel logic */ }}>
               Cancel Booking
             </Button>
           )}
@@ -180,6 +183,8 @@ export default function BookingManagement() {
     </Card>
   );
 
+  if (isLoading) return <div>Loading...</div>;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -187,7 +192,7 @@ export default function BookingManagement() {
           <h1 className="text-3xl font-bold">Booking Management</h1>
           <p className="text-muted-foreground">Manage hotel reservations and bookings</p>
         </div>
-        <Dialog>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
@@ -202,52 +207,55 @@ export default function BookingManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Guest Name</Label>
-                  <Input placeholder="John Doe" />
+                  <Input name="guestName" placeholder="John Doe" value={formData.guestName} onChange={handleInputChange} />
                 </div>
                 <div>
                   <Label>Phone Number</Label>
-                  <Input placeholder="+234 801 234 5678" />
+                  <Input name="guestPhone" placeholder="+234 801 234 5678" value={formData.guestPhone} onChange={handleInputChange} />
                 </div>
               </div>
               <div>
                 <Label>Email Address</Label>
-                <Input type="email" placeholder="guest@email.com" />
+                <Input name="guestEmail" type="email" placeholder="guest@email.com" value={formData.guestEmail} onChange={handleInputChange} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Check-in Date</Label>
-                  <Input type="date" />
+                  <Input name="checkInDate" type="date" value={formData.checkInDate} onChange={handleInputChange} />
                 </div>
                 <div>
                   <Label>Check-out Date</Label>
-                  <Input type="date" />
+                  <Input name="checkOutDate" type="date" value={formData.checkOutDate} onChange={handleInputChange} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Room Type</Label>
-                  <Select>
+                  <Label>Room</Label>
+                  <Select name="roomId" onValueChange={(value) => setFormData(prev => ({ ...prev, roomId: value }))}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select room type" />
+                      <SelectValue placeholder="Select room" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="standard">Standard</SelectItem>
-                      <SelectItem value="deluxe">Deluxe</SelectItem>
-                      <SelectItem value="suite">Suite</SelectItem>
-                      <SelectItem value="presidential">Presidential</SelectItem>
+                      {availableRooms.map(room => (
+                        <SelectItem key={room.id} value={room.id}>{`${room.number} - ${room.type}`}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label>Number of Guests</Label>
-                  <Input type="number" placeholder="2" />
+                  <Input name="guests" type="number" placeholder="2" value={formData.guests} onChange={handleInputChange} />
                 </div>
               </div>
               <div>
-                <Label>Special Requests</Label>
-                <Input placeholder="Any special requirements..." />
+                <Label>Total Amount (₦)</Label>
+                <Input name="totalAmount" type="number" placeholder="100000" value={formData.totalAmount} onChange={handleInputChange} />
               </div>
-              <Button className="w-full" onClick={() => toast.success("Booking created successfully")}>
+              <div>
+                <Label>Special Requests</Label>
+                <Input name="specialRequests" placeholder="Any special requirements..." value={formData.specialRequests} onChange={handleInputChange} />
+              </div>
+              <Button className="w-full" onClick={handleSubmit}>
                 Create Booking
               </Button>
             </div>
@@ -303,31 +311,31 @@ export default function BookingManagement() {
 
         <TabsContent value="all" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredBookings.map(booking => <BookingCard key={booking.id} booking={booking} />)}
+            {filteredBookings.map(booking => <BookingCard key={booking._id} booking={booking} />)}
           </div>
         </TabsContent>
 
         <TabsContent value="confirmed" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {confirmed.map(booking => <BookingCard key={booking.id} booking={booking} />)}
+            {confirmed.map(booking => <BookingCard key={booking._id} booking={booking} />)}
           </div>
         </TabsContent>
 
         <TabsContent value="pending" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {pending.map(booking => <BookingCard key={booking.id} booking={booking} />)}
+            {pending.map(booking => <BookingCard key={booking._id} booking={booking} />)}
           </div>
         </TabsContent>
 
         <TabsContent value="completed" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {completed.map(booking => <BookingCard key={booking.id} booking={booking} />)}
+            {completed.map(booking => <BookingCard key={booking._id} booking={booking} />)}
           </div>
         </TabsContent>
 
         <TabsContent value="cancelled" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {cancelled.map(booking => <BookingCard key={booking.id} booking={booking} />)}
+            {cancelled.map(booking => <BookingCard key={booking._id} booking={booking} />)}
           </div>
         </TabsContent>
       </Tabs>

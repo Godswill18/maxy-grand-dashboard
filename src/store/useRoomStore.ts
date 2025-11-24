@@ -1,6 +1,7 @@
 // src/stores/useRoomStore.ts
 import { create } from 'zustand';
 import axios, { AxiosError } from 'axios';
+import { useAuthStore } from './useAuthStore';
 
 // Define the shape of your room data based on your backend model
 interface Room {
@@ -16,6 +17,17 @@ interface Room {
   isAvailable: boolean;
   createdAt: string;
   updatedAt: string;
+  status: 'available' | 'occupied' | 'maintenance' | 'reserved' | 'cleaning';
+  roomTypeId: {
+    _id: string;
+    name: string;
+    price: number;
+    description: string;
+    createdAt: string;
+    updatedAt: string;
+    images: string[];
+    isAvailable: boolean;
+  };
 }
 
 // Define the state and actions for your store
@@ -26,6 +38,7 @@ interface RoomState {
   error: string | null;
   isModalOpen: boolean;
   fetchRooms: () => Promise<void>;
+  fetchRoomsAdmin: () => Promise<void>;
   fetchRoomById: (id: string) => Promise<void>;
   createRoom: (formData: FormData) => Promise<{ success: boolean }>;
   openModal: () => void;
@@ -57,10 +70,74 @@ export const useRoomStore = create<RoomState>((set) => ({
   closeModal: () => set({ isModalOpen: false }),
 
   fetchRooms: async () => {
-    set({ isLoading: true, error: null });
+    const { user } = useAuthStore.getState(); // Get current user
+    if (!user) return;
+
+    set({ isLoading: true });
     try {
-      const response = await axios.get(`${VITE_API_URL}/api/rooms/get-all-rooms`);
-      set({ rooms: response.data.data, isLoading: false });
+      const url = user.hotelId
+        ? `/api/rooms/by-hotel/${user.hotelId}` // fetch hotel-specific rooms
+        : `/api/rooms`; // fallback to all rooms if no hotelId
+
+      const res = await fetch(url, { credentials: 'include' });
+      const data = await res.json();
+
+      if (data.success) {
+        set({ rooms: data.rooms });
+      } else {
+        set({ rooms: [] });
+        console.error('Failed to fetch rooms:', data.message);
+      }
+    } catch (err) {
+      console.error('Error fetching rooms:', err);
+      set({ rooms: [] });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+   fetchRoomsAdmin: async () => {
+    set({ isLoading: true, error: null });
+    
+    // 1. Get User Context
+    const { user, token } = useAuthStore.getState();
+
+    if (!user) {
+        set({ error: "User not authenticated", isLoading: false });
+        return;
+    }
+
+    try {
+      let url = '';
+
+      // 2. Logic: Superadmin gets ALL, Admin gets HOTEL SPECIFIC
+      if (user.role === 'superadmin') {
+          url = `${VITE_API_URL}/api/rooms/get-all-rooms`;
+      } else if (user.hotelId) {
+          // Use the endpoint that filters by hotelId
+          // Note: Ensure your backend supports this route or similar
+          url = `${VITE_API_URL}/api/rooms/by-hotel/${user.hotelId}`; 
+      } else {
+          // Fallback if admin has no hotelId assigned
+          set({ rooms: [], isLoading: false });
+          return;
+      }
+
+      // 3. Make request with Authorization header
+      const response = await axios.get(url, {
+          headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          withCredentials: true 
+      });
+
+      // 4. Handle different response structures based on endpoint
+      // /get-all-rooms usually returns { data: [...] }
+      // /by-hotel usually returns { rooms: [...] } based on your previous code
+      const data = response.data.data || response.data.rooms || [];
+
+      set({ rooms: data, isLoading: false });
+
     } catch (err) {
       const error = err as AxiosError;
       set({ error: error.message, isLoading: false });
@@ -151,7 +228,7 @@ export const useRoomStore = create<RoomState>((set) => ({
       });
       set({ isLoading: false });
       // After creating, fetch the updated list of rooms
-      useRoomStore.getState().fetchRooms();
+      useRoomStore.getState().fetchRoomsAdmin();
       return { success: true };
     } catch (err) {
       const error = err as AxiosError;
