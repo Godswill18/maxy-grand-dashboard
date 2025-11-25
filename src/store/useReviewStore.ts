@@ -35,11 +35,7 @@ const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost
 
 // TODO: You MUST send an auth token (e.g., from a user/auth store)
 const getAuthHeaders = () => {
-  // const token = useAuthStore.getState().token;
-  // return { Authorization: `Bearer ${token}` };
-  return {
-    // 'Authorization': `Bearer YOUR_TOKEN_HERE`
-  };
+return { Authorization: `Bearer ${localStorage.getItem('authToken')}` };
 };
 
 // --- 2. Create the Store ---

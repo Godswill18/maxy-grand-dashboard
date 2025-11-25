@@ -27,12 +27,20 @@ interface Booking {
   createdAt: string;
 }
 
+interface Hotel {
+  _id: string;
+  name: string;
+}
+
 // Define the state and actions for your store
 interface BookingState {
   bookings: Booking[];
+  hotels: Hotel[];
+  currentHotelId: string | null;
   isLoading: boolean;
   error: string | null;
-  fetchBookings: () => Promise<void>;
+  fetchBookings: (hotelId?: string) => Promise<void>;
+  fetchHotels: () => Promise<void>;
   updateBookingStatus: (id: string, bookingStatus: Booking['bookingStatus']) => Promise<void>;
   deleteBooking: (id: string) => Promise<void>;
   createBooking: (data: any) => Promise<void>;
@@ -43,25 +51,51 @@ interface BookingState {
 }
 
 // Helper to get auth token
-const getToken = () => localStorage.getItem('authToken');
+const getToken = () => sessionStorage.getItem('authToken');
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
+
+const getUser = () => {
+  const userStr = sessionStorage.getItem('user');
+  return userStr ? JSON.parse(userStr) : null;
+};
 
 export const useBookingStore = create<BookingState>((set, get) => ({
   bookings: [],
+  hotels: [],
+  currentHotelId: null,
   isLoading: false,
   error: null,
 
   // --- 1. AXIOS ACTIONS (for initial load and updates) ---
 
-  fetchBookings: async () => {
-    set({ isLoading: true, error: null });
+  fetchHotels: async () => {
     try {
       const token = getToken();
-      const response = await axios.get(`${VITE_API_URL}/api/bookings/all`, {
+      const response = await axios.get(`${VITE_API_URL}/api/hotels`, {
         headers: { Authorization: `Bearer ${token}` },
         withCredentials: true,
       });
-      set({ bookings: response.data.data, isLoading: false });
+      set({ hotels: response.data });
+    } catch (err) {
+      const error = err as AxiosError;
+      console.error('Failed to fetch hotels:', error.message);
+    }
+  },
+
+  fetchBookings: async (hotelId?: string) => {
+    set({ isLoading: true, error: null, currentHotelId: hotelId || null });
+    try {
+      const token = getToken();
+      const params: any = {};
+      if (hotelId) {
+        params.hotelId = hotelId;
+      }
+      const response = await axios.get(`${VITE_API_URL}/api/bookings/all`, {
+        params,
+        headers: { Authorization: `Bearer ${token}` },
+        withCredentials: true,
+      });
+      set({ bookings: response.data.data || [], isLoading: false });
     } catch (err) {
       const error = err as AxiosError;
       set({ error: error.message, isLoading: false });
@@ -83,7 +117,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
           withCredentials: true,
         }
       );
-      // The backend will emit a 'bookingUpdated' event, which our listener will catch
+      // Refetch current page/filter after update
+      get().fetchBookings(get().currentHotelId);
       toast.success(`Booking status updated to ${bookingStatus}`);
     } catch (err) {
       const error = err as AxiosError;
@@ -98,7 +133,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         headers: { Authorization: `Bearer ${token}` },
         withCredentials: true,
       });
-      // The backend will emit a 'bookingDeleted' event
+      // Refetch current after delete
+      get().fetchBookings(get().currentHotelId);
       toast.success('Booking deleted successfully');
     } catch (err) {
       const error = err as AxiosError;
@@ -107,30 +143,29 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   },
 
   createBooking: async (data) => {
-  set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null });
 
-  try {
-    const res = await axios.post(`${VITE_API_URL}/api/bookings/create`, data, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-    });
+    try {
+      const res = await axios.post(`${VITE_API_URL}/api/bookings/create`, data, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        withCredentials: true,
+      });
 
-    // refresh guest list
-    await get().fetchBookings();
+      // Refetch current
+      get().fetchBookings(get().currentHotelId);
 
-    toast.success('Booking created successfully');
+      toast.success('Booking created successfully');
 
-    set({ isLoading: false });
-  } catch (err: any) {
-    set({
-      isLoading: false,
-      error: err.response?.data?.error || "Booking failed",
-    });
-  }
-},
-
+      set({ isLoading: false });
+    } catch (err: any) {
+      set({
+        isLoading: false,
+        error: err.response?.data?.error || "Booking failed",
+      });
+    }
+  },
 
   // --- 2. SOCKET.IO LISTENERS (for real-time updates) ---
 
@@ -142,27 +177,25 @@ export const useBookingStore = create<BookingState>((set, get) => ({
 
     // Listen for new bookings
     socket.on('bookingCreated', (newBooking: Booking) => {
-      set((state) => ({
-        bookings: [newBooking, ...state.bookings], // Add to the top of the list
-      }));
+      // Refetch to include new booking if matches current hotel
+      if (get().currentHotelId === null || newBooking.hotelId._id === get().currentHotelId) {
+        get().fetchBookings(get().currentHotelId);
+      }
       toast.info(`New booking created for ${newBooking.guestName}`);
     });
 
     // Listen for updates
     socket.on('bookingUpdated', (updatedBooking: Booking) => {
-      set((state) => ({
-        bookings: state.bookings.map((b) =>
-          b._id === updatedBooking._id ? updatedBooking : b
-        ),
-      }));
+      // Refetch if matches current hotel
+      if (get().currentHotelId === null || updatedBooking.hotelId._id === get().currentHotelId) {
+        get().fetchBookings(get().currentHotelId);
+      }
       toast.info(`Booking for ${updatedBooking.guestName} was updated`);
     });
 
     // Listen for deletions
     socket.on('bookingDeleted', (bookingId: string) => {
-      set((state) => ({
-        bookings: state.bookings.filter((b) => b._id !== bookingId),
-      }));
+      get().fetchBookings(get().currentHotelId);
       toast.warning('A booking was deleted');
     });
   },

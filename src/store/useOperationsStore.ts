@@ -3,10 +3,10 @@ import { create } from 'zustand';
 import io from 'socket.io-client';
 import { useAuthStore } from './useAuthStore'; // ⚠️ Ensure this path points to your actual Auth Store
 // --- 1. Type Definitions ---
-interface RoomStatus {
+interface Rooms {
     _id: string;
     roomNumber: string;
-    status: 'occupied' | 'cleaning' | 'available' | 'maintenance';
+    status: 'available' | 'reserved' | 'occupied' | 'maintenance' | 'cleaning';
     guestName?: string;
     checkOut?: string;
     roomTypeId: {
@@ -17,18 +17,20 @@ interface RoomStatus {
 interface CleaningTask {
     _id: string;
     roomId: { _id: string, roomNumber: string };
-    assignedCleaner: { name: string, email: string };
+    assignedCleaner: { name: string, email: string, firstName: string, lastName: string };
     status: 'pending' | 'in progress' | 'completed';
     createdAt: string;
 }
 interface RestaurantOrder {
     _id: string;
     tableNumber: number;
-    items: { quantity: number }[];
+    items: { quantity: number; name: string }[]; // Added name for display
     totalAmount: number;
     orderStatus: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
     createdAt: string;
     orderType: 'room service' | 'pickup' | 'table service';
+    waiterId?: { name: string, firstName: string, lastName: string }; // Added for waiter info
+    roomNumber?: string;
 }
 export interface RoomDetails {
     _id: string;
@@ -42,6 +44,26 @@ export interface RoomDetails {
     images: string[];
     isAvailable: boolean;
     createdAt: string;
+    status: 'available' | 'occupied' | 'maintenance' | 'reserved' | 'cleaning';
+    roomTypeId: {
+        _id: string;
+        name: string;
+        price: number;
+        description: string;
+        createdAt: string;
+        updatedAt: string;
+        images: string[];
+        isAvailable: boolean;
+    };
+    guestName?: string;
+    checkOut?: string;
+    
+}
+interface BookingSummary { // New: For guest info in rooms
+    _id: string;
+    roomId: string;
+    guestName: string;
+    checkOutDate: string;
 }
 // --- 2. Configuration ---
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -53,10 +75,11 @@ const socket = io(SOCKET_URL, {
 // --- 3. Store Interface ---
 interface OperationsState {
     // Data
-    roomsStatus: RoomStatus[];
+    rooms: Rooms[];
     cleaningTasks: CleaningTask[];
     restaurantOrders: RestaurantOrder[];
     allRoomDetails: RoomDetails[];
+    bookingSummaries: BookingSummary[]; // New: For guest info
     // UI State
     isLoading: boolean;
     error: string | null;
@@ -80,23 +103,26 @@ interface OperationsState {
 // --- 4. Helper to get Auth Headers securely ---
 const getAuthHeaders = () => {
     const { user } = useAuthStore.getState();
-    if (!user?.token || !user?.hotelId) {
+    const token = sessionStorage.getItem("token");
+    if (!token || !user?.hotelId) {
         throw new Error("Authentication missing. Please log in.");
     }
     return {
-        token: user.token,
+        token: token,
         hotelId: user.hotelId,
         headers: {
-            'Authorization': `Bearer ${user.token}`
-        }
+            'Authorization': `Bearer ${token}`
+        }, 
+        credentials: 'include'
     };
 };
 // --- 5. Store Implementation ---
 export const useOperationsStore = create<OperationsState>((set, get) => ({
-    roomsStatus: [],
+    rooms: [],
     cleaningTasks: [],
     restaurantOrders: [],
     allRoomDetails: [],
+    bookingSummaries: [],
     isLoading: false,
     error: null,
     isSubmitting: false,
@@ -104,22 +130,36 @@ export const useOperationsStore = create<OperationsState>((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             const { hotelId, headers } = getAuthHeaders(); // Get real data
+            // console.log('Fetching operations data for hotelId:', hotelId);
             // 1. Fetch Room Status
-            const roomsRes = await fetch(`${API_BASE_URL}/api/rooms/by-hotel/${hotelId}`, { headers });
+            const roomsRes = await fetch(`${API_BASE_URL}/api/rooms/by-hotel/${hotelId}`, { headers, credentials: 'include' });
             if (!roomsRes.ok) throw new Error('Failed to fetch rooms status');
             const roomsData = await roomsRes.json();
+            // console.log('Rooms Data:', roomsData);
+
             // 2. Fetch Cleaning Tasks
-            const cleaningRes = await fetch(`${API_BASE_URL}/api/cleaning/hotel`, { headers });
+            const cleaningRes = await fetch(`${API_BASE_URL}/api/cleaning/hotel`, { headers, credentials: 'include' });
             if (!cleaningRes.ok) throw new Error('Failed to fetch cleaning tasks');
             const cleaningData = await cleaningRes.json();
-            // 3. Fetch Restaurant Orders
-            const ordersRes = await fetch(`${API_BASE_URL}/api/orders/all-orders`, { headers });
+            // console.log('Cleaning Data:', cleaningData);
+
+            // 3. Fetch Restaurant Orders (assume populated waiterId)
+            const ordersRes = await fetch(`${API_BASE_URL}/api/orders/all-orders`, { headers, credentials: 'include' });
             if (!ordersRes.ok) throw new Error('Failed to fetch orders');
             const ordersData = await ordersRes.json();
+            // console.log('Orders Data:', ordersData);
+
+            // 4. Fetch Booking Summaries for guest info
+            const bookingsRes = await fetch(`${API_BASE_URL}/api/bookings/hotel-summary/${hotelId}`, { headers, credentials: 'include' }); 
+            if (!bookingsRes.ok) throw new Error('Failed to fetch booking summaries');
+            const bookingsData = await bookingsRes.json();
+            // console.log('Bookings Data:', bookingsData);
+
             set({
-                roomsStatus: roomsData.rooms || [],
+                rooms: roomsData.rooms || [],
                 cleaningTasks: cleaningData || [],
                 restaurantOrders: ordersData.data || [],
+                bookingSummaries: bookingsData.data || [],
                 isLoading: false,
             });
         } catch (err) {
@@ -127,12 +167,13 @@ export const useOperationsStore = create<OperationsState>((set, get) => ({
             set({ error: (err as Error).message, isLoading: false });
         }
     },
+
     fetchRoomDetails: async () => {
         set({ isLoading: true, error: null });
         try {
             const { hotelId, headers } = getAuthHeaders();
            
-            const res = await fetch(`${API_BASE_URL}/api/rooms/types/by-hotel/${hotelId}`, { headers });
+            const res = await fetch(`${API_BASE_URL}/api/rooms/types/by-hotel/${hotelId}`, { headers, credentials: 'include' });
             if (!res.ok) throw new Error('Failed to fetch full room details');
            
             const data = await res.json();

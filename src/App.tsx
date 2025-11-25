@@ -59,6 +59,7 @@ import BranchDetails from "./pages/BranchDetails";
 import Settings from "./pages/Settings";
 import RoomDetailPage from "./pages/RoomDetails";
 import Housekeeping from "./pages/manager/HouseKeeping";
+import Restaurant from "./pages/manager/Restaurant";
 
 const queryClient = new QueryClient();
 
@@ -257,6 +258,10 @@ const App = () => (
               <Route path="/manager/rooms/:id" element={<RoomDetailPage />} />
               <Route path="/manager/operations" element={<Operations />} />
               <Route path="/manager/house-keeping" element={<Housekeeping />} />
+              <Route path="/manager/bookings" element={<Bookings />} />
+              <Route path="/manager/orders" element={<Restaurant />} />
+              <Route path="/manager/reviews" element={<Reviews />} />
+              <Route path="/manager/transactions" element={<Transactions />} />
               <Route path="/manager/settings" element={<ManagerSettings />} />
             </Route>
 

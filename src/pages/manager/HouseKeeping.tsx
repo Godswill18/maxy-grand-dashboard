@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MapPin, Clock, CheckCircle, AlertCircle, User, Edit, CalendarIcon } from "lucide-react";
+import { MapPin, Clock, CheckCircle, AlertCircle, User, Edit, CalendarIcon, Bed } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,7 +40,7 @@ const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign,
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
+            <Bed className="h-4 w-4 text-muted-foreground" />
             <span>{room.roomTypeId.name}</span>
           </div>
         </div>

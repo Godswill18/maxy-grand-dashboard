@@ -1,24 +1,31 @@
-// Operations.tsx (Updated)
+// Operations.tsx (Updated with Modal, Pagination, Sorting, and Skeleton)
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Bed, Users, Utensils, Sparkles, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
-import { useOperationsStore } from '../../store/useOperationsStore.ts'; // **Import your store**
-import { useEffect } from 'react';
-import { useAuthStore } from "@/store/useAuthStore.ts";
+import { Bed, Users, Utensils, Sparkles, Loader2, RefreshCw, AlertTriangle, ArrowUpDown, Eye } from "lucide-react";
+import { useOperationsStore } from '../../store/useOperationsStore.ts';
 import { useStaffStore } from "@/store/useStaffStore.ts";
-// --- Placeholder Hook for Auth/Context ---
-// **REPLACE THIS with your actual logic to get hotelId and token.**
-// In a real application, this would come from an AuthContext or another Zustand store.
+import { useAuthStore } from "@/store/useAuthStore.ts";
+import { useEffect, useState, useMemo } from 'react'; // Added useState and useMemo
+
+// Import new components
+import { TableViewModal } from "@/components/operations/TableViewModal.tsx";
+import { DataTablePagination } from "@/components/operations/DataTablePagination.tsx";
+import { TableSkeleton } from "@/components/skeleton/TableSkeleton.tsx";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
+
+// --- Utility Functions ---
+
+// Placeholder Hook for Auth/Context
 const useUserHotelContext = () => {
     const { user } = useAuthStore();
-    const hotelId = user?.hotelId || null; // Example Hotel ID (should be dynamic)
-    const token = user?.token || null; // Example Bearer Token (should be dynamic)
+    const hotelId = user?.hotelId || null;
+    const token = sessionStorage.getItem("token");
     return { hotelId, token };
 };
-// --- End Placeholder Hook ---
+
 const statusColors: Record<string, string> = {
     occupied: "bg-primary text-primary-foreground",
     available: "bg-success text-success-foreground",
@@ -30,13 +37,170 @@ const statusColors: Record<string, string> = {
     served: "bg-info text-info-foreground",
     // Ensure all possible statuses from your backend are covered
 };
+
+// Simplified Type for clarity in component logic
+type SortDirection = 'asc' | 'desc';
+
+interface TableState {
+    pageIndex: number;
+    pageSize: number;
+    sortBy: string | null;
+    sortDirection: SortDirection;
+}
+
+// Global Sort Function
+const sortData = <T extends Record<string, any>>(
+    data: T[],
+    key: keyof T | null,
+    direction: SortDirection
+): T[] => {
+    if (!key) return data;
+    const sorted = [...data].sort((a, b) => {
+        const aVal = a[key] ?? '';
+        const bVal = b[key] ?? '';
+        
+        let comparison = 0;
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+            comparison = String(aVal).localeCompare(String(bVal));
+        } else if (typeof aVal === 'number' && typeof bVal === 'number') {
+            comparison = aVal - bVal;
+        } else {
+            comparison = String(aVal).localeCompare(String(bVal));
+        }
+
+        return direction === 'asc' ? comparison : -comparison;
+    });
+    return sorted;
+};
+
+// --- Sub-Components for Tables ---
+
+interface OperationsTableProps<T> {
+    data: T[];
+    columns: { key: keyof T; label: string; render?: (item: T) => React.ReactNode; sortable?: boolean }[];
+    entityName: string;
+    onViewDetails: (item: T) => void;
+}
+
+const PaginatedSortableTable = <T extends Record<string, any>>({
+    data,
+    columns,
+    entityName,
+    onViewDetails,
+}: OperationsTableProps<T>) => {
+    const [state, setState] = useState<TableState>({
+        pageIndex: 0,
+        pageSize: 10,
+        sortBy: null,
+        sortDirection: 'asc',
+    });
+
+    // Reset page index when data or sorting changes
+    useEffect(() => {
+        setState(prev => ({ ...prev, pageIndex: 0 }));
+    }, [data, state.sortBy, state.sortDirection]);
+
+    const handleSort = (key: string) => {
+        setState(prev => ({
+            ...prev,
+            sortBy: key,
+            sortDirection: prev.sortBy === key && prev.sortDirection === 'asc' ? 'desc' : 'asc',
+        }));
+    };
+
+    const sortedData = useMemo(() => {
+        if (!state.sortBy) return data;
+        return sortData(data, state.sortBy, state.sortDirection);
+    }, [data, state.sortBy, state.sortDirection]);
+
+    const paginatedData = useMemo(() => {
+        const start = state.pageIndex * state.pageSize;
+        return sortedData.slice(start, start + state.pageSize);
+    }, [sortedData, state.pageIndex, state.pageSize]);
+
+    return (
+        <>
+            <div className="rounded-md border overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            {columns.map((col) => (
+                                <TableHead key={col.key as string}>
+                                    {col.sortable ? (
+                                        <Button
+                                            variant="ghost"
+                                            className="-ml-4 h-8"
+                                            onClick={() => handleSort(col.key as string)}
+                                        >
+                                            {col.label}
+                                            <ArrowUpDown className="ml-2 h-4 w-4" />
+                                            {state.sortBy === col.key && (
+                                                <span className="ml-1 text-xs text-primary">
+                                                    {state.sortDirection === 'asc' ? '↑' : '↓'}
+                                                </span>
+                                            )}
+                                        </Button>
+                                    ) : (
+                                        col.label
+                                    )}
+                                </TableHead>
+                            ))}
+                            <TableHead className="text-right">Action</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {paginatedData.length > 0 ? (
+                            paginatedData.map((item, index) => (
+                                <TableRow key={index}>
+                                    {columns.map((col) => (
+                                        <TableCell key={col.key as string}>
+                                            {col.render ? col.render(item) : String(item[col.key] ?? '-')}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right">
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm"
+                                            onClick={() => onViewDetails(item)}
+                                        >
+                                            <Eye className="h-4 w-4" />
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={columns.length + 1} className="h-24 text-center">
+                                    No {entityName} data to display.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </div>
+            <DataTablePagination
+                pageIndex={state.pageIndex}
+                pageSize={state.pageSize}
+                dataLength={data.length}
+                onPageChange={(index) => setState(prev => ({ ...prev, pageIndex: index }))}
+            />
+        </>
+    );
+};
+
+// --- Main Component ---
+
 export default function Operations() {
-    // 1. Get state and actions from the store
+    const [modalState, setModalState] = useState<{ isOpen: boolean; title: string; data: any | null }>({
+        isOpen: false,
+        title: "",
+        data: null,
+    });
+
     const {
-        roomsStatus,
+        allRoomDetails,
         cleaningTasks,
         restaurantOrders,
-        allRoomDetails,
         isLoading,
         error,
         fetchOperationsData,
@@ -46,75 +210,74 @@ export default function Operations() {
     } = useOperationsStore();
     const { staff, fetchStaffByLoggedInUserHotel } = useStaffStore();
     const { hotelId, token } = useUserHotelContext();
-    // const context = { hotelId, token };
+
     // 3. Fetch data on component mount
-   useEffect(() => {
-        if (hotelId && token) {
-            // Initial Data Fetch
+    useEffect(() => {
+        if (hotelId) {
             fetchOperationsData();
             fetchRoomDetails();
-           
-            // Connect to Socket.IO for real-time updates
             connectSocket();
         }
         fetchStaffByLoggedInUserHotel();
-       
-        // Cleanup function runs on unmount
+        
         return () => {
             disconnectSocket();
         };
     }, [hotelId, token, fetchOperationsData, fetchRoomDetails, connectSocket, disconnectSocket, fetchStaffByLoggedInUserHotel]);
-   
+    
     // Derived State (for quick stats)
-    const occupiedRoomsCount = roomsStatus.filter(r => r.status === "occupied").length;
+    const occupiedRoomsCount = allRoomDetails.filter(r => r.status === "occupied").length;
     const pendingCleaningTasksCount = cleaningTasks.filter(t => t.status !== "completed").length;
     const activeOrdersCount = restaurantOrders.filter(o => o.orderStatus !== "delivered" && o.orderStatus !== "cancelled").length;
-    // Note: Staff on duty is still static as there's no staff API here.
+    const activeStaffCount = staff.filter(s => s.isActive && s.role !== 'admin' && s.role !== 'superadmin').length;
+    
     const handleRefresh = () => {
-        if (hotelId && token) {
+        if (hotelId) {
             fetchOperationsData();
             fetchRoomDetails();
+            fetchStaffByLoggedInUserHotel();
         }
     };
 
-    console.log(allRoomDetails);
-   
-    // Convert backend data structure to match previous frontend usage (if necessary)
-    // Note: The backend models don't expose guest name/checkout directly on the Room model.
-    // This is a common gap in real-world data fetching where an additional query/model merge is needed.
-    // For simplicity, we'll map the available fields and use placeholders for missing ones.
-    // Optionally merge with allRoomDetails for richer display (e.g., full type name)
-    const mappedRoomStatus = roomsStatus.map(room => {
-        const fullRoom = allRoomDetails.find(r => r._id === room.roomTypeId?._id);
-        return {
-            room: room.roomNumber,
-            type: fullRoom?.name || room.roomTypeId?.name || "Unknown",
-            status: room.status,
-            guest: room.status === 'occupied' ? "Guest Info Needed" : null, // ⚠️ Requires real Guest/Booking data
-            checkOut: room.status === 'occupied' ? "Date Needed" : null, // ⚠️ Requires real Guest/Booking data
-        };
-    });
-    const mappedCleaningTasks = cleaningTasks
-    .filter(t => t.status !== 'completed')
-    .map(task => ({
-        id: task._id,
-        room: task.roomId?.roomNumber || "N/A",
-        cleaner: task.assignedCleaner?.name || "Unassigned",
-        priority: "High", // ⚠️ Backend doesn't provide priority field; using static value
-        status: task.status,
-        startTime: new Date(task.createdAt).toLocaleTimeString(),
-    }));
-    const mappedRestaurantOrders = restaurantOrders
-    .filter(o => o.orderStatus !== 'delivered' && o.orderStatus !== 'cancelled')
-    .map(order => ({
-        id: order._id,
-        table: order.tableNumber || (order.orderType === 'room service' ? 'Room' : 'N/A'),
-        waiter: "Staff Info Needed", // ⚠️ Requires populating staff/waiter ID
-        items: order.items.length,
-        total: `₦${order.totalAmount.toLocaleString()}`,
-        status: order.orderStatus,
-        time: new Date(order.createdAt).toLocaleTimeString(),
-    }));
+    const handleViewDetails = (title: string, data: any) => {
+        setModalState({ isOpen: true, title, data });
+    };
+
+    // --- Mapped Data for Tables (Simplified for UI display) ---
+    // Note: Use allRoomDetails, cleaningTasks, and restaurantOrders directly
+    // as the source for the modal data, but map the display-friendly fields
+    // for the table columns. The original data is passed to the modal.
+
+    const roomColumns = [
+        { key: "roomNumber" as const, label: "Room", sortable: true },
+        { key: "roomTypeId" as const, label: "Type", sortable: true, render: (r: any) => r.roomTypeId?.name || "Unknown" },
+        { key: "status" as const, label: "Status", sortable: true, render: (r: any) => <Badge className={statusColors[r.status]}>{r.status}</Badge> },
+        { key: "guestName" as const, label: "Guest", sortable: true },
+        { key: "checkOut" as const, label: "Check-out", sortable: true },
+    ];
+
+    const cleaningColumns = [
+        { key: "roomId" as const, label: "Room", sortable: true, render: (t: any) => t.roomId?.roomNumber || "N/A" },
+        { key: "assignedCleaner" as const, label: "Cleaner", sortable: true, render: (t: any) => t.assignedCleaner?.name || "Unassigned" },
+        { key: "priority" as const, label: "Priority", sortable: true, render: () => <Badge variant="destructive">High</Badge> },
+        { key: "status" as const, label: "Status", sortable: true, render: (t: any) => <Badge className={statusColors[t.status]}>{t.status}</Badge> },
+        { key: "createdAt" as const, label: "Start Time", sortable: true, render: (t: any) => new Date(t.createdAt).toLocaleTimeString() },
+    ];
+
+    const restaurantColumns = [
+        { key: "_id" as const, label: "Order ID", sortable: true, render: (o: any) => `ORD-${o._id.slice(-6)}` },
+        { key: "tableNumber" as const, label: "Table/Room", sortable: true, render: (o: any) => o.tableNumber || (o.orderType === 'room service' ? `Room ${o.roomNumber}` : 'N/A') },
+        { key: "waiterId" as const, label: "Waiter", sortable: true, render: (o: any) => o.waiterId?.name || 'Unassigned' },
+        { key: "items" as const, label: "Items", sortable: false, render: (o: any) => `${o.items.length} items` },
+        { key: "totalAmount" as const, label: "Total", sortable: true, render: (o: any) => `₦${o.totalAmount.toLocaleString()}` },
+        { key: "orderStatus" as const, label: "Status", sortable: true, render: (o: any) => <Badge className={statusColors[o.orderStatus]}>{o.orderStatus}</Badge> },
+        { key: "createdAt" as const, label: "Time", sortable: true, render: (o: any) => new Date(o.createdAt).toLocaleTimeString() },
+    ];
+
+    // Filtered data for tables
+    const nonCompletedCleaningTasks = cleaningTasks.filter(t => t.status !== 'completed');
+    const activeRestaurantOrders = restaurantOrders.filter(o => o.orderStatus !== 'delivered' && o.orderStatus !== 'cancelled');
+
     if (error) {
         return (
             <div className="p-6 text-center text-destructive border border-destructive rounded-lg">
@@ -127,16 +290,18 @@ export default function Operations() {
             </div>
         );
     }
-    if (isLoading && roomsStatus.length === 0) {
-        return (
-            <div className="flex justify-center items-center h-40">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-3 text-lg text-muted-foreground">Loading hotel operations data...</p>
-            </div>
-        );
-    }
+
+    const tableLoading = isLoading && allRoomDetails.length === 0;
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
+            <TableViewModal
+                isOpen={modalState.isOpen}
+                onClose={() => setModalState({ ...modalState, isOpen: false })}
+                title={modalState.title}
+                data={modalState.data}
+            />
+
             <div>
                 <h1 className="text-3xl font-bold text-foreground">Operations Monitoring</h1>
                 <p className="text-muted-foreground">Real-time branch operations overview</p>
@@ -147,16 +312,18 @@ export default function Operations() {
                     </Button>
                 </div>
             </div>
+
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card>
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">Occupied Rooms</p>
-                                <p className="text-2xl font-bold text-foreground">
-                                    {occupiedRoomsCount}
-                                </p>
+                                {/* FIX: Changed <p> to <div> */}
+                                <div className="text-2xl font-bold text-foreground">
+                                    {tableLoading ? <Skeleton className="h-7 w-12" /> : occupiedRoomsCount}
+                                </div>
                             </div>
                             <Bed className="h-8 w-8 text-primary" />
                         </div>
@@ -167,9 +334,10 @@ export default function Operations() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">Cleaning Tasks</p>
-                                <p className="text-2xl font-bold text-foreground">
-                                    {pendingCleaningTasksCount}
-                                </p>
+                                {/* FIX: Changed <p> to <div> */}
+                                <div className="text-2xl font-bold text-foreground">
+                                    {tableLoading ? <Skeleton className="h-7 w-12" /> : pendingCleaningTasksCount}
+                                </div>
                             </div>
                             <Sparkles className="h-8 w-8 text-warning" />
                         </div>
@@ -180,9 +348,10 @@ export default function Operations() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">Active Orders</p>
-                                <p className="text-2xl font-bold text-foreground">
-                                    {activeOrdersCount}
-                                </p>
+                                {/* FIX: Changed <p> to <div> */}
+                                <div className="text-2xl font-bold text-foreground">
+                                    {tableLoading ? <Skeleton className="h-7 w-12" /> : activeOrdersCount}
+                                </div>
                             </div>
                             <Utensils className="h-8 w-8 text-info" />
                         </div>
@@ -193,15 +362,17 @@ export default function Operations() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">Staff On Duty</p>
-                                <p className="text-2xl font-bold text-foreground">
-                                 {staff.length}
-                                 </p> {/* Static */}
+                                {/* FIX: Changed <p> to <div> */}
+                                <div className="text-2xl font-bold text-foreground">
+                                    {tableLoading ? <Skeleton className="h-7 w-12" /> : activeStaffCount}
+                                </div>
                             </div>
                             <Users className="h-8 w-8 text-success" />
                         </div>
                     </CardContent>
                 </Card>
             </div>
+
             {/* Tabs */}
             <Tabs defaultValue="rooms" className="space-y-4">
                 <TabsList>
@@ -209,119 +380,67 @@ export default function Operations() {
                     <TabsTrigger value="cleaning">Cleaning Tasks</TabsTrigger>
                     <TabsTrigger value="restaurant">Restaurant</TabsTrigger>
                 </TabsList>
+
+                {/* --- Room Status Table --- */}
                 <TabsContent value="rooms">
                     <Card>
                         <CardHeader>
                             <CardTitle>Current Room Status</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Room</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead>Guest</TableHead>
-                                        <TableHead>Check-out</TableHead>
-                                        <TableHead>Action</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {mappedRoomStatus.map((room) => (
-                                        <TableRow key={room.room}>
-                                            <TableCell className="font-medium">{room.room}</TableCell>
-                                            <TableCell>{room.type}</TableCell>
-                                            <TableCell>
-                                                <Badge className={statusColors[room.status]}>{room.status}</Badge>
-                                            </TableCell>
-                                            <TableCell>{room.guest || "-"}</TableCell>
-                                            <TableCell>{room.checkOut || "-"}</TableCell>
-                                            <TableCell>
-                                                <Button variant="outline" size="sm">View</Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
+                        {tableLoading ? (
+                            <TableSkeleton columns={roomColumns.length + 1} rows={10} />
+                        ) : (
+                            <CardContent className="pt-6">
+                                <PaginatedSortableTable
+                                    data={allRoomDetails}
+                                    columns={roomColumns}
+                                    entityName="Room"
+                                    onViewDetails={(room) => handleViewDetails("Room", room)}
+                                />
+                            </CardContent>
+                        )}
                     </Card>
                 </TabsContent>
+
+                {/* --- Cleaning Tasks Table --- */}
                 <TabsContent value="cleaning">
                     <Card>
                         <CardHeader>
                             <CardTitle>Cleaning Tasks</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Room</TableHead>
-                                        <TableHead>Cleaner</TableHead>
-                                        <TableHead>Priority</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead>Start Time</TableHead>
-                                        <TableHead>Action</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {mappedCleaningTasks.map((task) => (
-                                        <TableRow key={task.id}>
-                                            <TableCell className="font-medium">{task.room}</TableCell>
-                                            <TableCell>{task.cleaner}</TableCell>
-                                            <TableCell>
-                                                <Badge variant={task.priority === "High" ? "destructive" : "outline"}>
-                                                    {task.priority}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge className={statusColors[task.status]}>{task.status}</Badge>
-                                            </TableCell>
-                                            <TableCell>{task.startTime || "-"}</TableCell>
-                                            <TableCell>
-                                                <Button variant="outline" size="sm">Update</Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
+                        {tableLoading ? (
+                            <TableSkeleton columns={cleaningColumns.length + 1} rows={10} />
+                        ) : (
+                            <CardContent className="pt-6">
+                                <PaginatedSortableTable
+                                    data={nonCompletedCleaningTasks}
+                                    columns={cleaningColumns as any}
+                                    entityName="Cleaning Task"
+                                    onViewDetails={(task) => handleViewDetails("Cleaning Task", task)}
+                                />
+                            </CardContent>
+                        )}
                     </Card>
                 </TabsContent>
+
+                {/* --- Restaurant Orders Table --- */}
                 <TabsContent value="restaurant">
                     <Card>
                         <CardHeader>
                             <CardTitle>Restaurant Orders</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Order ID</TableHead>
-                                        <TableHead>Table</TableHead>
-                                        <TableHead>Waiter</TableHead>
-                                        <TableHead>Items</TableHead>
-                                        <TableHead>Total</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead>Time</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {mappedRestaurantOrders.map((order) => (
-                                        <TableRow key={order.id}>
-                                            <TableCell className="font-medium">ORD-{order.id}</TableCell>
-                                            <TableCell>{order.table}</TableCell>
-                                            <TableCell>{order.waiter}</TableCell>
-                                            <TableCell>{order.items} items</TableCell>
-                                            <TableCell className="font-semibold">{order.total}</TableCell>
-                                            <TableCell>
-                                                <Badge className={statusColors[order.status]}>{order.status}</Badge>
-                                            </TableCell>
-                                            <TableCell>{order.time}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
+                        {tableLoading ? (
+                            <TableSkeleton columns={restaurantColumns.length + 1} rows={10} />
+                        ) : (
+                            <CardContent className="pt-6">
+                                <PaginatedSortableTable
+                                    data={activeRestaurantOrders}
+                                    columns={restaurantColumns as any}
+                                    entityName="Restaurant Order"
+                                    onViewDetails={(order) => handleViewDetails("Restaurant Order", order)}
+                                />
+                            </CardContent>
+                        )}
                     </Card>
                 </TabsContent>
             </Tabs>

@@ -5,6 +5,7 @@ import {
   useReviewState,
   useReviewActions,
 } from '@/store/useReviewStore'; // Adjust path as needed
+import { useAuthStore } from '@/store/useAuthStore'; // Adjust path as needed
 import { ReviewSkeleton } from '@/components/skeleton/ReviewSkeleton'; // Adjust path
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Button } from '@/components/ui/button';
@@ -12,13 +13,27 @@ import { Button } from '@/components/ui/button';
 export default function Reviews() {
   // --- Get State & Actions from Zustand Store ---
   const { reviews, hotels, selectedHotelId, isLoading, error } = useReviewState();
-  const { fetchHotels, fetchReviews, setHotelFilter } = useReviewActions();
+  const { fetchHotels, setHotelFilter } = useReviewActions();
+
+  // --- Get User from Auth Store ---
+  const user = useAuthStore((state) => state.user);
 
   // --- Fetch Data on Component Mount ---
   useEffect(() => {
     fetchHotels();
-    fetchReviews();
-  }, [fetchHotels, fetchReviews]); // Use store actions in dependency array
+  }, [fetchHotels]);
+
+  // --- Set Initial Filter Based on Role After Hotels Load ---
+  useEffect(() => {
+    if (hotels.length > 0 && user) {
+      const { role, hotelId } = user;
+      if (role === 'admin') {
+        setHotelFilter(hotelId || '');
+      } else {
+        setHotelFilter('all');
+      }
+    }
+  }, [hotels, user, setHotelFilter]);
 
   // --- Helper Function ---
   const renderStars = (rating: number) => {
@@ -58,11 +73,21 @@ export default function Reviews() {
     }
 
     if (error) {
+      function get() {
+        // Return an object shaped like the original call site expects:
+        // get().actions.fetchReviews()
+        // Map fetchReviews to the available fetchHotels action in this component's scope.
+        return {
+          actions: {
+            fetchReviews: fetchHotels,
+          },
+        };
+      }
       return (
         <Card className="border-destructive bg-destructive/10">
           <CardContent className="p-6 text-center">
             <p className="text-destructive mb-4">{error}</p>
-            <Button variant="destructive" onClick={fetchReviews}>
+            <Button variant="destructive" onClick={() => get().actions.fetchReviews()}>
               Try Again
             </Button>
           </CardContent>
@@ -125,6 +150,11 @@ export default function Reviews() {
     );
   };
 
+  // --- Get User Hotel Name for Admin Label ---
+  const userHotelName = user?.role === 'admin' 
+    ? hotels.find(h => h._id === user.hotelId)?.name || 'Your Branch'
+    : null;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -149,24 +179,34 @@ export default function Reviews() {
         </Card>
       </div>
 
-      {/* --- Branch Filter Toggle --- */}
-      <div className="flex justify-center">
-        <ToggleGroup
-          type="single"
-          value={selectedHotelId}
-          onValueChange={(value) => {
-            if (value) setHotelFilter(value);
-          }}
-          className="flex-wrap justify-center"
-        >
-          <ToggleGroupItem value="all">All Branches</ToggleGroupItem>
-          {hotels.map((hotel) => (
-            <ToggleGroupItem value={hotel._id} key={hotel._id}>
-              {hotel.name}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      </div>
+      {/* --- Conditional Branch Filter or Label --- */}
+      {user ? (
+        user.role === 'admin' ? (
+          <div className="flex justify-center mb-4">
+            <p className="text-muted-foreground px-4 py-2 bg-muted rounded-md">
+              Reviews for {userHotelName}
+            </p>
+          </div>
+        ) : (
+          <div className="flex justify-center">
+            <ToggleGroup
+              type="single"
+              value={selectedHotelId}
+              onValueChange={(value) => {
+                if (value) setHotelFilter(value);
+              }}
+              className="flex-wrap justify-center"
+            >
+              <ToggleGroupItem value="all">All Branches</ToggleGroupItem>
+              {hotels.map((hotel) => (
+                <ToggleGroupItem value={hotel._id} key={hotel._id}>
+                  {hotel.name}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+        )
+      ) : null}
 
       {/* --- Dynamic Content --- */}
       {renderContent()}
