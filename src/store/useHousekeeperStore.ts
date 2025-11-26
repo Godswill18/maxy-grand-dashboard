@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import axios from 'axios';
-import { useAuthStore } from './useAuthStore'; // Assuming you have an auth store for the token
+import { useAuthStore } from './useAuthStore';
 
 // Define types based on your backend response
 interface RoomType {
@@ -24,9 +24,14 @@ interface User {
 export interface CleaningTask {
   _id: string;
   roomId: Room;
-  assignedCleaner: string; // ID
+  assignedCleaner: string;
   requestedBy: User;
-  status: 'pending' | 'in_progress' | 'completed'; // Backend uses lowercase, mapping might be needed
+  status: 'pending' | 'in-progress' | 'completed'; // Fixed: backend uses 'in-progress' with hyphen
+  priority?: 'High' | 'Medium' | 'Low';
+  estimatedDuration?: string;
+  startTime?: string;
+  finishTime?: string;
+  actualDuration?: number;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -37,7 +42,7 @@ interface HousekeeperState {
   isLoading: boolean;
   error: string | null;
   fetchMyTasks: () => Promise<void>;
-  startTask: (taskId: string) => void; // Optimistic update or API call if you had a 'start' endpoint
+  startTask: (taskId: string) => Promise<void>; // Fixed: now calls backend endpoint
   completeTask: (taskId: string) => Promise<void>;
 }
 
@@ -65,40 +70,59 @@ export const useHousekeeperStore = create<HousekeeperState>((set, get) => ({
     }
   },
 
-  // Note: Your backend doesn't have a specific "start task" endpoint, 
-  // so we'll handle this locally for UI feedback or you might want to add one later.
-  // For now, we will just update the local state to show "In Progress"
-  startTask: (taskId: string) => {
-    set((state) => ({
-      tasks: state.tasks.map((t) => 
-        t._id === taskId ? { ...t, status: 'in_progress' } : t
-      ),
-    }));
+  // Fixed: Now calls the backend /start endpoint
+  startTask: async (taskId: string) => {
+    try {
+      const { token } = useAuthStore.getState();
+      const response = await axios.patch(
+        `${VITE_API_URL}/api/cleaning/${taskId}/start`, 
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          withCredentials: true,
+        }
+      );
+      
+      // Update local state with the response from backend
+      set((state) => ({
+        tasks: state.tasks.map((t) => 
+          t._id === taskId ? { ...t, status: 'in-progress', startTime: response.data.request.startTime } : t
+        ),
+      }));
+    } catch (error: any) {
+      console.error("Failed to start task", error);
+      throw error; // Re-throw so component can handle error
+    }
   },
 
   completeTask: async (taskId: string) => {
     try {
       const { token } = useAuthStore.getState();
-      await axios.patch(`${VITE_API_URL}/api/cleaning/${taskId}/complete`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-        withCredentials: true,
-      });
+      const response = await axios.patch(
+        `${VITE_API_URL}/api/cleaning/${taskId}/complete`, 
+        {}, 
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          withCredentials: true,
+        }
+      );
       
-      // Remove the task from the list or mark as completed
-      // Your getMyPendingTasks controller only returns 'pending' tasks, 
-      // so essentially it should disappear from the list upon refresh.
-      // We'll update local state to reflect completion immediately.
+      // Update local state
       set((state) => ({
         tasks: state.tasks.map((t) => 
-          t._id === taskId ? { ...t, status: 'completed' } : t
+          t._id === taskId 
+            ? { 
+                ...t, 
+                status: 'completed', 
+                finishTime: response.data.request.finishTime,
+                actualDuration: response.data.request.actualDuration 
+              } 
+            : t
         ),
       }));
-      
-      // Optionally refresh the list to be perfectly in sync
-      // get().fetchMyTasks(); 
     } catch (error: any) {
       console.error("Failed to complete task", error);
-      // You might want to set an error state here to show a toast
+      throw error; // Re-throw so component can handle error
     }
   },
 }));

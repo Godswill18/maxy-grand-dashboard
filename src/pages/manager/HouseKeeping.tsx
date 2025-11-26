@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MapPin, Clock, CheckCircle, AlertCircle, User, Edit, CalendarIcon, Bed } from "lucide-react";
+import { MapPin, Clock, CheckCircle, AlertCircle, User, Edit, CalendarIcon, Bed, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,7 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { format } from "date-fns"
+import { format, formatDistanceToNow } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHousekeepingStore } from "@/store/useHousekeepingStore"; // Adjust path
 
@@ -91,42 +91,80 @@ const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign,
 };
 
 const AssignedTaskCard: React.FC<{ task: any }> = ({ task }) => {
-  const startTime = new Date(task.createdAt).toLocaleString();
-  const finishTime = task.status === "completed" ? new Date(task.updatedAt).toLocaleString() : "N/A";
+  const getStatusBadge = () => {
+    switch (task.status) {
+      case 'pending':
+        return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+      case 'in-progress':
+        return <Badge className="bg-blue-100 text-blue-800">In Progress</Badge>;
+      case 'completed':
+        return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
+      default:
+        return <Badge className="bg-gray-100 text-gray-800">Unknown</Badge>;
+    }
+  };
 
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">Room {task.roomId.roomNumber}</CardTitle>
-          <Badge className="bg-blue-100 text-blue-800">Assigned</Badge>
+          {getStatusBadge()}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
+            <Bed className="h-4 w-4 text-muted-foreground" />
             <span>{task.roomId.roomTypeId.name}</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <User className="h-4 w-4 text-muted-foreground" />
             <span>{task.assignedCleaner.firstName} {task.assignedCleaner.lastName}</span>
-
           </div>
-          {task.notes && (
-            <div className="flex items-start gap-2 text-sm p-2 bg-info/10 rounded-md">
-              <AlertCircle className="h-4 w-4 text-info mt-0.5" />
-              <span className="text-info">{task.notes}</span>
+
+          {/* Estimated Duration */}
+          {task.estimatedDuration && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Timer className="h-4 w-4" />
+              <span>Estimated: {task.estimatedDuration}</span>
             </div>
           )}
-          <div className="flex items-center gap-2 text-sm">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span>Start: {startTime}</span>
+
+          {/* Time when task was assigned */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Clock className="h-4 w-4" />
+            <span>Assigned {formatDistanceToNow(new Date(task.createdAt))} ago</span>
           </div>
-          {finishTime !== "N/A" && (
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle className="h-4 w-4 text-success" />
-              <span>Finish: {finishTime}</span>
+
+          {/* Time when task was started (for in-progress tasks) */}
+          {task.status === 'in-progress' && task.startTime && (
+            <div className="flex items-center gap-2 text-sm font-medium text-blue-600 bg-blue-50 p-2 rounded-md border border-blue-200">
+              <Clock className="h-4 w-4" />
+              <span>Started {formatDistanceToNow(new Date(task.startTime))} ago</span>
+            </div>
+          )}
+
+          {/* Actual duration for completed tasks */}
+          {task.status === 'completed' && task.actualDuration !== undefined && (
+            <div className="flex items-center gap-2 text-sm font-medium text-green-600 bg-green-50 p-2 rounded-md border border-green-200">
+              <CheckCircle className="h-4 w-4" />
+              <span>Completed in {task.actualDuration} minutes</span>
+            </div>
+          )}
+
+          {/* Completion time for completed tasks */}
+          {task.status === 'completed' && task.finishTime && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle className="h-4 w-4" />
+              <span>Finished {formatDistanceToNow(new Date(task.finishTime))} ago</span>
+            </div>
+          )}
+
+          {task.notes && (
+            <div className="flex items-start gap-2 text-sm p-2 bg-blue-50 rounded-md border border-blue-100">
+              <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+              <span className="text-blue-700">{task.notes}</span>
             </div>
           )}
         </div>
@@ -227,6 +265,17 @@ export default function Housekeeping() {
     [cleaningRooms, pendingTasks]
   );
 
+  // Separate pending and in-progress tasks
+  const actualPendingTasks = useMemo(
+    () => pendingTasks.filter((task) => task.status === 'pending'),
+    [pendingTasks]
+  );
+
+  const inProgressTasks = useMemo(
+    () => pendingTasks.filter((task) => task.status === 'in progress'),
+    [pendingTasks]
+  );
+
   const filteredCompletedTasks = useMemo(() => {
     return completedTasks.filter((task) => {
       const taskDate = new Date(task.updatedAt);
@@ -288,12 +337,25 @@ export default function Housekeeping() {
           <TabsTrigger value="unassigned">
             Unassigned ({unassignedRooms.length})
           </TabsTrigger>
-          <TabsTrigger value="assigned">Assigned ({pendingTasks.length})</TabsTrigger>
+          <TabsTrigger value="pending">Pending ({actualPendingTasks.length})</TabsTrigger>
+          <TabsTrigger value="in-progress">In Progress ({inProgressTasks.length})</TabsTrigger>
           <TabsTrigger value="completed">Completed ({filteredCompletedTasks.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="unassigned" className="space-y-4">
           {unassignedRooms.length === 0 ? (
-            <p className="text-muted-foreground">No unassigned cleaning rooms.</p>
+            <div className="flex flex-1 items-center justify-center h-[50vh]">
+              <Card className="w-full max-w-md border-dashed bg-muted/30">
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="rounded-full bg-muted p-4 mb-4">
+                    <CheckCircle className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-semibold text-lg">All Caught Up!</h3>
+                  <p className="text-muted-foreground mt-2">
+                    No unassigned cleaning rooms.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {unassignedRooms.map((room) => (
@@ -307,12 +369,51 @@ export default function Housekeeping() {
             </div>
           )}
         </TabsContent>
-        <TabsContent value="assigned" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {pendingTasks.map((task) => (
-              <AssignedTaskCard key={task._id} task={task} />
-            ))}
-          </div>
+        <TabsContent value="pending" className="space-y-4">
+          {actualPendingTasks.length === 0 ? (
+                <div className="flex flex-1 items-center justify-center h-[50vh]">
+              <Card className="w-full max-w-md border-dashed bg-muted/30">
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="rounded-full bg-muted p-4 mb-4">
+                    <CheckCircle className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-semibold text-lg">All Caught Up!</h3>
+                  <p className="text-muted-foreground mt-2">
+                    No pending tasks.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {actualPendingTasks.map((task) => (
+                <AssignedTaskCard key={task._id} task={task} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="in-progress" className="space-y-4">
+          {inProgressTasks.length === 0 ? (
+               <div className="flex flex-1 items-center justify-center h-[50vh]">
+              <Card className="w-full max-w-md border-dashed bg-muted/30">
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="rounded-full bg-muted p-4 mb-4">
+                    <CheckCircle className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-semibold text-lg">All Caught Up!</h3>
+                  <p className="text-muted-foreground mt-2">
+                    No tasks in progress.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {inProgressTasks.map((task) => (
+                <AssignedTaskCard key={task._id} task={task} />
+              ))}
+            </div>
+          )}
         </TabsContent>
         <TabsContent value="completed" className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-4 mb-4">
@@ -326,7 +427,19 @@ export default function Housekeeping() {
             </div>
           </div>
           {filteredCompletedTasks.length === 0 ? (
-            <p className="text-muted-foreground">No completed tasks match the filter.</p>
+                <div className="flex flex-1 items-center justify-center h-[50vh]">
+              <Card className="w-full max-w-md border-dashed bg-muted/30">
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="rounded-full bg-muted p-4 mb-4">
+                    <CheckCircle className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-semibold text-lg">All Caught Up!</h3>
+                  <p className="text-muted-foreground mt-2">
+                    No completed tasks match the filter.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredCompletedTasks.map((task) => (
