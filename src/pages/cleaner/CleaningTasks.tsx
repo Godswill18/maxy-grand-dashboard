@@ -1,191 +1,172 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sparkles, Clock, CheckCircle, MapPin, AlertCircle } from "lucide-react";
+import { Sparkles, Clock, CheckCircle, MapPin, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-
-interface Task {
-  id: string;
-  room: string;
-  floor: number;
-  type: "Standard" | "Deep Clean" | "Turndown" | "Inspection";
-  priority: "High" | "Medium" | "Low";
-  status: "Pending" | "In Progress" | "Completed";
-  assignedTime: string;
-  estimatedDuration: string;
-  specialInstructions?: string;
-}
+import { useHousekeeperStore, CleaningTask } from "@/store/useHousekeeperStore"; // Import your store
+import { formatDistanceToNow } from "date-fns"; // Recommended for "Time ago" display
 
 export default function CleaningTasks() {
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: "T001",
-      room: "Room 205",
-      floor: 2,
-      type: "Deep Clean",
-      priority: "High",
-      status: "Pending",
-      assignedTime: "10:00 AM",
-      estimatedDuration: "45 min",
-      specialInstructions: "Guest requested hypoallergenic products"
-    },
-    {
-      id: "T002",
-      room: "Room 312",
-      floor: 3,
-      type: "Standard",
-      priority: "Medium",
-      status: "Pending",
-      assignedTime: "11:30 AM",
-      estimatedDuration: "30 min"
-    },
-    {
-      id: "T003",
-      room: "Room 418",
-      floor: 4,
-      type: "Turndown",
-      priority: "Low",
-      status: "Pending",
-      assignedTime: "6:00 PM",
-      estimatedDuration: "15 min"
-    },
-    {
-      id: "T004",
-      room: "Room 125",
-      floor: 1,
-      type: "Standard",
-      priority: "High",
-      status: "In Progress",
-      assignedTime: "9:00 AM",
-      estimatedDuration: "30 min"
-    },
-  ]);
+  const { tasks, isLoading, error, fetchMyTasks, startTask, completeTask } = useHousekeeperStore();
 
-  const startTask = (taskId: string) => {
-    setTasks(tasks.map(task =>
-      task.id === taskId ? { ...task, status: "In Progress" as const } : task
-    ));
+  useEffect(() => {
+    fetchMyTasks();
+  }, [fetchMyTasks]);
+
+  const handleStartTask = (taskId: string) => {
+    startTask(taskId);
     toast.success("Task started");
   };
 
-  const completeTask = (taskId: string) => {
-    setTasks(tasks.map(task =>
-      task.id === taskId ? { ...task, status: "Completed" as const } : task
-    ));
+  const handleCompleteTask = async (taskId: string) => {
+    await completeTask(taskId);
     toast.success("Task completed successfully");
   };
 
-  const getPriorityColor = (priority: string) => {
+  // Helper to map backend priority (not in schema, so mocking or inferring)
+  const getPriorityColor = (priority: string = "Medium") => {
     switch (priority) {
-      case "High": return "bg-error/10 text-error hover:bg-error/20";
-      case "Medium": return "bg-warning/10 text-warning hover:bg-warning/20";
-      case "Low": return "bg-success/10 text-success hover:bg-success/20";
-      default: return "";
+      case "High": return "bg-red-100 text-red-700 hover:bg-red-200 border-red-200";
+      case "Medium": return "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200";
+      case "Low": return "bg-green-100 text-green-700 hover:bg-green-200 border-green-200";
+      default: return "bg-gray-100 text-gray-700";
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Completed": return "bg-success/10 text-success hover:bg-success/20";
-      case "In Progress": return "bg-info/10 text-info hover:bg-info/20";
-      case "Pending": return "bg-warning/10 text-warning hover:bg-warning/20";
-      default: return "";
+      case "completed": return "bg-green-100 text-green-700 border-green-200";
+      case "in_progress": return "bg-blue-100 text-blue-700 border-blue-200";
+      case "pending": return "bg-yellow-100 text-yellow-700 border-yellow-200";
+      default: return "bg-gray-100 text-gray-700";
     }
   };
 
-  const renderTaskCard = (task: Task) => (
-    <Card key={task.id} className="hover:shadow-lg transition-shadow">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">{task.room}</CardTitle>
-          <Badge className={getPriorityColor(task.priority)}>
-            {task.priority}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-            <span>Floor {task.floor}</span>
+  const renderTaskCard = (task: CleaningTask) => {
+    // Normalize status for display
+    const displayStatus = task.status === 'in_progress' ? 'In Progress' : 
+                          task.status.charAt(0).toUpperCase() + task.status.slice(1);
+
+    // Mock priority since it's not in your schema, or derive it
+    const priority = "Medium"; 
+
+    return (
+      <Card key={task._id} className="hover:shadow-lg transition-shadow border-l-4 border-l-primary">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Room {task.roomId.roomNumber}</CardTitle>
+            <Badge variant="outline" className={getPriorityColor(priority)}>
+              {priority}
+            </Badge>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Sparkles className="h-4 w-4 text-muted-foreground" />
-            <span>{task.type}</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span>{task.assignedTime} • {task.estimatedDuration}</span>
-          </div>
-          {task.specialInstructions && (
-            <div className="flex items-start gap-2 text-sm p-2 bg-info/10 rounded-md">
-              <AlertCircle className="h-4 w-4 text-info mt-0.5" />
-              <span className="text-info">{task.specialInstructions}</span>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <MapPin className="h-4 w-4" />
+              {/* Assuming floor is part of roomNumber or not available */}
+              <span>{task.roomId.roomTypeId.name}</span>
             </div>
-          )}
-        </div>
+            
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Sparkles className="h-4 w-4" />
+              <span>Requested by: {task.requestedBy.firstName} {task.requestedBy.lastName}</span>
+            </div>
 
-        <div className="flex items-center gap-2">
-          <Badge className={getStatusColor(task.status)}>
-            {task.status}
-          </Badge>
-        </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="h-4 w-4" />
+              <span>Posted {formatDistanceToNow(new Date(task.createdAt))} ago</span>
+            </div>
 
-        <div className="flex gap-2">
-          {task.status === "Pending" && (
-            <Button
-              size="sm"
-              className="flex-1"
-              onClick={() => startTask(task.id)}
-            >
-              Start Task
-            </Button>
-          )}
-          {task.status === "In Progress" && (
-            <Button
-              size="sm"
-              className="flex-1"
-              onClick={() => completeTask(task.id)}
-            >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Mark Complete
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
+            {task.notes && (
+              <div className="flex items-start gap-2 text-sm p-2 bg-blue-50 rounded-md border border-blue-100">
+                <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                <span className="text-blue-700">{task.notes}</span>
+              </div>
+            )}
+          </div>
 
-  const pendingTasks = tasks.filter(t => t.status === "Pending");
-  const inProgressTasks = tasks.filter(t => t.status === "In Progress");
-  const completedTasks = tasks.filter(t => t.status === "Completed");
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className={getStatusColor(task.status)}>
+              {displayStatus}
+            </Badge>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            {task.status === "pending" && (
+              <Button
+                size="sm"
+                className="flex-1"
+                onClick={() => handleStartTask(task._id)}
+              >
+                Start Task
+              </Button>
+            )}
+            {task.status === "in_progress" && (
+              <Button
+                size="sm"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => handleCompleteTask(task._id)}
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Mark Complete
+              </Button>
+            )}
+             {task.status === "completed" && (
+              <Button size="sm" variant="outline" className="flex-1" disabled>
+                Completed
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Filtering tasks based on status
+  const pendingTasks = tasks.filter(t => t.status === "pending");
+  const inProgressTasks = tasks.filter(t => t.status === "in_progress");
+  const completedTasks = tasks.filter(t => t.status === "completed");
+
+  if (isLoading) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div className="text-center text-red-500 py-10">Error: {error}</div>;
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 md:p-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold">Cleaning Tasks</h1>
-        <p className="text-muted-foreground">Manage your assigned cleaning tasks</p>
+        <h1 className="text-3xl font-bold tracking-tight">My Cleaning Tasks</h1>
+        <p className="text-muted-foreground">Manage your assigned cleaning requests</p>
       </div>
 
+      {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Pending</p>
-            <p className="text-3xl font-bold text-warning">{pendingTasks.length}</p>
+          <CardContent className="p-6">
+            <p className="text-sm font-medium text-muted-foreground">Pending</p>
+            <p className="text-3xl font-bold text-yellow-600">{pendingTasks.length}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">In Progress</p>
-            <p className="text-3xl font-bold text-info">{inProgressTasks.length}</p>
+          <CardContent className="p-6">
+            <p className="text-sm font-medium text-muted-foreground">In Progress</p>
+            <p className="text-3xl font-bold text-blue-600">{inProgressTasks.length}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Completed</p>
-            <p className="text-3xl font-bold text-success">{completedTasks.length}</p>
+          <CardContent className="p-6">
+            <p className="text-sm font-medium text-muted-foreground">Completed</p>
+            <p className="text-3xl font-bold text-green-600">{completedTasks.length}</p>
           </CardContent>
         </Card>
       </div>
@@ -199,9 +180,13 @@ export default function CleaningTasks() {
         </TabsList>
 
         <TabsContent value="all" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {tasks.map(renderTaskCard)}
-          </div>
+          {tasks.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">No tasks assigned.</div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {tasks.map(renderTaskCard)}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="pending" className="space-y-4">

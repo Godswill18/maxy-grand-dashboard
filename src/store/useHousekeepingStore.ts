@@ -14,7 +14,7 @@ interface CleaningRequest {
   roomId: CleaningRoom;
   assignedCleaner: { _id: string; name: string; email: string };
   requestedBy: { name: string };
-  status: 'pending' | 'completed';
+  status: 'pending' | 'in progress' | 'completed';
   notes?: string;
   createdAt: string;
   updatedAt: string;
