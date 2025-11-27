@@ -80,6 +80,8 @@ export default function Rooms() {
     return rooms.filter(room => room.hotelId === selectedBranchId);
   }, [rooms, selectedBranchId]);
 
+  // console.log(rooms)
+
   // --- Calculate Statistics ---
   const stats = useMemo(() => {
     return {

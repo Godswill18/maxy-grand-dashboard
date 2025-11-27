@@ -252,7 +252,19 @@ export default function CleaningTasks() {
 
         <TabsContent value="all" className="space-y-4">
           {tasks.length === 0 ? (
-            <div className="text-center py-10 text-muted-foreground">No tasks assigned.</div>
+            <div className="flex flex-1 items-center justify-center h-[50vh]">
+              <Card className="w-full max-w-md border-dashed bg-muted/30">
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="rounded-full bg-muted p-4 mb-4">
+                    <CheckCircle className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-semibold text-lg">All Caught Up!</h3>
+                  <p className="text-muted-foreground mt-2">
+                    No cleaning tasks assigned to you.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {tasks.map(renderTaskCard)}
@@ -262,7 +274,19 @@ export default function CleaningTasks() {
 
         <TabsContent value="pending" className="space-y-4">
           {pendingTasks.length === 0 ? (
-            <div className="text-center py-10 text-muted-foreground">No pending tasks.</div>
+            <div className="flex flex-1 items-center justify-center h-[50vh]">
+              <Card className="w-full max-w-md border-dashed bg-muted/30">
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="rounded-full bg-muted p-4 mb-4">
+                    <CheckCircle className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-semibold text-lg">All Caught Up!</h3>
+                  <p className="text-muted-foreground mt-2">
+                    No pending cleaning tasks.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {pendingTasks.map(renderTaskCard)}
@@ -272,7 +296,19 @@ export default function CleaningTasks() {
 
         <TabsContent value="progress" className="space-y-4">
           {inProgressTasks.length === 0 ? (
-            <div className="text-center py-10 text-muted-foreground">No tasks in progress.</div>
+           <div className="flex flex-1 items-center justify-center h-[50vh]">
+              <Card className="w-full max-w-md border-dashed bg-muted/30">
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="rounded-full bg-muted p-4 mb-4">
+                    <CheckCircle className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-semibold text-lg">All Caught Up!</h3>
+                  <p className="text-muted-foreground mt-2">
+                    No in-progress cleaning tasks.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {inProgressTasks.map(renderTaskCard)}
@@ -282,7 +318,19 @@ export default function CleaningTasks() {
 
         <TabsContent value="completed" className="space-y-4">
           {completedTasks.length === 0 ? (
-            <div className="text-center py-10 text-muted-foreground">No completed tasks.</div>
+            <div className="flex flex-1 items-center justify-center h-[50vh]">
+              <Card className="w-full max-w-md border-dashed bg-muted/30">
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="rounded-full bg-muted p-4 mb-4">
+                    <CheckCircle className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-semibold text-lg">All Caught Up!</h3>
+                  <p className="text-muted-foreground mt-2">
+                    No completed cleaning tasks.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {completedTasks.map(renderTaskCard)}
