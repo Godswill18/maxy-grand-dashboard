@@ -25,6 +25,8 @@ interface Booking {
     roomNumber: string;
   };
   createdAt: string;
+  guests?: number;
+  specialRequests?: string;
 }
 
 interface Hotel {
@@ -42,6 +44,8 @@ interface BookingState {
   fetchBookings: (hotelId?: string) => Promise<void>;
   fetchHotels: () => Promise<void>;
   updateBookingStatus: (id: string, bookingStatus: Booking['bookingStatus']) => Promise<void>;
+  updateBooking: (id: string, data: any) => Promise<void>;
+  cancelBooking: (id: string) => Promise<void>;
   deleteBooking: (id: string) => Promise<void>;
   createBooking: (data: any) => Promise<void>;
   
@@ -118,11 +122,77 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         }
       );
       // Refetch current page/filter after update
-      get().fetchBookings(get().currentHotelId);
+      get().fetchBookings(get().currentHotelId || undefined);
       toast.success(`Booking status updated to ${bookingStatus}`);
     } catch (err) {
       const error = err as AxiosError;
       toast.error(`Failed to update booking: ${error.message}`);
+    }
+  },
+
+  updateBooking: async (id: string, data: any) => {
+    set({ isLoading: true, error: null });
+    try {
+      const token = getToken();
+      const response = await axios.put(
+        `${VITE_API_URL}/api/bookings/${id}`,
+        data,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        }
+      );
+      
+      // Refetch bookings after update
+      await get().fetchBookings(get().currentHotelId || undefined);
+      
+      set({ isLoading: false });
+      toast.success('Booking updated successfully');
+      
+      return response.data;
+    } catch (err) {
+      const error = err as AxiosError;
+      set({ 
+        isLoading: false, 
+        error: error.message 
+      });
+      toast.error(`Failed to update booking: ${ error.message}`);
+      throw error;
+    }
+  },
+
+  cancelBooking: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const token = getToken();
+      await axios.patch(
+        `${VITE_API_URL}/api/bookings/${id}/cancel`,
+        {},
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        }
+      );
+      
+      // Refetch bookings after cancellation
+      await get().fetchBookings(get().currentHotelId || undefined);
+      
+      set({ isLoading: false });
+      toast.success('Booking cancelled successfully');
+    } catch (err) {
+      const error = err as AxiosError;
+      set({ 
+        isLoading: false, 
+        error:  error.message 
+      });
+      toast.error(`Failed to cancel booking: ${ error.message}`);
+      throw error;
     }
   },
 
@@ -134,7 +204,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         withCredentials: true,
       });
       // Refetch current after delete
-      get().fetchBookings(get().currentHotelId);
+      get().fetchBookings(get().currentHotelId || undefined);
       toast.success('Booking deleted successfully');
     } catch (err) {
       const error = err as AxiosError;
@@ -146,24 +216,30 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      const token = getToken();
       const res = await axios.post(`${VITE_API_URL}/api/bookings/create`, data, {
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
         withCredentials: true,
       });
 
       // Refetch current
-      get().fetchBookings(get().currentHotelId);
+      get().fetchBookings(get().currentHotelId || undefined);
 
       toast.success('Booking created successfully');
 
       set({ isLoading: false });
+      
+      return res.data;
     } catch (err: any) {
       set({
         isLoading: false,
         error: err.response?.data?.error || "Booking failed",
       });
+      toast.error(`Failed to create booking: ${err.response?.data?.error || "Booking failed"}`);
+      throw err;
     }
   },
 
@@ -178,8 +254,11 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     // Listen for new bookings
     socket.on('bookingCreated', (newBooking: Booking) => {
       // Refetch to include new booking if matches current hotel
-      if (get().currentHotelId === null || newBooking.hotelId._id === get().currentHotelId) {
-        get().fetchBookings(get().currentHotelId);
+      const currentHotelId = get().currentHotelId;
+      const hotelId = typeof newBooking.hotelId === 'string' ? newBooking.hotelId : newBooking.hotelId._id;
+      
+      if (currentHotelId === null || hotelId === currentHotelId) {
+        get().fetchBookings(currentHotelId || undefined);
       }
       toast.info(`New booking created for ${newBooking.guestName}`);
     });
@@ -187,15 +266,18 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     // Listen for updates
     socket.on('bookingUpdated', (updatedBooking: Booking) => {
       // Refetch if matches current hotel
-      if (get().currentHotelId === null || updatedBooking.hotelId._id === get().currentHotelId) {
-        get().fetchBookings(get().currentHotelId);
+      const currentHotelId = get().currentHotelId;
+      const hotelId = typeof updatedBooking.hotelId === 'string' ? updatedBooking.hotelId : updatedBooking.hotelId._id;
+      
+      if (currentHotelId === null || hotelId === currentHotelId) {
+        get().fetchBookings(currentHotelId || undefined);
       }
       toast.info(`Booking for ${updatedBooking.guestName} was updated`);
     });
 
     // Listen for deletions
     socket.on('bookingDeleted', (bookingId: string) => {
-      get().fetchBookings(get().currentHotelId);
+      get().fetchBookings(get().currentHotelId || undefined);
       toast.warning('A booking was deleted');
     });
   },

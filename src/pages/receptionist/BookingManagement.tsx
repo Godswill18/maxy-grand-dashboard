@@ -7,11 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Plus, Search, User, Phone, Mail, BedDouble } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Calendar, Plus, Search, Phone, Mail, BedDouble, Edit, X } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useEffect } from "react";
+import BookingManagementSkeleton from "../../components/skeleton/BookingManagementSkeleton";
 
 interface BookingFormData {
   guestName: string;
@@ -26,10 +28,14 @@ interface BookingFormData {
 }
 
 export default function BookingManagement() {
-  const { bookings, isLoading, fetchBookings, createBooking } = useBookingStore();
+  const { bookings, isLoading, fetchBookings, createBooking, updateBooking, cancelBooking } = useBookingStore();
   const { user } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [bookingToCancel, setBookingToCancel] = useState<string | null>(null);
   const [formData, setFormData] = useState<BookingFormData>({
     guestName: "",
     guestEmail: "",
@@ -41,17 +47,19 @@ export default function BookingManagement() {
     totalAmount: 0,
     specialRequests: "",
   });
-  const [availableRooms, setAvailableRooms] = useState<{ id: string; number: string; type: string }[]>([]); // Mock or fetch real rooms
+  const [availableRooms, setAvailableRooms] = useState<{ id: string; number: string; type: string }[]>([]);
 
   useEffect(() => {
-    fetchBookings();
+    if (user?.hotelId) {
+      fetchBookings();
+    }
     // Mock available rooms - in real app, fetch from /api/rooms/available
     setAvailableRooms([
       { id: "room1", number: "101", type: "Standard" },
       { id: "room2", number: "102", type: "Deluxe" },
       { id: "room3", number: "201", type: "Suite" },
     ]);
-  }, []);
+  }, [user?.hotelId]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -73,34 +81,108 @@ export default function BookingManagement() {
       toast.error("Hotel ID not found. Please log in again.");
       return;
     }
+
     try {
-      await createBooking({
-        ...formData,
-        hotelId: user.hotelId,
-        bookingType: "in-person", // or "online"
-        amountPaid: 0,
-        paymentStatus: "pending",
-        bookingStatus: "confirmed",
-      });
+      if (isEditMode && editingBookingId) {
+        // Update existing booking
+        await updateBooking(editingBookingId, {
+          ...formData,
+          hotelId: user.hotelId,
+        });
+        toast.success("Booking updated successfully!");
+      } else {
+        // Create new booking
+        await createBooking({
+          ...formData,
+          hotelId: user.hotelId,
+          bookingType: "in-person",
+          amountPaid: 0,
+          paymentStatus: "pending",
+          bookingStatus: "confirmed",
+        });
+        toast.success("Booking created successfully!");
+      }
+      
+      resetForm();
       setIsDialogOpen(false);
-      setFormData({
-        guestName: "",
-        guestEmail: "",
-        guestPhone: "",
-        checkInDate: "",
-        checkOutDate: "",
-        roomId: "",
-        guests: 1,
-        totalAmount: 0,
-        specialRequests: "",
-      });
-      toast.success("Booking created successfully!");
     } catch (error) {
-      toast.error("Failed to create booking.");
+      toast.error(isEditMode ? "Failed to update booking." : "Failed to create booking.");
     }
   };
 
-  const filteredBookings = bookings.filter(booking =>
+  const handleEdit = (booking: any) => {
+    setIsEditMode(true);
+    setEditingBookingId(booking._id);
+    setFormData({
+      guestName: booking.guestName,
+      guestEmail: booking.guestEmail,
+      guestPhone: booking.guestPhone,
+      checkInDate: new Date(booking.checkInDate).toISOString().split('T')[0],
+      checkOutDate: new Date(booking.checkOutDate).toISOString().split('T')[0],
+      roomId: typeof booking.roomId === 'string' ? booking.roomId : booking.roomId._id,
+      guests: booking.guests || 1,
+      totalAmount: booking.totalAmount || 0,
+      specialRequests: booking.specialRequests || "",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleCancelBooking = async () => {
+    if (!bookingToCancel) return;
+
+    try {
+      await cancelBooking(bookingToCancel);
+      toast.success("Booking cancelled successfully!");
+      setCancelDialogOpen(false);
+      setBookingToCancel(null);
+    } catch (error) {
+      toast.error("Failed to cancel booking.");
+    }
+  };
+
+  const openCancelDialog = (bookingId: string) => {
+    setBookingToCancel(bookingId);
+    setCancelDialogOpen(true);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      guestName: "",
+      guestEmail: "",
+      guestPhone: "",
+      checkInDate: "",
+      checkOutDate: "",
+      roomId: "",
+      guests: 1,
+      totalAmount: 0,
+      specialRequests: "",
+    });
+    setIsEditMode(false);
+    setEditingBookingId(null);
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      resetForm();
+    }
+  };
+
+  // Filter bookings by hotelId
+const hotelBookings = bookings.filter(booking => {
+    if (!user?.hotelId) return false;
+    // If hotelId is a string compare directly
+    if (typeof booking.hotelId === "string") {
+      return booking.hotelId === user.hotelId;
+    }
+    // If hotelId is an object with _id, compare _id
+    if (booking.hotelId && typeof booking.hotelId === "object" && "_id" in booking.hotelId) {
+      return (booking.hotelId as { _id: string })._id === user.hotelId;
+    }
+    return false;
+  });
+
+  const filteredBookings = hotelBookings.filter(booking =>
     booking.guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     booking._id.toLowerCase().includes(searchQuery.toLowerCase()) ||
     booking.guestEmail.toLowerCase().includes(searchQuery.toLowerCase())
@@ -152,7 +234,7 @@ export default function BookingManagement() {
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Booking ID:</span>
-            <span className="font-medium">{booking._id}</span>
+            <span className="font-medium text-xs">{booking._id}</span>
           </div>
         </div>
 
@@ -163,27 +245,44 @@ export default function BookingManagement() {
         )}
 
         <div className="flex gap-2">
-          {booking.bookingStatus === "pending" && (
+          {booking.bookingStatus !== "cancelled" && booking.bookingStatus !== "checked-out" && (
             <>
-              <Button size="sm" className="flex-1" onClick={() => { /* confirm logic */ }}>
-                Confirm
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="flex-1"
+                onClick={() => handleEdit(booking)}
+              >
+                <Edit className="h-4 w-4 mr-1" />
+                Edit
               </Button>
-              <Button size="sm" variant="outline" className="flex-1" onClick={() => { /* cancel logic */ }}>
+              <Button 
+                size="sm" 
+                variant="destructive" 
+                className="flex-1"
+                onClick={() => openCancelDialog(booking._id)}
+              >
+                <X className="h-4 w-4 mr-1" />
                 Cancel
               </Button>
             </>
           )}
-          {booking.bookingStatus === "confirmed" && (
-            <Button size="sm" variant="outline" className="flex-1" onClick={() => { /* cancel logic */ }}>
-              Cancel Booking
-            </Button>
+          {booking.bookingStatus === "cancelled" && (
+            <div className="w-full text-center text-sm text-muted-foreground py-2">
+              Booking Cancelled
+            </div>
+          )}
+          {booking.bookingStatus === "checked-out" && (
+            <div className="w-full text-center text-sm text-muted-foreground py-2">
+              Booking Completed
+            </div>
           )}
         </div>
       </CardContent>
     </Card>
   );
 
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading) return <BookingManagementSkeleton />;
 
   return (
     <div className="space-y-6">
@@ -192,16 +291,16 @@ export default function BookingManagement() {
           <h1 className="text-3xl font-bold">Booking Management</h1>
           <p className="text-muted-foreground">Manage hotel reservations and bookings</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        {/* <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={resetForm}>
               <Plus className="h-4 w-4 mr-2" />
               New Booking
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Create New Booking</DialogTitle>
+              <DialogTitle>{isEditMode ? "Edit Booking" : "Create New Booking"}</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4">
               <div className="grid grid-cols-2 gap-4">
@@ -231,7 +330,7 @@ export default function BookingManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Room</Label>
-                  <Select name="roomId" onValueChange={(value) => setFormData(prev => ({ ...prev, roomId: value }))}>
+                  <Select name="roomId" value={formData.roomId} onValueChange={(value) => setFormData(prev => ({ ...prev, roomId: value }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select room" />
                     </SelectTrigger>
@@ -256,18 +355,18 @@ export default function BookingManagement() {
                 <Input name="specialRequests" placeholder="Any special requirements..." value={formData.specialRequests} onChange={handleInputChange} />
               </div>
               <Button className="w-full" onClick={handleSubmit}>
-                Create Booking
+                {isEditMode ? "Update Booking" : "Create Booking"}
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
+        </Dialog> */}
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">Total Bookings</p>
-            <p className="text-3xl font-bold">{bookings.length}</p>
+            <p className="text-3xl font-bold">{hotelBookings.length}</p>
           </CardContent>
         </Card>
         <Card>
@@ -311,34 +410,71 @@ export default function BookingManagement() {
 
         <TabsContent value="all" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredBookings.map(booking => <BookingCard key={booking._id} booking={booking} />)}
+            {filteredBookings.length > 0 ? (
+              filteredBookings.map(booking => <BookingCard key={booking._id} booking={booking} />)
+            ) : (
+              <p className="text-muted-foreground col-span-full text-center py-8">No bookings found</p>
+            )}
           </div>
         </TabsContent>
 
         <TabsContent value="confirmed" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {confirmed.map(booking => <BookingCard key={booking._id} booking={booking} />)}
+            {confirmed.length > 0 ? (
+              confirmed.map(booking => <BookingCard key={booking._id} booking={booking} />)
+            ) : (
+              <p className="text-muted-foreground col-span-full text-center py-8">No confirmed bookings</p>
+            )}
           </div>
         </TabsContent>
 
         <TabsContent value="pending" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {pending.map(booking => <BookingCard key={booking._id} booking={booking} />)}
+            {pending.length > 0 ? (
+              pending.map(booking => <BookingCard key={booking._id} booking={booking} />)
+            ) : (
+              <p className="text-muted-foreground col-span-full text-center py-8">No pending bookings</p>
+            )}
           </div>
         </TabsContent>
 
         <TabsContent value="completed" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {completed.map(booking => <BookingCard key={booking._id} booking={booking} />)}
+            {completed.length > 0 ? (
+              completed.map(booking => <BookingCard key={booking._id} booking={booking} />)
+            ) : (
+              <p className="text-muted-foreground col-span-full text-center py-8">No completed bookings</p>
+            )}
           </div>
         </TabsContent>
 
         <TabsContent value="cancelled" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {cancelled.map(booking => <BookingCard key={booking._id} booking={booking} />)}
+            {cancelled.length > 0 ? (
+              cancelled.map(booking => <BookingCard key={booking._id} booking={booking} />)
+            ) : (
+              <p className="text-muted-foreground col-span-full text-center py-8">No cancelled bookings</p>
+            )}
           </div>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Booking</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this booking? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setBookingToCancel(null)}>No, Keep Booking</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancelBooking} className="bg-destructive hover:bg-destructive/90">
+              Yes, Cancel Booking
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

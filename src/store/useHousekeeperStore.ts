@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import axios from 'axios';
 import { useAuthStore } from './useAuthStore';
 
+
 // Define types based on your backend response
 interface RoomType {
   _id: string;
@@ -26,7 +27,7 @@ export interface CleaningTask {
   roomId: Room;
   assignedCleaner: string;
   requestedBy: User;
-  status: 'pending' | 'in-progress' | 'completed'; // Fixed: backend uses 'in-progress' with hyphen
+  status: 'pending' | 'in-progress' | 'completed';
   priority?: 'High' | 'Medium' | 'Low';
   estimatedDuration?: string;
   startTime?: string;
@@ -42,8 +43,12 @@ interface HousekeeperState {
   isLoading: boolean;
   error: string | null;
   fetchMyTasks: () => Promise<void>;
-  startTask: (taskId: string) => Promise<void>; // Fixed: now calls backend endpoint
+  startTask: (taskId: string) => Promise<void>;
   completeTask: (taskId: string) => Promise<void>;
+  
+  // NEW: Socket listener management
+  initSocketListeners: () => void;
+  closeSocketListeners: () => void;
 }
 
 const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -70,7 +75,6 @@ export const useHousekeeperStore = create<HousekeeperState>((set, get) => ({
     }
   },
 
-  // Fixed: Now calls the backend /start endpoint
   startTask: async (taskId: string) => {
     try {
       const { token } = useAuthStore.getState();
@@ -83,7 +87,6 @@ export const useHousekeeperStore = create<HousekeeperState>((set, get) => ({
         }
       );
       
-      // Update local state with the response from backend
       set((state) => ({
         tasks: state.tasks.map((t) => 
           t._id === taskId ? { ...t, status: 'in-progress', startTime: response.data.request.startTime } : t
@@ -91,7 +94,7 @@ export const useHousekeeperStore = create<HousekeeperState>((set, get) => ({
       }));
     } catch (error: any) {
       console.error("Failed to start task", error);
-      throw error; // Re-throw so component can handle error
+      throw error;
     }
   },
 
@@ -107,7 +110,6 @@ export const useHousekeeperStore = create<HousekeeperState>((set, get) => ({
         }
       );
       
-      // Update local state
       set((state) => ({
         tasks: state.tasks.map((t) => 
           t._id === taskId 
@@ -122,7 +124,20 @@ export const useHousekeeperStore = create<HousekeeperState>((set, get) => ({
       }));
     } catch (error: any) {
       console.error("Failed to complete task", error);
-      throw error; // Re-throw so component can handle error
+      throw error;
     }
+  },
+
+  // Socket.io listeners for real-time updates
+  initSocketListeners: () => {
+    // You can implement socket listeners here if needed
+    // socket.on('cleaning:new', (data) => { ... });
+    // socket.on('cleaning:update', (data) => { ... });
+  },
+
+  closeSocketListeners: () => {
+    // Clean up socket listeners
+    // socket.off('cleaning:new');
+    // socket.off('cleaning:update');
   },
 }));

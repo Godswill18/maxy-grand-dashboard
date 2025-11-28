@@ -60,6 +60,7 @@ import Settings from "./pages/Settings";
 import RoomDetailPage from "./pages/RoomDetails";
 import Housekeeping from "./pages/manager/HouseKeeping";
 import Restaurant from "./pages/manager/Restaurant";
+import BookingCalendar from "./pages/receptionist/Bookingcalendar";
 
 const queryClient = new QueryClient();
 
@@ -282,6 +283,7 @@ const App = () => (
               <Route path="/receptionist/checkin" element={<CheckInOut />} />
               <Route path="/receptionist/rooms" element={<RoomReceptionist />} />
               <Route path="/receptionist/bookings" element={<BookingManagement />} />
+              <Route path="/receptionist/calendar" element={<BookingCalendar />} />
               <Route path="/receptionist/payments" element={<PaymentProcessing />} />
             </Route>
 

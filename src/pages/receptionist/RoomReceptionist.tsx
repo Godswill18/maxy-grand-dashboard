@@ -6,78 +6,194 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { BedDouble, Search, Loader2 } from "lucide-react";
+import { BedDouble, Search, Loader2, Clock, ArrowRightLeft, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-// Import the new store and room type
-import { useRoomStore as useRecepRoomStore, ReceptionistRoom } from "@/store/useRecepRoomStore"; // <-- Renamed store
+import { useRoomStore as useRecepRoomStore, ReceptionistRoom } from "@/store/useRecepRoomStore";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// ===================================================================
-// REFACTORED DIALOG COMPONENT
-// ===================================================================
-interface AssignRoomDialogProps {
-  room: ReceptionistRoom;
-  onOpenChange: (open: boolean) => void;
+// Countdown Timer Component
+const CheckoutCountdown = ({ checkOutDate }: { checkOutDate: string }) => {
+  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
+  const [isOverdue, setIsOverdue] = useState(false);
+
+  useEffect(() => {
+    const targetDate = new Date(checkOutDate);
+    targetDate.setHours(12, 0, 0, 0); // Checkout at 12:00 PM
+
+    const timer = setInterval(() => {
+      const now = new Date().getTime();
+      const distance = targetDate.getTime() - now;
+
+      if (distance <= 0) {
+        setIsOverdue(true);
+        const overdueDistance = Math.abs(distance);
+        setTimeLeft({
+          hours: Math.floor(overdueDistance / (1000 * 60 * 60)),
+          minutes: Math.floor((overdueDistance % (1000 * 60 * 60)) / (1000 * 60)),
+          seconds: Math.floor((overdueDistance % (1000 * 60)) / 1000),
+        });
+      } else {
+        setIsOverdue(false);
+        setTimeLeft({
+          hours: Math.floor(distance / (1000 * 60 * 60)),
+          minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
+          seconds: Math.floor((distance % (1000 * 60)) / 1000),
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [checkOutDate]);
+
+  const pad = (num: number) => num.toString().padStart(2, '0');
+
+  return (
+    <div className={`flex items-center gap-2 text-xs font-medium ${isOverdue ? 'text-white' : 'text-white/90'}`}>
+      <Clock className="h-3 w-3" />
+      {isOverdue ? (
+        <span>Overdue: {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
+      ) : (
+        <span>Checkout: {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
+      )}
+    </div>
+  );
+};
+
+// Room Reassignment Dialog
+interface ReassignRoomDialogProps {
+  currentRoom: ReceptionistRoom;
+  availableRooms: ReceptionistRoom[];
+  onReassign: (currentRoomId: string, newRoomId: string) => Promise<void>;
   open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-function AssignRoomDialog({ room, open, onOpenChange }: AssignRoomDialogProps) {
-  const [bookingId, setBookingId] = useState("");
-  const [confirmationCode, setConfirmationCode] = useState("");
-  const { checkIn, isLoading } = useRecepRoomStore(); // <-- Use renamed store
+function ReassignRoomDialog({ currentRoom, availableRooms, onReassign, open, onOpenChange }: ReassignRoomDialogProps) {
+  const [selectedRoomId, setSelectedRoomId] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!bookingId || !confirmationCode) {
-      toast.error("Please fill in both Booking ID and Confirmation Code.");
-      return;
+  const handleReassign = async () => {
+    if (!selectedRoomId) {
+      return toast.error("Please select a room to reassign");
     }
 
-    const result = await checkIn(bookingId, confirmationCode);
-    if (result.success) {
-      onOpenChange(false); // Close dialog on success
-      setBookingId(""); // Reset fields
-      setConfirmationCode("");
+    setIsLoading(true);
+    try {
+      await onReassign(currentRoom._id, selectedRoomId);
+      onOpenChange(false);
+      setSelectedRoomId("");
+    } catch (error) {
+      // Error handled in parent
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const selectedRoom = availableRooms.find(r => r._id === selectedRoomId);
+  const currentPrice = currentRoom.roomTypeId?.price || 0;
+  const newPrice = selectedRoom?.roomTypeId?.price || 0;
+  const priceDiff = newPrice - currentPrice;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="w-full">
-          Assign Room
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Assign Room {room.roomNumber}</DialogTitle>
+          <DialogTitle>Reassign Room {currentRoom.roomNumber}</DialogTitle>
         </DialogHeader>
+        
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="bookingId">Booking ID</Label>
-            <Input 
-              id="bookingId" 
-              placeholder="Enter booking ID (e.g., BK-1005)" 
-              value={bookingId}
-              onChange={(e) => setBookingId(e.target.value)}
-            />
+          {/* Current Room Info */}
+          <div className="p-3 bg-gray-50 rounded-lg">
+            <p className="text-sm font-medium mb-2">Current Room</p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="text-muted-foreground">Room:</span>
+                <span className="ml-2 font-medium">{currentRoom.roomNumber}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Type:</span>
+                <span className="ml-2 font-medium">{currentRoom.roomTypeId?.name}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Guest:</span>
+                <span className="ml-2 font-medium">{currentRoom.currentBookingId?.guestName}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Price:</span>
+                <span className="ml-2 font-medium">₦{currentPrice.toLocaleString()}/night</span>
+              </div>
+            </div>
           </div>
+
+          {/* New Room Selection */}
           <div>
-            <Label htmlFor="confirmationCode">Confirmation Code</Label>
-            <Input 
-              id="confirmationCode" 
-              placeholder="Enter confirmation code" 
-              value={confirmationCode}
-              onChange={(e) => setConfirmationCode(e.target.value)}
-            />
+            <Label>Select New Room</Label>
+            <Select value={selectedRoomId} onValueChange={setSelectedRoomId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose available room" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableRooms.map((room) => (
+                  <SelectItem key={room._id} value={room._id}>
+                    Room {room.roomNumber} - {room.roomTypeId?.name} (₦{room.roomTypeId?.price.toLocaleString()}/night)
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Price Comparison */}
+          {selectedRoom && (
+            <div className={`p-3 rounded-lg ${priceDiff > 0 ? 'bg-green-50 border border-green-200' : priceDiff < 0 ? 'bg-red-50 border border-red-200' : 'bg-gray-50'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">
+                    {priceDiff > 0 ? 'Upgrade' : priceDiff < 0 ? 'Downgrade' : 'Same Price'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedRoom.roomTypeId?.name} - Room {selectedRoom.roomNumber}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className={`text-lg font-bold ${priceDiff > 0 ? 'text-green-600' : priceDiff < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                    {priceDiff > 0 ? '+' : ''}{priceDiff !== 0 ? `₦${Math.abs(priceDiff).toLocaleString()}` : 'No change'}
+                  </p>
+                  {priceDiff !== 0 && (
+                    <p className="text-xs text-muted-foreground">per night</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Warning */}
+          <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5" />
+            <div className="text-sm text-amber-800">
+              <p className="font-medium">Important:</p>
+              <p>The guest will be moved to the new room. Ensure payment adjustments are made if there's a price difference.</p>
+            </div>
           </div>
         </div>
+
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="outline">
+            <Button type="button" variant="outline" disabled={isLoading}>
               Cancel
             </Button>
           </DialogClose>
-          <Button onClick={handleSubmit} disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirm Assignment"}
+          <Button onClick={handleReassign} disabled={isLoading || !selectedRoomId}>
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Reassigning...
+              </>
+            ) : (
+              <>
+                <ArrowRightLeft className="mr-2 h-4 w-4" />
+                Confirm Reassignment
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -85,47 +201,84 @@ function AssignRoomDialog({ room, open, onOpenChange }: AssignRoomDialogProps) {
   );
 }
 
-// ===================================================================
-// MAIN RECEPTIONIST COMPONENT
-// ===================================================================
+// Main Component
 export default function RoomReceptionist() {
-  // --- Get state from Zustand store ---
-  const { rooms, isLoading, error, fetchRooms } = useRecepRoomStore(); // <-- Use renamed store
-
-  // --- Local state for filters and dialogs ---
+  const { rooms, isLoading, error, fetchRooms } = useRecepRoomStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [openDialogs, setOpenDialogs] = useState<Record<string, boolean>>({});
+  const [reassignDialogOpen, setReassignDialogOpen] = useState<Record<string, boolean>>({});
 
-  // --- Fetch data on component mount ---
   useEffect(() => {
     fetchRooms();
+    
+    // Refresh every 30 seconds for real-time updates
+    const interval = setInterval(fetchRooms, 30000);
+    return () => clearInterval(interval);
   }, [fetchRooms]);
 
-  // --- Helper Functions (Updated) ---
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "available": return "bg-success/10 text-success hover:bg-success/20";
-      case "occupied": return "bg-error/10 text-error hover:bg-error/20";
-      case "reserved": return "bg-warning/10 text-warning hover:bg-warning/20";
-      case "cleaning": return "bg-info/10 text-info hover:bg-info/20"; // Added
-      case "maintenance": return "bg-muted text-muted-foreground hover:bg-muted";
-      default: return "";
+  // Get room background color based on status
+  const getRoomCardStyle = (room: ReceptionistRoom) => {
+    const baseStyle = "hover:shadow-xl transition-all duration-300";
+    
+    // Check if overdue (for occupied rooms)
+    if (room.status === 'occupied' && room.checkOutDate) {
+      const checkoutTime = new Date(room.checkOutDate);
+      checkoutTime.setHours(12, 0, 0, 0);
+      const isOverdue = new Date() > checkoutTime;
+      
+      if (isOverdue) {
+        return `${baseStyle} bg-gradient-to-br from-[#962E2A] to-[#7a251f] text-white border-[#962E2A]`;
+      }
+    }
+
+    switch (room.status) {
+      case "available":
+        return `${baseStyle} bg-gradient-to-br from-[#080205] to-[#1a0f16] text-white border-[#080205]`;
+      case "occupied":
+        return `${baseStyle} bg-gradient-to-br from-[#00246B] to-[#001a4d] text-white border-[#00246B]`;
+      case "cleaning":
+        return `${baseStyle} bg-gradient-to-br from-[#E58D2E] to-[#c77424] text-white border-[#E58D2E]`;
+      case "reserved":
+        return `${baseStyle} bg-gradient-to-br from-[#144058] to-[#0f3244] text-white border-[#144058]`;
+      case "maintenance":
+        return `${baseStyle} bg-gray-100 border-gray-300`;
+      default:
+        return `${baseStyle} bg-white border-gray-200`;
     }
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "Standard": return "bg-info/10 text-info";
-      case "Deluxe": return "bg-primary/10 text-primary";
-      case "Suite": return "bg-warning/10 text-warning";
-      case "Presidential": return "bg-error/10 text-error";
-      default: return "";
+  const getStatusBadge = (room: ReceptionistRoom) => {
+    // Check if overdue
+    if (room.status === 'occupied' && room.checkOutDate) {
+      const checkoutTime = new Date(room.checkOutDate);
+      checkoutTime.setHours(12, 0, 0, 0);
+      const isOverdue = new Date() > checkoutTime;
+      
+      if (isOverdue) {
+        return <Badge className="bg-white/20 text-white border-white/30">Overdue</Badge>;
+      }
+    }
+
+    const isDark = ['occupied', 'cleaning', 'reserved', 'available'].includes(room.status) || 
+                   (room.status === 'occupied' && room.checkOutDate && new Date() > new Date(room.checkOutDate));
+
+    switch (room.status) {
+      case "available":
+        return <Badge className="bg-white/20 text-white border-white/30">Available</Badge>;
+      case "occupied":
+        return <Badge className="bg-white/20 text-white border-white/30">Occupied</Badge>;
+      case "cleaning":
+        return <Badge className="bg-white/20 text-white border-white/30">Cleaning</Badge>;
+      case "reserved":
+        return <Badge className="bg-white/20 text-white border-white/30">Reserved</Badge>;
+      case "maintenance":
+        return <Badge className="bg-gray-200 text-gray-700">Maintenance</Badge>;
+      default:
+        return <Badge>{room.status}</Badge>;
     }
   };
 
-  // --- Filtering Logic (Updated) ---
   const filteredRooms = rooms.filter(room => {
     const guestName = room.currentBookingId?.guestName || "";
     const bookingId = room.currentBookingId?._id || "";
@@ -135,28 +288,108 @@ export default function RoomReceptionist() {
       guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       bookingId.toLowerCase().includes(searchQuery.toLowerCase());
       
-    // FIX: Add a check for room.roomTypeId to prevent crash if data is bad
     const matchesType = filterType === "all" || (room.roomTypeId && room.roomTypeId.name === filterType);
     const matchesStatus = filterStatus === "all" || room.status === filterStatus;
     
     return matchesSearch && matchesType && matchesStatus;
   });
 
-  // --- Stats Calculation (Updated) ---
   const stats = {
     available: rooms.filter(r => r.status === "available").length,
     occupied: rooms.filter(r => r.status === "occupied").length,
     reserved: rooms.filter(r => r.status === "reserved").length,
-    cleaning: rooms.filter(r => r.status === "cleaning").length, // Added
+    cleaning: rooms.filter(r => r.status === "cleaning").length,
     maintenance: rooms.filter(r => r.status === "maintenance").length,
   };
 
-  // --- Render Loading and Error States ---
+  const handleReassignRoom = async (currentRoomId: string, newRoomId: string) => {
+    try {
+      // Call your backend API to reassign the room
+      const response = await fetch(`${(import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000'}/api/receptionist/rooms/reassign`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentRoomId, newRoomId }),
+      });
+
+      if (!response.ok) throw new Error('Failed to reassign room');
+
+      toast.success('Room reassigned successfully!');
+      await fetchRooms();
+    } catch (error) {
+      toast.error('Failed to reassign room. Please try again.');
+      throw error;
+    }
+  };
+
   if (isLoading && rooms.length === 0) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2 text-lg">Loading Rooms...</span>
+      <div className="space-y-6">
+        <div>
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-5 w-96 mt-2" />
+        </div>
+
+        {/* Stats Cards Skeleton */}
+        <div className="grid gap-4 md:grid-cols-5">
+          {[...Array(5)].map((_, index) => (
+            <Card key={index}>
+              <CardContent className="p-4">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-9 w-16 mt-2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Filters Skeleton */}
+        <div className="flex flex-col md:flex-row gap-4">
+          <Skeleton className="h-10 flex-1" />
+          <Skeleton className="h-10 w-full md:w-[180px]" />
+          <Skeleton className="h-10 w-full md:w-[180px]" />
+        </div>
+
+        {/* Room Cards Skeleton */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, index) => (
+            <Card key={index} className="hover:shadow-xl transition-all">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-6 w-24" />
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-center p-6 bg-gray-50 rounded-lg">
+                  <Skeleton className="h-16 w-16 rounded" />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                  <Skeleton className="h-6 w-14 rounded-full" />
+                </div>
+
+                <Skeleton className="h-9 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
@@ -171,6 +404,8 @@ export default function RoomReceptionist() {
     );
   }
 
+  const availableRooms = rooms.filter(r => r.status === 'available');
+
   return (
     <div className="space-y-6">
       <div>
@@ -178,41 +413,41 @@ export default function RoomReceptionist() {
         <p className="text-muted-foreground">Manage room availability and guest assignments</p>
       </div>
 
-      {/* Stats Cards (Added Cleaning) */}
+      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-5">
-        <Card>
+        <Card style={{ backgroundColor: '#080205' }}>
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Available</p>
-            <p className="text-3xl font-bold text-success">{stats.available}</p>
+            <p className="text-sm text-white/70">Available</p>
+            <p className="text-3xl font-bold text-white">{stats.available}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card style={{ backgroundColor: '#00246B' }}>
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Occupied</p>
-            <p className="text-3xl font-bold text-error">{stats.occupied}</p>
+            <p className="text-sm text-white/70">Occupied</p>
+            <p className="text-3xl font-bold text-white">{stats.occupied}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card style={{ backgroundColor: '#144058' }}>
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Reserved</p>
-            <p className="text-3xl font-bold text-warning">{stats.reserved}</p>
+            <p className="text-sm text-white/70">Reserved</p>
+            <p className="text-3xl font-bold text-white">{stats.reserved}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card style={{ backgroundColor: '#E58D2E' }}>
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Cleaning</p>
-            <p className="text-3xl font-bold text-info">{stats.cleaning}</p>
+            <p className="text-sm text-white/70">Cleaning</p>
+            <p className="text-3xl font-bold text-white">{stats.cleaning}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">Maintenance</p>
-            <p className="text-3xl font-bold text-muted-foreground">{stats.maintenance}</p>
+            <p className="text-3xl font-bold text-gray-600">{stats.maintenance}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filter UI (Added Cleaning) */}
+      {/* Filters */}
       <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -250,96 +485,101 @@ export default function RoomReceptionist() {
         </Select>
       </div>
 
-      {/* Room Grid (Updated to new data structure) */}
+      {/* Room Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredRooms.map((room) => (
-          <Card key={room._id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Room {room.roomNumber}</CardTitle>
-                <Badge className={getStatusColor(room.status)}>
-                  {room.status.charAt(0).toUpperCase() + room.status.slice(1)}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-center p-6 bg-primary/5 rounded-lg">
-                <BedDouble className="h-16 w-16 text-primary" />
-              </div>
+        {filteredRooms.map((room) => {
+          const isDark = ['occupied', 'cleaning', 'reserved', 'available'].includes(room.status) || 
+                         (room.status === 'occupied' && room.checkOutDate && new Date() > new Date(room.checkOutDate));
+          const textColor = isDark ? 'text-white' : 'text-gray-900';
+          const mutedColor = isDark ? 'text-white/70' : 'text-muted-foreground';
 
-              {/* Room Details */}
-              <div className="space-y-2">
+          return (
+            <Card key={room._id} className={getRoomCardStyle(room)}>
+              <CardHeader>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Type:</span>
-                  {/* Add check for roomTypeId before accessing name */}
-                  <Badge className={getTypeColor(room.roomTypeId?.name)}>
-                    {room.roomTypeId?.name || "N/A"}
-                  </Badge>
+                  <CardTitle className={`text-lg ${textColor}`}>Room {room.roomNumber}</CardTitle>
+                  {getStatusBadge(room)}
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Capacity:</span>
-                  <span className="font-medium">{room.roomTypeId?.capacity || "N/A"} guests</span>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Countdown Timer for Occupied Rooms */}
+                {room.status === 'occupied' && room.checkOutDate && (
+                  <div className="p-2 rounded-md bg-white/10 backdrop-blur-sm">
+                    <CheckoutCountdown checkOutDate={room.checkOutDate} />
+                  </div>
+                )}
+
+                <div className="flex items-center justify-center p-6 bg-white/10 rounded-lg backdrop-blur-sm">
+                  <BedDouble className={`h-16 w-16 ${isDark ? 'text-white/80' : 'text-primary'}`} />
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Price/Night:</span>
-                  <span className="font-bold text-primary">
-                    ₦{room.roomTypeId?.price?.toLocaleString() || "N/A"}
-                  </span>
+
+                {/* Room Details */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm ${mutedColor}`}>Type:</span>
+                    <Badge className={isDark ? 'bg-white/20 text-white border-white/30' : ''}>
+                      {room.roomTypeId?.name || "N/A"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm ${mutedColor}`}>Capacity:</span>
+                    <span className={`font-medium ${textColor}`}>{room.roomTypeId?.capacity || "N/A"} guests</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm ${mutedColor}`}>Price/Night:</span>
+                    <span className={`font-bold ${textColor}`}>
+                      ₦{room.roomTypeId?.price?.toLocaleString() || "N/A"}
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              {/* === VVV THIS IS THE NEW/FIXED BLOCK VVV === */}
-              {/* Show Reservation Date if Reserved */}
-              {room.status === 'reserved' && room.currentBookingId && (
-                <div className="p-3 bg-warning/10 rounded-md space-y-1">
-                  <p className="text-sm font-bold text-warning-foreground">
-                    Reserved for: {new Date(room.checkInDate!).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                    })}
-                  </p>
-                  <p className="text-sm font-medium">Guest: {room.currentBookingId.guestName}</p>
-                  <p className="text-xs text-muted-foreground">Booking: {room.currentBookingId._id}</p>
-                </div>
-              )}
+                {/* Guest Info */}
+                {room.currentBookingId && (
+                  <div className="p-3 bg-white/10 rounded-md backdrop-blur-sm">
+                    <p className={`text-sm font-medium ${textColor}`}>Guest: {room.currentBookingId.guestName}</p>
+                    <p className={`text-xs ${mutedColor}`}>Booking: {room.currentBookingId._id}</p>
+                  </div>
+                )}
 
-              {/* Show Guest Info if Occupied */}
-              {room.status === 'occupied' && room.currentBookingId && (
-                <div className="p-3 bg-error/10 rounded-md"> {/* Matches "Occupied" badge color */}
-                  <p className="text-sm font-medium">Guest: {room.currentBookingId.guestName}</p>
-                  <p className="text-xs text-muted-foreground">Booking: {room.currentBookingId._id}</p>
-                </div>
-              )}
-              {/* === ^^^ END OF NEW/FIXED BLOCK ^^^ === */}
-
-
-              {/* Amenities (Fixed and de-duplicated) */}
-              <div className="flex flex-wrap gap-2">
-                {room.roomTypeId && Array.isArray(room.roomTypeId.amenities) 
-                  ? room.roomTypeId.amenities.map((amenity, index) => (
-                      <span key={index} className="text-xs px-2 py-1 bg-muted rounded-full">
-                        {amenity}
-                      </span>
-                    ))
-                  : (
-                    <span className="text-xs text-muted-foreground italic">No amenities listed.</span>
-                  )
-                }
-              </div>
-
-              {/* Dialog (Updated) */}
-              {room.status === "available" && (
-                <AssignRoomDialog 
-                  room={room}
-                  open={openDialogs[room._id] || false}
-                  onOpenChange={(isOpen) => 
-                    setOpenDialogs(prev => ({ ...prev, [room._id]: isOpen }))
+                {/* Amenities */}
+                <div className="flex flex-wrap gap-2">
+                  {room.roomTypeId && Array.isArray(room.roomTypeId.amenities) 
+                    ? room.roomTypeId.amenities.slice(0, 3).map((amenity, index) => (
+                        <span key={index} className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-white/10 text-white/80' : 'bg-muted'}`}>
+                          {amenity}
+                        </span>
+                      ))
+                    : null
                   }
+                </div>
+
+                {/* Action Button */}
+                {room.status === "occupied" && availableRooms.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="w-full"
+                    onClick={() => setReassignDialogOpen({ ...reassignDialogOpen, [room._id]: true })}
+                  >
+                    <ArrowRightLeft className="h-4 w-4 mr-2" />
+                    Reassign Room
+                  </Button>
+                )}
+              </CardContent>
+
+              {/* Reassign Dialog */}
+              {reassignDialogOpen[room._id] && (
+                <ReassignRoomDialog
+                  currentRoom={room}
+                  availableRooms={availableRooms}
+                  onReassign={handleReassignRoom}
+                  open={reassignDialogOpen[room._id]}
+                  onOpenChange={(open) => setReassignDialogOpen({ ...reassignDialogOpen, [room._id]: open })}
                 />
               )}
-            </CardContent>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

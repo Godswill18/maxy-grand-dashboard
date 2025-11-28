@@ -1,16 +1,14 @@
 // src/store/useAnalyticsStore.ts
 
 import { create } from 'zustand';
-import axios, { AxiosError } from 'axios';
 import { toast } from 'sonner';
-import { useAuthStore } from './useAuthStore';
 
 // --- Type Definitions ---
 interface QuickStats {
     totalRevenue: number;
     totalBookings: number;
-    avgOccupancy: number; // Placeholder for now
-    avgRating: number;    // Placeholder for now
+    avgOccupancy: number;
+    avgRating: number;
 }
 
 interface MonthlyData {
@@ -40,7 +38,6 @@ interface AnalyticsState {
 }
 
 // --- Store Implementation ---
-const getToken = () => useAuthStore.getState().token;
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
 const initialQuickStats: QuickStats = {
@@ -59,37 +56,47 @@ export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
     error: null,
 
     fetchBranchAnalytics: async () => {
-        const { user } = useAuthStore.getState();
-        if (!user || !user.hotelId) {
-            set({ error: "User is not associated with a hotel.", isLoading: false });
-            toast.warning("Cannot fetch analytics: Hotel ID is missing.");
-            return;
-        }
-
         set({ isLoading: true, error: null });
+        
         try {
-            const token = getToken();
+            const response = await fetch(`${VITE_API_URL}/api/analytics/branch-data`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include', // Important for cookies/sessions
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch analytics');
+            }
+
+            const result = await response.json();
             
-            // NOTE: Use the new dedicated route
-            const response = await axios.get(`${VITE_API_URL}/api/analytics/branch-data`, {
-                headers: { Authorization: `Bearer ${token}` },
-                withCredentials: true,
-            });
-
-            const data = response.data.data;
-
-            set({
-                quickStats: data.quickStats,
-                monthlyRevenue: data.monthlyRevenue,
-                roomTypeRevenue: data.roomTypeRevenue,
-                customerSatisfaction: data.customerSatisfaction,
-                isLoading: false,
-            });
+            if (result.success) {
+                set({
+                    quickStats: result.data.quickStats,
+                    monthlyRevenue: result.data.monthlyRevenue,
+                    roomTypeRevenue: result.data.roomTypeRevenue,
+                    customerSatisfaction: result.data.customerSatisfaction,
+                    isLoading: false,
+                    error: null,
+                });
+            } else {
+                throw new Error(result.message || 'Failed to load analytics');
+            }
         } catch (err) {
-            const error = err as AxiosError;
+            const error = err as Error;
             const errorMessage = error.message || 'Failed to load branch analytics.';
-            set({ error: errorMessage, isLoading: false });
+            
+            set({ 
+                error: errorMessage, 
+                isLoading: false 
+            });
+            
             toast.error(errorMessage);
+            console.error('Error fetching analytics:', error);
         }
     },
 }));

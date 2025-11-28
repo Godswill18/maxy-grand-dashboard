@@ -7,19 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { UserCheck, LogOut, Search, Phone, Mail, Calendar, BedDouble, Clock } from "lucide-react";
-// --- FIX: Updated import path from aliased to relative ---
-import { useCheckInStore, Guest } from "../../store/useCheckInStore"; // Import from new store
-import { Skeleton } from "@/components/ui/skeleton"; // For loading state
+import { useCheckInStore, Guest } from "../../store/useCheckInStore";
+import { Skeleton } from "@/components/ui/skeleton";
 import BookGuestForm from "@/components/BookGuestForm";
-import { toast } from "sonner"; // Added import for toast in onConfirm
+import ExtendStayDialog from "@/components/ExtendStayDialog"; // Import the new component
+import { toast } from "sonner";
+import CheckInForm from "@/components/modals/CheckInForm";
 
-// Helper to format time (e.g., 9 -> "09")
 const formatTime = (time: number) => time.toString().padStart(2, '0');
 
-/**
- * A component that displays a countdown timer to a specific checkout date.
- * Checkout time is always 12:00 PM (noon).
- */
 const CheckoutTimer = ({ checkOutIsoDate }: { checkOutIsoDate: string }) => {
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
@@ -32,30 +28,23 @@ const CheckoutTimer = ({ checkOutIsoDate }: { checkOutIsoDate: string }) => {
   useEffect(() => {
     if (!checkOutIsoDate) return;
 
-    // --- This is the key logic ---
-    // 1. Get the check-out date from the prop
     const targetDate = new Date(checkOutIsoDate);
-    // 2. Set the *actual* checkout time to 12:00 PM (noon) on that day
-    targetDate.setHours(12, 0, 0, 0); 
-    // --- End of key logic ---
+    targetDate.setHours(12, 0, 0, 0);
 
     const timer = setInterval(() => {
       const now = new Date().getTime();
       const distance = targetDate.getTime() - now;
 
       if (distance <= 0) {
-        // Time is up
         setIsOverdue(true);
-        // Calculate *how long* it's overdue
         const overdueDistance = Math.abs(distance);
         setTimeLeft({
           days: Math.floor(overdueDistance / (1000 * 60 * 60 * 24)),
           hours: Math.floor((overdueDistance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
           minutes: Math.floor((overdueDistance % (1000 * 60 * 60)) / (1000 * 60)),
-          seconds: 0, // No need for seconds on overdue
+          seconds: 0,
         });
       } else {
-        // Time is remaining
         setIsOverdue(false);
         setTimeLeft({
           days: Math.floor(distance / (1000 * 60 * 60 * 24)),
@@ -66,12 +55,10 @@ const CheckoutTimer = ({ checkOutIsoDate }: { checkOutIsoDate: string }) => {
       }
     }, 1000);
 
-    // Clear interval on component unmount
     return () => clearInterval(timer);
   }, [checkOutIsoDate]);
 
   const { days, hours, minutes, seconds } = timeLeft;
-  // Set color to red if overdue, green if not
   const timerColor = isOverdue ? "text-destructive" : "text-success";
 
   return (
@@ -86,10 +73,8 @@ const CheckoutTimer = ({ checkOutIsoDate }: { checkOutIsoDate: string }) => {
   );
 };
 
-// GuestCard Component
-// Moved logic into its own component to handle dialog state
 const GuestCard = ({ guest }: { guest: Guest }) => {
-  const { checkInWithRegistration, checkOutGuest } = useCheckInStore();
+  const { checkInGuest, checkOutGuest, extendGuestStay } = useCheckInStore();
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [isCheckOutOpen, setIsCheckOutOpen] = useState(false);
 
@@ -101,23 +86,29 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
       default: return "";
     }
   };
-  
 
- const handleCheckInConfirm = async (formData: any) => {
-    await checkInWithRegistration(guest.id, formData);
-    setIsCheckInOpen(false);
+  const handleCheckInConfirm = async (email: string, confirmationCode: string) => {
+    try {
+      await checkInGuest(guest.id, confirmationCode);
+      setIsCheckInOpen(false);
+    } catch (error: any) {
+      throw error; // Re-throw to show error in form
+    }
   };
 
   const handleCheckOut = async () => {
     await checkOutGuest(guest.id);
-    setIsCheckOutOpen(false); // Close dialog
+    setIsCheckOutOpen(false);
+  };
+
+  const handleExtendStay = async (bookingId: string, days: number, additionalAmount: number) => {
+    await extendGuestStay(bookingId, days, additionalAmount);
   };
 
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex items-center justify-between">
-          {/* {console.log(guest)} */}
           <CardTitle className="text-lg">{guest.name}</CardTitle>
           <Badge className={getStatusColor(guest.status)}>
             {guest.status}
@@ -125,8 +116,6 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-
-        {/* Only show the timer if the guest is "Checked In" and we have the date */}
         {guest.status === "Checked In" && guest.rawCheckOutDate && (
           <CheckoutTimer checkOutIsoDate={guest.rawCheckOutDate} />
         )}
@@ -163,65 +152,77 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
           )}
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-col">
           {guest.status === "Pending Check-in" && (
             <Dialog open={isCheckInOpen} onOpenChange={setIsCheckInOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="flex-1">
+                <Button size="sm" className="w-full">
                   <UserCheck className="h-4 w-4 mr-2" />
                   Check In
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+              <DialogContent className="max-w-lg">
                 <DialogHeader>
-                  <DialogTitle>Check-in Guest: {guest.name}</DialogTitle>
+                  <DialogTitle>Check-in: {guest.name}</DialogTitle>
                 </DialogHeader>
-                <BookGuestForm 
-                  guestName={guest.name}
+                <CheckInForm
                   bookingId={guest.id}
-                  initialEmail={guest.email}
-                  initialPhone={guest.phone}
+                  guestName={guest.name}
+                  bookingType={guest.bookingType || 'online'}
                   onConfirm={handleCheckInConfirm}
                   onCancel={() => setIsCheckInOpen(false)}
                 />
               </DialogContent>
             </Dialog>
           )}
+          
           {guest.status === "Checked In" && (
-            <Dialog open={isCheckOutOpen} onOpenChange={setIsCheckOutOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" variant="outline" className="flex-1">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Check Out
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Check-out Guest</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Guest Name</Label>
-                    <Input value={guest.name} disabled />
-                  </div>
-                  <div>
-                    <Label>Room Number</Label>
-                    <Input value={guest.room} disabled />
-                  </div>
-                  <div>
-                    <Label>Additional Charges</Label>
-                    <Input placeholder="₦0.00" />
-                  </div>
-                  <div>
-                    <Label>Payment Status</Label>
-                    <Input placeholder="Paid/Pending" />
-                  </div>
-                  <Button className="w-full" onClick={handleCheckOut}>
-                    Confirm Check-out
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <>
+              <div className="flex gap-2">
+                <ExtendStayDialog
+                  bookingId={guest.id}
+                  guestName={guest.name}
+                  currentCheckOut={guest.rawCheckOutDate}
+                  roomRate={guest.roomRate || 0}
+                  onExtend={handleExtendStay}
+                />
+                
+                <Dialog open={isCheckOutOpen} onOpenChange={setIsCheckOutOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" className="flex-1">
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Check Out
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Check-out Guest</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Guest Name</Label>
+                        <Input value={guest.name} disabled />
+                      </div>
+                      <div>
+                        <Label>Room Number</Label>
+                        <Input value={guest.room} disabled />
+                      </div>
+                      <div>
+                        <Label>Additional Charges</Label>
+                        <Input placeholder="₦0.00" />
+                      </div>
+                      <div>
+                        <Label>Payment Status</Label>
+                        <Input placeholder="Paid/Pending" />
+                      </div>
+                      <Button className="w-full" onClick={handleCheckOut}>
+                        Confirm Check-out
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </>
           )}
         </div>
       </CardContent>
@@ -229,7 +230,6 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
   );
 };
 
-// Loading Skeleton Card Component
 const GuestCardSkeleton = () => (
   <Card>
     <CardHeader>
@@ -266,12 +266,9 @@ const GuestCardSkeleton = () => (
 
 export default function CheckInOut() {
   const [searchQuery, setSearchQuery] = useState("");
-  // Get all state and actions from the Zustand store
-  const { guests, loading, error, fetchGuests, createBooking } = useCheckInStore();
+  const { guests, loading, error, fetchGuests } = useCheckInStore(); // Removed createBooking from here
   const [openForm, setOpenForm] = useState(false);
 
-
-  // Fetch guests on component mount
   useEffect(() => {
     fetchGuests();
   }, [fetchGuests]);
@@ -286,15 +283,14 @@ export default function CheckInOut() {
   const checkedIn = filteredGuests.filter(g => g.status === "Checked In");
   const checkedOut = filteredGuests.filter(g => g.status === "Checked Out");
 
-  // Handler for booking confirmation (for new guests)
   const handleBookConfirm = async (formData: any) => {
     try {
-      await createBooking(formData);
+      // The booking is already created in the form via useBookingStore
+      // Just close the dialog and refresh the guest list
       setOpenForm(false);
-      // Refetch to update the list
-      fetchGuests();
+      await fetchGuests(); // Refresh the list to show new booking
     } catch (err) {
-      toast.error("Failed to book guest.");
+      toast.error("Failed to complete booking.");
     }
   };
 
@@ -304,34 +300,32 @@ export default function CheckInOut() {
 
   return (
     <div className="space-y-6">
-     
-
       <div className="flex items-center justify-between">
-  <div>
-    <h1 className="text-3xl font-bold">Check-In / Check-Out</h1>
-    <p className="text-muted-foreground">Manage guest arrivals and departures</p>
-  </div>
+        <div>
+          <h1 className="text-3xl font-bold">Check-In / Check-Out</h1>
+          <p className="text-muted-foreground">Manage guest arrivals and departures</p>
+        </div>
 
-  <Dialog open={openForm} onOpenChange={setOpenForm}>
-    <DialogTrigger asChild>
-      <Button className="bg-primary text-white">
-        Book Guest
-      </Button>
-    </DialogTrigger>
-    <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-      <DialogHeader>
-        <DialogTitle>Book New Guest</DialogTitle>
-      </DialogHeader>
-      <BookGuestForm 
-        guestName="" 
-        bookingId="" 
-        onConfirm={handleBookConfirm} 
-        onCancel={handleBookCancel} 
-      />
-    </DialogContent>
-  </Dialog>
-</div>
-
+        <Dialog open={openForm} onOpenChange={setOpenForm}>
+          <DialogTrigger asChild>
+            <Button className="bg-primary text-white">
+              Book Guest
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+            <DialogHeader>
+              <DialogTitle>Book New Guest (Walk-in)</DialogTitle>
+            </DialogHeader>
+            <BookGuestForm 
+              guestName="" 
+              bookingId="" 
+              bookingType="walk-in"
+              onConfirm={handleBookConfirm} 
+              onCancel={handleBookCancel} 
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -364,7 +358,6 @@ export default function CheckInOut() {
         />
       </div>
 
-      {/* Handle Error State */}
       {error && (
         <div className="p-4 rounded-md bg-destructive/10 text-destructive">
           <p><strong>Error:</strong> {error}</p>
@@ -379,7 +372,6 @@ export default function CheckInOut() {
           <TabsTrigger value="checkedout">Checked Out ({loading ? "..." : checkedOut.length})</TabsTrigger>
         </TabsList>
 
-        {/* Handle Loading State */}
         {loading ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <GuestCardSkeleton />

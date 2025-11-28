@@ -1,32 +1,91 @@
+import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardList, CheckCircle, Clock, TrendingUp, Sparkles, AlertCircle } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
-
-const weeklyData = [
-  { day: "Mon", completed: 12, pending: 3 },
-  { day: "Tue", completed: 15, pending: 2 },
-  { day: "Wed", completed: 10, pending: 5 },
-  { day: "Thu", completed: 14, pending: 3 },
-  { day: "Fri", completed: 16, pending: 1 },
-  { day: "Sat", completed: 18, pending: 2 },
-  { day: "Sun", completed: 13, pending: 4 },
-];
-
-const performanceData = [
-  { month: "Jan", score: 85 },
-  { month: "Feb", score: 88 },
-  { month: "Mar", score: 92 },
-  { month: "Apr", score: 90 },
-  { month: "May", score: 95 },
-  { month: "Jun", score: 93 },
-];
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts";
+import useDashboardStore from "../../store/useCleanerDashboardStore";
+import { Button } from "@/components/ui/button";
+import DashboardSkeleton from "../../components/skeleton/Dashboardskeleton";
+import { format } from "date-fns";
 
 export default function CleanerDashboard() {
+  const { dashboardData, isLoading, error, fetchDashboardData, clearError } = useDashboardStore();
+
+  useEffect(() => {
+    fetchDashboardData();
+    
+    // Refresh every 5 minutes
+    const interval = setInterval(() => {
+      fetchDashboardData();
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [fetchDashboardData]);
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="max-w-md">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <AlertCircle className="h-6 w-6 text-destructive mt-1" />
+              <div className="space-y-2">
+                <h3 className="font-semibold">Error Loading Dashboard</h3>
+                <p className="text-sm text-muted-foreground">{error}</p>
+                <Button 
+                  onClick={() => {
+                    clearError();
+                    fetchDashboardData();
+                  }}
+                  size="sm"
+                  className="mt-4"
+                >
+                  Try Again
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!dashboardData) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="max-w-md">
+          <CardContent className="p-6 text-center">
+            <p className="text-muted-foreground">No dashboard data available</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const { stats, weeklyData, performanceData, urgentTasks } = dashboardData;
+
+  // Calculate changes
+  const completedChange = stats.completedYesterday > 0
+    ? stats.completedToday - stats.completedYesterday
+    : 0;
+
+  const performanceChange = stats.previousMonthScore > 0
+    ? Math.round(((stats.performanceScore - stats.previousMonthScore) / stats.previousMonthScore) * 100)
+    : 0;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Cleaner Dashboard</h1>
-        <p className="text-muted-foreground">Overview of your cleaning tasks and performance</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Cleaner Dashboard</h1>
+          <p className="text-muted-foreground">Overview of your cleaning tasks and performance</p>
+        </div>
+        <Button onClick={fetchDashboardData} variant="outline" size="sm">
+          Refresh
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -37,8 +96,11 @@ export default function CleanerDashboard() {
             <ClipboardList className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
-            <p className="text-xs text-muted-foreground">5 completed, 3 pending</p>
+            <div className="text-2xl font-bold">{stats.tasksToday}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.completedToday} completed, {stats.pendingToday} pending
+              {stats.inProgressToday > 0 && `, ${stats.inProgressToday} in progress`}
+            </p>
           </CardContent>
         </Card>
 
@@ -48,8 +110,10 @@ export default function CleanerDashboard() {
             <CheckCircle className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">5</div>
-            <p className="text-xs text-muted-foreground">+2 from yesterday</p>
+            <div className="text-2xl font-bold text-success">{stats.completedToday}</div>
+            <p className={`text-xs ${completedChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+              {completedChange >= 0 ? '+' : ''}{completedChange} from yesterday
+            </p>
           </CardContent>
         </Card>
 
@@ -59,8 +123,10 @@ export default function CleanerDashboard() {
             <Clock className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-warning">3</div>
-            <p className="text-xs text-muted-foreground">2 urgent, 1 standard</p>
+            <div className="text-2xl font-bold text-warning">{stats.pendingToday}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.urgentCount} urgent, {stats.standardCount} standard
+            </p>
           </CardContent>
         </Card>
 
@@ -70,8 +136,10 @@ export default function CleanerDashboard() {
             <TrendingUp className="h-4 w-4 text-info" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-info">93%</div>
-            <p className="text-xs text-muted-foreground">+5% from last month</p>
+            <div className="text-2xl font-bold text-info">{stats.performanceScore}%</div>
+            <p className={`text-xs ${performanceChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+              {performanceChange >= 0 ? '+' : ''}{performanceChange}% from last month
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -83,16 +151,24 @@ export default function CleanerDashboard() {
             <CardTitle>Weekly Task Overview</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={weeklyData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="day" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="completed" fill="hsl(var(--success))" name="Completed" />
-                <Bar dataKey="pending" fill="hsl(var(--warning))" name="Pending" />
-              </BarChart>
-            </ResponsiveContainer>
+            {weeklyData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={weeklyData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="day" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="completed" fill="hsl(var(--success))" name="Completed" />
+                  <Bar dataKey="inProgress" fill="hsl(var(--info))" name="In Progress" />
+                  <Bar dataKey="pending" fill="hsl(var(--warning))" name="Pending" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px]">
+                <p className="text-muted-foreground">No weekly data available</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -101,15 +177,29 @@ export default function CleanerDashboard() {
             <CardTitle>Performance Trend</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={performanceData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2} name="Score %" />
-              </LineChart>
-            </ResponsiveContainer>
+            {performanceData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={performanceData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis domain={[0, 100]} />
+                  <Tooltip />
+                  <Line 
+                    type="monotone" 
+                    dataKey="score" 
+                    stroke="hsl(var(--primary))" 
+                    strokeWidth={2} 
+                    name="Score %" 
+                    dot={{ r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px]">
+                <p className="text-muted-foreground">No performance data available</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -120,31 +210,54 @@ export default function CleanerDashboard() {
           <CardTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-warning" />
             Urgent Tasks
+            {urgentTasks.length > 0 && (
+              <span className="ml-auto text-sm font-normal text-muted-foreground">
+                {urgentTasks.length} task{urgentTasks.length !== 1 ? 's' : ''}
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {[
-              { room: "Room 205", type: "Deep Clean", priority: "High", time: "10:00 AM" },
-              { room: "Room 312", type: "Standard Clean", priority: "High", time: "11:30 AM" },
-            ].map((task, index) => (
-              <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors">
-                <div className="flex items-center gap-4">
-                  <Sparkles className="h-8 w-8 text-warning" />
-                  <div>
-                    <p className="font-semibold">{task.room}</p>
-                    <p className="text-sm text-muted-foreground">{task.type}</p>
+          {urgentTasks.length > 0 ? (
+            <div className="space-y-4">
+              {urgentTasks.map((task) => (
+                <div 
+                  key={task._id} 
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <Sparkles className="h-8 w-8 text-warning" />
+                    <div>
+                      <p className="font-semibold">{task.room}</p>
+                      <p className="text-sm text-muted-foreground">{task.type}</p>
+                      {task.notes && (
+                        <p className="text-xs text-muted-foreground mt-1 italic">
+                          Note: {task.notes}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning/10 text-warning">
+                      {task.priority}
+                    </span>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {task.estimatedStartTime 
+                        ? format(new Date(task.estimatedStartTime), 'h:mm a')
+                        : format(new Date(task.createdAt), 'h:mm a')
+                      }
+                    </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning/10 text-warning">
-                    {task.priority}
-                  </span>
-                  <p className="text-sm text-muted-foreground mt-1">{task.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <CheckCircle className="h-12 w-12 mx-auto text-success mb-3" />
+              <p className="text-muted-foreground">No urgent tasks at the moment</p>
+              <p className="text-sm text-muted-foreground mt-1">Great job staying on top of things!</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

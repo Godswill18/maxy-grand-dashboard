@@ -1,63 +1,111 @@
-import { useState, useEffect, useRef } from "react"; // Added useEffect and useRef
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Search, CheckCircle, XCircle } from "lucide-react"; // Added Search icon
+import { Loader2, Search, CheckCircle, XCircle, Plus, Minus, Calendar as CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
-// Import the store actions needed
 import { useCheckInStore } from "@/store/useCheckInStore";
-import { useAuthStore } from "@/store/useAuthStore"; // Assuming useAuthStore handles user creation
-import { Card } from "./ui/card";
-// --- NEW HELPER FOR FETCHING USER (Add to useAuthStore or create a utility) ---
-/* Assuming your useAuthStore has an action or you create a utility function
-   that hits an endpoint like GET /api/users/find-by-email?email=...
-   and returns the user object if found. */
-   
+import { useBookingStore } from "@/store/useBookingStore"; // NEW: Import booking store
+import { useAuthStore } from "@/store/useAuthStore"; // NEW: Import auth store
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Badge } from "./ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Calendar } from "./ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { format } from "date-fns";
+
+const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
+
 const fetchUserByEmail = async (email: string) => {
-    const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
-    try {
-        const response = await fetch(`${VITE_API_URL}/api/users/find-by-email?email=${email}`, {
-            method: 'GET',
-            credentials: 'include',
-        });
-        if (response.status === 404) return null; // User not found
-        if (!response.ok) throw new Error("Verification failed.");
-        const data = await response.json();
-        return data.data; // Return the user data
-    } catch (error) {
-        toast.error((error as Error).message || "Could not verify user.");
-        return null;
-    }
-}
-// --- END NEW HELPER ---
-interface CheckInFormProps {
-  guestName: string; // The guest name from the booking (might be simple)
-  bookingId: string; // The database ID
+  try {
+    const response = await fetch(`${VITE_API_URL}/api/users/find-by-email?email=${email}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error("Verification failed.");
+    const data = await response.json();
+    return data.data;
+  } catch (error) {
+    toast.error((error as Error).message || "Could not verify user.");
+    return null;
+  }
+};
+
+const fetchAvailableRooms = async (checkInDate: Date, checkOutDate: Date) => {
+  try {
+    const response = await fetch(`${VITE_API_URL}/api/receptionist/rooms/available-range`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        checkInDate: checkInDate.toISOString(),
+        checkOutDate: checkOutDate.toISOString(),
+      }),
+    });
+    
+    if (!response.ok) throw new Error("Failed to fetch available rooms");
+    const data = await response.json();
+    return data.data || [];
+  } catch (error) {
+    toast.error((error as Error).message || "Could not fetch available rooms");
+    return [];
+  }
+};
+
+interface BookGuestFormProps {
+  guestName?: string;
+  bookingId?: string;
   initialEmail?: string;
   initialPhone?: string;
+  bookingType?: 'online' | 'walk-in';
   onConfirm: (formData: any) => Promise<void>;
   onCancel: () => void;
 }
-export default function BookGuestForm({ guestName, bookingId, initialEmail = "", initialPhone = "", onConfirm, onCancel }: CheckInFormProps) {
-  const { createGuestAccountAndCheckIn, verifyConfirmationCode } = useCheckInStore(); // Assuming this is the new store action
+
+export default function BookGuestForm({ 
+  guestName = "", 
+  bookingId = "", 
+  initialEmail = "", 
+  initialPhone = "", 
+  bookingType = 'walk-in',
+  onConfirm, 
+  onCancel 
+}: BookGuestFormProps) {
+  const { createGuestAccountAndCheckIn, verifyConfirmationCode } = useCheckInStore();
+  const { createBooking } = useBookingStore(); // NEW: Get createBooking from store
+  const { user } = useAuthStore(); // NEW: Get user for hotelId
+  const [currentTab, setCurrentTab] = useState<"guest" | "booking">("guest");
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Guest Form State
+  const [isNewGuest, setIsNewGuest] = useState(true);
   const [isUserFound, setIsUserFound] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [isCodeVerified, setIsCodeVerified] = useState(false);
-  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [emailStatus, setEmailStatus] = useState<'idle' | 'loading' | 'verified' | 'notfound'>('idle');
- 
-  const [formData, setFormData] = useState({
-    // User Account Fields (Required for creation)
+  
+  // Booking Form State
+  const [availableRooms, setAvailableRooms] = useState<any[]>([]);
+  const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [checkInDate, setCheckInDate] = useState<Date>(new Date());
+  const [checkOutDate, setCheckOutDate] = useState<Date>(new Date(Date.now() + 86400000)); // Tomorrow
+
+  const [guestData, setGuestData] = useState({
     firstName: "",
     lastName: "",
     email: initialEmail,
     phoneNumber: initialPhone,
-    password: "", // Only required if new account
-  
-    // Detailed Registration Fields
+    password: "",
+    userId: "",
+  });
+
+  const [bookingData, setBookingData] = useState({
+    guests: 1,
+    specialRequests: "",
     address: "",
     city: "",
     state: "",
@@ -65,240 +113,613 @@ export default function BookGuestForm({ guestName, bookingId, initialEmail = "",
     nextOfKinName: "",
     nextOfKinPhone: "",
     extraBedding: false,
-    specialRequests: "",
-    confirmationCode: "",
-    // New field to link the existing user or the newly created one
-    userId: "",
   });
-  // Effect to separate first and last name from initial booking name
+
   useEffect(() => {
-    const parts = guestName.split(" ");
-    setFormData(prev => ({
+    if (guestName) {
+      const parts = guestName.split(" ");
+      setGuestData(prev => ({
         ...prev,
         firstName: parts[0] || "",
         lastName: parts.slice(1).join(" ") || "",
-    }));
+      }));
+    }
   }, [guestName]);
 
-  // Auto-verify initial email on mount if provided
   useEffect(() => {
-    if (initialEmail && initialEmail.trim()) {
+    if (initialEmail) {
+      setIsNewGuest(false);
       handleEmailVerification();
     }
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
-    setFormData({ ...formData, [e.target.name]: newValue });
-    // Reset email status if email changes
-    if (e.target.name === 'email' && emailStatus !== 'idle') {
+  const handleGuestDataChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setGuestData(prev => ({ ...prev, [name]: value }));
+    
+    if (name === 'email' && emailStatus !== 'idle') {
       setEmailStatus('idle');
       setIsUserFound(false);
-      setFormData(prev => ({ ...prev, userId: "" }));
+      setGuestData(prev => ({ ...prev, userId: "" }));
     }
   };
- 
+
+  const handleBookingDataChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setBookingData(prev => ({ ...prev, [name]: value }));
+  };
+
   const handleEmailVerification = async () => {
-    if (!formData.email) return toast.error("Email is required for verification.");
+    if (!guestData.email) return toast.error("Email is required for verification.");
     setIsVerifying(true);
     setEmailStatus('loading');
    
-    const user = await fetchUserByEmail(formData.email);
+    const user = await fetchUserByEmail(guestData.email);
     if (user) {
-        // User found! Populate form with their existing data.
-        setIsUserFound(true);
-        setFormData(prev => ({
-            ...prev,
-            userId: user._id, // Set the ID for later use
-            firstName: user.firstName,
-            lastName: user.lastName,
-            phoneNumber: user.phoneNumber,
-            // Clear password fields
-            password: "",
-        }));
-        toast.success(`User ${user.firstName} found. Skipping account creation.`);
-        setEmailStatus('verified');
+      setIsUserFound(true);
+      setGuestData(prev => ({
+        ...prev,
+        userId: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phoneNumber: user.phoneNumber,
+        password: "",
+      }));
+      toast.success(`User ${user.firstName} found. Guest account ready.`);
+      setEmailStatus('verified');
     } else {
-        // User not found. Enable new account creation.
-        setIsUserFound(false);
-        setFormData(prev => ({ ...prev, userId: "" }));
-        toast.warning("New guest. Account creation required.");
-        setEmailStatus('notfound');
+      setIsUserFound(false);
+      setGuestData(prev => ({ ...prev, userId: "" }));
+      toast.warning("New guest. Please fill in account details.");
+      setEmailStatus('notfound');
     }
     setIsVerifying(false);
   };
 
-  const handleVerifyCode = async () => {
-    if (!formData.confirmationCode) return toast.error("Confirmation code is required.");
-    if (!bookingId) return toast.error("No booking ID available for verification.");
-    setIsVerifyingCode(true);
-    const valid = await verifyConfirmationCode(bookingId, formData.confirmationCode);
-    setIsVerifyingCode(false);
-    if (valid) {
-      setIsCodeVerified(true);
-      toast.success("Confirmation code verified!");
+  const handleSearchRooms = async () => {
+    if (!checkInDate || !checkOutDate) {
+      return toast.error("Please select check-in and check-out dates");
+    }
+
+    if (checkOutDate <= checkInDate) {
+      return toast.error("Check-out date must be after check-in date");
+    }
+
+    setLoadingRooms(true);
+    const rooms = await fetchAvailableRooms(checkInDate, checkOutDate);
+    setAvailableRooms(rooms);
+    setLoadingRooms(false);
+
+    if (rooms.length === 0) {
+      toast.warning("No rooms available for selected dates");
     } else {
-      setIsCodeVerified(false);
-      toast.error("Invalid confirmation code.");
+      toast.success(`Found ${rooms.length} available room(s)`);
+    }
+  };
+
+  const toggleRoomSelection = (roomId: string) => {
+    setSelectedRooms(prev => 
+      prev.includes(roomId) 
+        ? prev.filter(id => id !== roomId)
+        : [...prev, roomId]
+    );
+  };
+
+  const calculateTotalAmount = () => {
+    const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+    return selectedRooms.reduce((total, roomId) => {
+      const room = availableRooms.find(r => r._id === roomId);
+      return total + (room?.roomTypeId?.price || 0) * nights;
+    }, 0);
+  };
+
+  const handleNext = () => {
+    if (currentTab === "guest") {
+      // Validate guest data
+      if (isNewGuest && !isUserFound) {
+        const { email, firstName, lastName, phoneNumber, password } = guestData;
+        if (!email || !firstName || !lastName || !phoneNumber || !password) {
+          return toast.error("Please fill in all guest account fields");
+        }
+      }
+      setCurrentTab("booking");
+    }
+  };
+
+  const handleBack = () => {
+    if (currentTab === "booking") {
+      setCurrentTab("guest");
     }
   };
 
   const handleSubmit = async () => {
-    const { confirmationCode, email, firstName, lastName, phoneNumber, password } = formData;
-    if (bookingId && !isCodeVerified) return toast.error("Please verify the confirmation code.");
-    if (!confirmationCode) return toast.error("Confirmation Code is required.");
-   
-    if (!isUserFound && (!email || !firstName || !lastName || !phoneNumber || !password)) {
-        return toast.error("New account fields are mandatory.");
+    // Validate booking data
+    if (selectedRooms.length === 0) {
+      return toast.error("Please select at least one room");
     }
+
+    if (bookingData.guests < 1) {
+      return toast.error("Number of guests must be at least 1");
+    }
+
+    if (!user?.hotelId) {
+      return toast.error("Hotel information not found. Please log in again.");
+    }
+
     setIsLoading(true);
     try {
-        let finalUserId = formData.userId;
-        // If the user isn't found, create the account first
-        if (!isUserFound) {
-            // This needs to be a new action in your store: createAccountAndReturnId
-            const newUserId = await createGuestAccountAndCheckIn({
-                firstName,
-                lastName,
-                email,
-                phoneNumber,
-                password,
-            });
-            finalUserId = newUserId;
+      let finalUserId = guestData.userId;
+      
+      // Create account if new guest and not found
+      if (isNewGuest && !isUserFound) {
+        const { firstName, lastName, email, phoneNumber, password } = guestData;
+        
+        if (!firstName || !lastName || !email || !phoneNumber || !password) {
+          setIsLoading(false);
+          return toast.error("Please fill in all required guest fields");
         }
-        // 2. Now call the main check-in function with all registration details
-        await onConfirm({
-            ...formData,
-            userId: finalUserId, // Pass the confirmed or new ID
+
+        finalUserId = await createGuestAccountAndCheckIn({
+          firstName,
+          lastName,
+          email,
+          phoneNumber,
+          password,
         });
-       
-    } catch (error) {
-        // Error handling done by store, but ensure loading state is reset
+      }
+
+      // Calculate totals
+      const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+      const totalAmount = calculateTotalAmount();
+      
+      // Get primary room details
+      const primaryRoom = availableRooms.find(r => r._id === selectedRooms[0]);
+      
+      // Prepare booking payload matching your backend schema
+      const bookingPayload = {
+        hotelId: user.hotelId,
+        roomId: selectedRooms[0], // Primary room ID
+        guestId: finalUserId || null, // Link to user account if exists
+        guestName: `${guestData.firstName} ${guestData.lastName}`,
+        guestEmail: guestData.email,
+        guestPhone: guestData.phoneNumber,
+        checkInDate: checkInDate.toISOString(),
+        checkOutDate: checkOutDate.toISOString(),
+        bookingType: bookingType,
+        totalAmount: totalAmount,
+        amountPaid: 0, // Initial payment
+        paymentStatus: 'pending',
+        bookingStatus: 'confirmed',
+        guests: bookingData.guests,
+        specialRequests: bookingData.specialRequests,
+        
+        // Guest details for check-in
+        guestDetails: {
+          address: bookingData.address,
+          city: bookingData.city,
+          state: bookingData.state,
+          arrivingFrom: bookingData.arrivingFrom,
+          nextOfKinName: bookingData.nextOfKinName,
+          nextOfKinPhone: bookingData.nextOfKinPhone,
+        },
+        
+        // Preferences
+        preferences: {
+          extraBedding: bookingData.extraBedding,
+          specialRequests: bookingData.specialRequests,
+        }
+      };
+
+      // Create the booking using the store
+      await createBooking(bookingPayload);
+      
+      // If multiple rooms selected, create additional bookings
+      if (selectedRooms.length > 1) {
+        for (let i = 1; i < selectedRooms.length; i++) {
+          const additionalRoom = availableRooms.find(r => r._id === selectedRooms[i]);
+          const additionalNights = nights;
+          const additionalAmount = (additionalRoom?.roomTypeId?.price || 0) * additionalNights;
+          
+          const additionalBookingPayload = {
+            ...bookingPayload,
+            roomId: selectedRooms[i],
+            totalAmount: additionalAmount,
+            guestName: `${guestData.firstName} ${guestData.lastName} (Additional Room ${i})`,
+          };
+          
+          await createBooking(additionalBookingPayload);
+        }
+      }
+
+      toast.success(`Booking created successfully! ${selectedRooms.length} room(s) booked.`);
+      
+      // Call the onConfirm callback to close dialog and refresh
+      if (onConfirm) {
+        await onConfirm(bookingPayload);
+      }
+      
+    } catch (error: any) {
+      console.error("Booking error:", error);
+      toast.error(error.message || "Failed to create booking");
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
+
   return (
-    <div className="space-y-4 max-h-[70vh] overflow-y-auto p-1">
-      <div className="space-y-4">
-        {/* 1. EMAIL VERIFICATION STEP */}
-        <div className="space-y-1">
-          <div className="flex gap-2">
-              <Input
-                  name="email"
-                  placeholder="Guest Email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  onBlur={handleEmailVerification} // Auto-verify on blur
-                  disabled={isUserFound || isVerifying || isLoading}
-              />
-              <Button onClick={handleEmailVerification} disabled={isVerifying || isLoading || isUserFound}>
-                  {isVerifying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                  {isVerifying ? "" : "Verify"}
-              </Button>
-          </div>
-          {/* Email Verification Feedback */}
-          {emailStatus !== 'idle' && (
-            <div className="flex items-center gap-1 pl-1">
-              {emailStatus === 'loading' ? (
-                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-              ) : emailStatus === 'verified' ? (
-                <CheckCircle className="h-3 w-3 text-green-500" />
-              ) : (
-                <XCircle className="h-3 w-3 text-red-500" />
-              )}
-              <p className={`text-xs ${
-                emailStatus === 'verified' ? 'text-green-600' : 'text-red-600'
-              }`}>
-                {emailStatus === 'verified' 
-                  ? 'Verified' 
-                  : emailStatus === 'loading' 
-                    ? 'Verifying...' 
-                    : 'Email not found, create an account'
-                }
-              </p>
-            </div>
-          )}
-        </div>
-       
-        {/* 2. ACCOUNT CREATION FIELDS (Conditional) */}
-        {!isUserFound && (
-            <Card className="p-3 bg-primary/5">
-                <h4 className="font-semibold text-sm mb-2">Create Guest Account</h4>
-                <div className="grid grid-cols-2 gap-4">
-                    <Input name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleChange} />
-                    <Input name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleChange} />
-                    <Input name="phoneNumber" placeholder="Phone Number" value={formData.phoneNumber} onChange={handleChange} />
-                    <Input name="password" type="password" placeholder="Password (e.g., last 4 digits of phone)" value={formData.password} onChange={handleChange} />
-                </div>
-            </Card>
-        )}
-        {/* 3. DETAILED REGISTRATION FIELDS (Always visible after verification) */}
-        <div className="grid grid-cols-2 gap-4 border-t pt-4">
-            <h4 className="font-semibold text-sm col-span-2">Registration Details</h4>
-         
-            <div className="space-y-2 col-span-2">
-                <Label>Residential Address</Label>
-                <Input name="address" placeholder="123 Main St" onChange={handleChange} />
-            </div>
-            <Input name="city" placeholder="City" onChange={handleChange} />
-            <Input name="state" placeholder="State / Province" onChange={handleChange} />
-            <Input name="arrivingFrom" placeholder="Arriving From (e.g., Abuja Airport)" className="col-span-2" onChange={handleChange} />
-         
-            {/* Next of Kin */}
-            <div className="col-span-2 border-t pt-2 mt-2">
-                <h4 className="font-semibold text-sm text-muted-foreground mb-2">Next of Kin</h4>
-            </div>
-            <Input name="nextOfKinName" placeholder="NOK Name" onChange={handleChange} />
-            <Input name="nextOfKinPhone" placeholder="NOK Phone Number" onChange={handleChange} />
-        </div>
-       
-        {/* 4. PREFERENCES AND SECURITY */}
-        <div className="col-span-2 border-t pt-2 mt-2">
-            <h4 className="font-semibold text-sm text-muted-foreground mb-2">Preferences & Security</h4>
-        </div>
-        <div className="flex items-center justify-between col-span-2 border p-3 rounded-md">
-            <Label>Extra Bedding Required?</Label>
-            <Switch
-                checked={formData.extraBedding}
-                onCheckedChange={(checked) => setFormData(prev => ({...prev, extraBedding: checked}))}
-            />
-        </div>
-        <div className="space-y-2 col-span-2">
-            <Label>Other Requests</Label>
-            <Textarea name="specialRequests" placeholder="Allergies, high floor, etc." onChange={handleChange} />
-        </div>
-        {/* Confirmation Code (Required Check) */}
-        <div className="space-y-2 col-span-2 bg-muted/30 p-3 rounded-md">
-            <Label className="text-primary">Booking Confirmation Code</Label>
-            <div className="flex gap-2">
-              <Input 
-                name="confirmationCode" 
-                placeholder="Enter code to verify" 
-                value={formData.confirmationCode}
-                onChange={handleChange}
-                disabled={isCodeVerified}
-                className={`border-primary/50 ${isCodeVerified ? 'border-green-500 bg-green-50' : ''}`} 
-              />
-              {bookingId && (
-                <Button 
-                  onClick={handleVerifyCode} 
-                  disabled={isVerifyingCode || isCodeVerified || !formData.confirmationCode}
-                  variant={isCodeVerified ? 'outline' : 'default'}
-                  size="sm"
-                >
-                  {isVerifyingCode ? <Loader2 className="h-4 w-4 animate-spin" /> : isCodeVerified ? <CheckCircle className="h-4 w-4 text-green-500" /> : 'Verify'}
-                </Button>
-              )}
-            </div>
-            {isCodeVerified && <p className="text-xs text-green-600 mt-1">Code confirmed ✓</p>}
-        </div>
+    <div className="space-y-4 max-h-[75vh] overflow-y-auto p-1">
+      {/* Header with Booking Type Badge */}
+      <div className="flex items-center justify-between mb-4 sticky top-0 bg-background z-10 pb-2 border-b">
+        <h3 className="text-lg font-semibold">New Booking</h3>
+        <Badge variant={bookingType === 'online' ? 'default' : 'secondary'}>
+          {bookingType === 'online' ? 'Online Booking' : 'Walk-in'}
+        </Badge>
       </div>
-      <div className="flex gap-3 pt-4">
-        <Button variant="outline" className="w-full" onClick={onCancel} disabled={isLoading}>Cancel</Button>
-        <Button className="w-full" onClick={handleSubmit} disabled={isLoading || isVerifying || (!isUserFound && !formData.password)}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Complete Check-In
+
+      <Tabs value={currentTab} onValueChange={(value) => setCurrentTab(value as "guest" | "booking")}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="guest">1. Guest Details</TabsTrigger>
+          <TabsTrigger value="booking" disabled={isNewGuest && !isUserFound && emailStatus !== 'verified'}>
+            2. Booking Details
+          </TabsTrigger>
+        </TabsList>
+
+        {/* =============== GUEST TAB =============== */}
+        <TabsContent value="guest" className="space-y-4">
+          {/* Toggle: New Guest or Existing Guest */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Guest Type</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="guest-toggle" className="text-sm">
+                    {isNewGuest ? "New Guest" : "Existing Guest"}
+                  </Label>
+                  <Switch
+                    id="guest-toggle"
+                    checked={!isNewGuest}
+                    onCheckedChange={(checked) => setIsNewGuest(!checked)}
+                  />
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+
+          {/* Existing Guest Lookup */}
+          {!isNewGuest && (
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="pt-4 space-y-3">
+                <Label className="text-black">Search Existing Guest by Email</Label>
+                <div className="flex gap-2">
+                  <Input
+                    name="email"
+                    placeholder="guest@example.com"
+                    value={guestData.email}
+                    onChange={handleGuestDataChange}
+                    onBlur={handleEmailVerification}
+                    disabled={isUserFound || isVerifying}
+                  />
+                  <Button 
+                    onClick={handleEmailVerification} 
+                    disabled={isVerifying || isUserFound}
+                    size="sm"
+                  >
+                    {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </Button>
+                </div>
+                
+                {emailStatus !== 'idle' && (
+                  <div className="flex items-center gap-1">
+                    {emailStatus === 'loading' ? (
+                      <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                    ) : emailStatus === 'verified' ? (
+                      <CheckCircle className="h-3 w-3 text-green-500" />
+                    ) : (
+                      <XCircle className="h-3 w-3 text-red-500" />
+                    )}
+                    <p className={`text-xs ${emailStatus === 'verified' ? 'text-green-600' : 'text-red-600'}`}>
+                      {emailStatus === 'verified' ? 'Guest found' : 'Guest not found'}
+                    </p>
+                  </div>
+                )}
+
+                {isUserFound && (
+                  <div className="pt-2 space-y-2 border-t">
+                    <p className="text-sm font-medium">Guest Information:</p>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Name:</span>
+                        <p className="font-medium">{guestData.firstName} {guestData.lastName}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Phone:</span>
+                        <p className="font-medium">{guestData.phoneNumber}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* New Guest Account Creation */}
+          {isNewGuest && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Create Guest Account</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>First Name *</Label>
+                    <Input name="firstName" value={guestData.firstName} onChange={handleGuestDataChange} />
+                  </div>
+                  <div>
+                    <Label>Last Name *</Label>
+                    <Input name="lastName" value={guestData.lastName} onChange={handleGuestDataChange} />
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Email *</Label>
+                  <Input name="email" type="email" value={guestData.email} onChange={handleGuestDataChange} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Phone Number *</Label>
+                    <Input name="phoneNumber" value={guestData.phoneNumber} onChange={handleGuestDataChange} />
+                  </div>
+                  <div>
+                    <Label>Password *</Label>
+                    <Input 
+                      name="password" 
+                      type="password" 
+                      placeholder="Create password"
+                      value={guestData.password} 
+                      onChange={handleGuestDataChange} 
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Additional Guest Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Additional Details (Optional)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Address</Label>
+                  <Input name="address" value={bookingData.address} onChange={handleBookingDataChange} />
+                </div>
+                <div>
+                  <Label>City</Label>
+                  <Input name="city" value={bookingData.city} onChange={handleBookingDataChange} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>State</Label>
+                  <Input name="state" value={bookingData.state} onChange={handleBookingDataChange} />
+                </div>
+                <div>
+                  <Label>Arriving From</Label>
+                  <Input name="arrivingFrom" placeholder="Airport, City, etc." value={bookingData.arrivingFrom} onChange={handleBookingDataChange} />
+                </div>
+              </div>
+
+              <div className="border-t pt-4 space-y-4">
+                <h4 className="font-medium text-sm">Next of Kin</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Name</Label>
+                    <Input name="nextOfKinName" value={bookingData.nextOfKinName} onChange={handleBookingDataChange} />
+                  </div>
+                  <div>
+                    <Label>Phone Number</Label>
+                    <Input name="nextOfKinPhone" value={bookingData.nextOfKinPhone} onChange={handleBookingDataChange} />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end">
+            <Button onClick={handleNext}>
+              Next: Booking Details
+            </Button>
+          </div>
+        </TabsContent>
+
+        {/* =============== BOOKING TAB =============== */}
+        <TabsContent value="booking" className="space-y-4">
+          {/* Date Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Select Dates</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Check-in Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {format(checkInDate, "PPP")}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={checkInDate}
+                        onSelect={(date) => date && setCheckInDate(date)}
+                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div>
+                  <Label>Check-out Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {format(checkOutDate, "PPP")}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={checkOutDate}
+                        onSelect={(date) => date && setCheckOutDate(date)}
+                        disabled={(date) => date <= checkInDate}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              <Button onClick={handleSearchRooms} disabled={loadingRooms} className="w-full">
+                {loadingRooms ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                Search Available Rooms
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Room Selection */}
+          {availableRooms.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Select Room(s)</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {selectedRooms.length} room(s) selected
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {availableRooms.map((room) => (
+                  <div
+                    key={room._id}
+                    className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                      selectedRooms.includes(room._id)
+                        ? 'border-primary bg-primary/5'
+                        : 'border-gray-200 hover:border-primary/50'
+                    }`}
+                    onClick={() => toggleRoomSelection(room._id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Room {room.roomNumber}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {room.roomTypeId?.name} - {room.roomTypeId?.capacity} guests
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-primary">₦{room.roomTypeId?.price.toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">per night</p>
+                      </div>
+                    </div>
+                    {selectedRooms.includes(room._id) && (
+                      <CheckCircle className="h-5 w-5 text-primary absolute top-3 right-3" />
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Booking Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Booking Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Number of Guests</Label>
+                <Input
+                  type="number"
+                  name="guests"
+                  min="1"
+                  value={bookingData.guests}
+                  onChange={handleBookingDataChange}
+                />
+              </div>
+
+              <div className="flex items-center justify-between border p-3 rounded-md">
+                <Label>Extra Bedding Required?</Label>
+                <Switch
+                  checked={bookingData.extraBedding}
+                  onCheckedChange={(checked) => setBookingData(prev => ({ ...prev, extraBedding: checked }))}
+                />
+              </div>
+
+              <div>
+                <Label>Special Requests</Label>
+                <Textarea
+                  name="specialRequests"
+                  placeholder="Any special requirements..."
+                  value={bookingData.specialRequests}
+                  onChange={handleBookingDataChange}
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Summary */}
+          {selectedRooms.length > 0 && (
+            <Card className="bg-primary/5">
+              <CardHeader>
+                <CardTitle className="text-base">Booking Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Dates:</span>
+                  <span className="font-medium">
+                    {format(checkInDate, "MMM dd")} - {format(checkOutDate, "MMM dd, yyyy")}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Nights:</span>
+                  <span className="font-medium">
+                    {Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Room(s):</span>
+                  <span className="font-medium">{selectedRooms.length}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t">
+                  <span className="font-semibold">Total Amount:</span>
+                  <span className="text-lg font-bold text-primary">
+                    ₦{calculateTotalAmount().toLocaleString()}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={handleBack} className="flex-1">
+              Back
+            </Button>
+            <Button onClick={handleSubmit} disabled={isLoading || selectedRooms.length === 0} className="flex-1">
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Complete Booking
+            </Button>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      <div className="flex gap-3 pt-4 border-t">
+        <Button variant="outline" className="w-full" onClick={onCancel} disabled={isLoading}>
+          Cancel
         </Button>
       </div>
     </div>

@@ -27,6 +27,7 @@ import {
   DoorOpen,
   BedDouble,
   Space,
+  Calendar1Icon,
 } from "lucide-react";
 
 // Define a reusable NavItem type
@@ -94,5 +95,6 @@ export const receptionistNav: NavItem[] = [
   { name: "Check-In/Out", href: "/receptionist/checkin", icon: UserCheck },
   { name: "Rooms", href: "/receptionist/rooms", icon: BedDouble },
   { name: "Bookings", href: "/receptionist/bookings", icon: Calendar },
-  { name: "Payments", href: "/receptionist/payments", icon: CreditCard },
+  { name: "Booking Calendar", href: "/receptionist/calendar", icon: Calendar1Icon },
+  // { name: "Payments", href: "/receptionist/payments", icon: CreditCard },
 ];

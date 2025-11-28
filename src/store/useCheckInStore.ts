@@ -1,11 +1,10 @@
 import { create } from 'zustand';
-import { useAuthStore } from './useAuthStore'; // Import auth store to get token
+import { useAuthStore } from './useAuthStore';
 import { toast } from 'sonner';
 import axios from 'axios';
 
-// This interface matches the frontend component's needs
 export interface Guest {
-  id: string; // This will be the Room ID
+  id: string;
   name: string;
   roomId: string;
   email: string;
@@ -14,46 +13,33 @@ export interface Guest {
   room: string;
   checkInDate: string;
   checkOutDate: string;
-  rawCheckOutDate: string
+  rawCheckOutDate: string;
   status: "Pending Check-in" | "Checked In" | "Checked Out" | "Cancelled" | "Pending" | "Unknown";
   guests: number;
   specialRequests?: string;
+  roomRate?: number;
+  bookingType?: 'online' | 'walk-in'; // NEW: Add booking type
 }
 
-// This utility function maps backend room status to frontend guest status
 const mapBookingStatusToFrontend = (status: string): Guest['status'] => {
   switch (status) {
-    // This is the most important one for check-in:
     case 'confirmed':
       return "Pending Check-in";
-    
     case 'checked-in':
       return "Checked In";
-    
     case 'checked-out':
       return "Checked Out";
-    
     case 'cancelled':
       return "Cancelled";
-
-    // 'pending' bookings are not yet confirmed
     case 'pending':
       return "Pending";
-      
-    // Default for any unknown booking status
     default:
-      // We should never see room statuses like 'available' or 'cleaning' here.
-      // If we do, it's a bug in the data.
       return "Unknown";
   }
 };
-/**
- * FIX: This function now gets the token from the store *every time it is called*,
- * ensuring the token is always fresh and not stale from when the module first loaded.
- */
+
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
-// This function formats date strings
 const formatDateTime = (dateString: string | undefined): string => {
   if (!dateString) return "N/A";
   try {
@@ -69,7 +55,6 @@ const formatDateTime = (dateString: string | undefined): string => {
   }
 };
 
-// Define the state and actions
 interface CheckInState {
   guests: Guest[];
   loading: boolean;
@@ -80,14 +65,15 @@ interface CheckInState {
   createBooking: (data: any) => Promise<void>;
   verifyConfirmationCode: (bookingId: string, code: string) => Promise<boolean>;
   checkInWithRegistration: (bookingId: string, formData: any) => Promise<void>;
-
-    createGuestAccountAndCheckIn: (userData: { 
+  createGuestAccountAndCheckIn: (userData: { 
     firstName: string; 
     lastName: string; 
     email: string; 
     phoneNumber: string; 
     password: string; 
-  }) => Promise<string>; // Returns the new userId
+  }) => Promise<string>;
+  extendGuestStay: (bookingId: string, days: number, additionalAmount: number) => Promise<void>; // NEW
+  getCheckoutAlerts: () => Promise<{ urgent: Guest[]; overdue: Guest[] }>; // NEW
 }
 
 const mapBookingToGuest = (booking: any): Guest => {
@@ -113,35 +99,27 @@ const mapBookingToGuest = (booking: any): Guest => {
     status: mapBookingStatusToFrontend(booking.bookingStatus),
     guests: booking.guests || roomType?.capacity || 1,
     specialRequests: booking.specialRequests || undefined,
+    roomRate: roomType?.price || 0,
+    bookingType: booking.bookingType || 'online', // NEW: Include booking type
   };
 };
-
-
-
-
 
 export const useCheckInStore = create<CheckInState>((set, get) => ({
   guests: [],
   loading: false,
   error: null,
-  
 
   fetchGuests: async () => {
     set({ loading: true, error: null });
     try {
-      // This will now get the fresh token or throw an error if missing
-      // const { apiUrl, headers } = getApiConfig();
-      
-      const token = useAuthStore.getState().token; // Get fresh token
+      const token = useAuthStore.getState().token;
       const response = await fetch(`${VITE_API_URL}/api/receptionist/dashboard/bookings`, {
         method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          credentials: 'include' as RequestCredentials,
-        // Removed `credentials: 'include'` as it's for cookie-based auth,
-        // not typically used with Bearer tokens.
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        credentials: 'include' as RequestCredentials,
       });
       const result = await response.json();
 
@@ -149,11 +127,8 @@ export const useCheckInStore = create<CheckInState>((set, get) => ({
         throw new Error(result.error || 'Failed to fetch rooms');
       }
 
-
-    const mappedGuests: Guest[] = result.data.map(mapBookingToGuest);
-
+      const mappedGuests: Guest[] = result.data.map(mapBookingToGuest);
       set({ guests: mappedGuests, loading: false });
-      // console.log('Fetched guests dataaaa:', mappedGuests);
     } catch (error: any) {
       set({ loading: false, error: error.message });
       toast.error(`Error fetching guests: ${error.message}`);
@@ -161,57 +136,46 @@ export const useCheckInStore = create<CheckInState>((set, get) => ({
   },
 
   checkInGuest: async (bookingId: string, confirmationCode: string) => {
-  // --- 1. Accept 'confirmationCode' as a new argument ---
-  set({ loading: true });
-  try {
-    const token = useAuthStore.getState().token;
-    
-    const response = await fetch(`${VITE_API_URL}/api/receptionist/${bookingId}/check-in`, {
-      method: 'PATCH', 
-      headers: {
-        // --- 2. Add Content-Type header ---
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      credentials: 'include' as RequestCredentials,
+    set({ loading: true });
+    try {
+      const token = useAuthStore.getState().token;
       
-      // --- 3. Add the body with the code ---
-      body: JSON.stringify({ confirmationCode }),
-    });
+      const response = await fetch(`${VITE_API_URL}/api/receptionist/${bookingId}/check-in`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        credentials: 'include' as RequestCredentials,
+        body: JSON.stringify({ confirmationCode }),
+      });
 
-    const result = await response.json();
+      const result = await response.json();
 
-    if (!result.success) {
-      // The backend error 'Invalid confirmation code.' will now show up
-      throw new Error(result.error || 'Failed to check in');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to check in');
+      }
+
+      const updatedGuest = mapBookingToGuest(result.data);
+
+      set((state) => ({
+        loading: false,
+        guests: state.guests.map((guest) =>
+          guest.id === bookingId ? updatedGuest : guest
+        ),
+      }));
+      toast.success(`${updatedGuest.name} checked in successfully!`);
+    } catch (error: any) {
+      set({ loading: false, error: error.message });
+      toast.error(`Check-in failed: ${error.message}`);
     }
-
-    // (Rest of the function is the same)
-    const updatedGuest = mapBookingToGuest(result.data); 
-
-    set((state) => ({
-      loading: false,
-      guests: state.guests.map((guest) =>
-        guest.id === bookingId ? updatedGuest : guest
-      ),
-    }));
-    toast.success(`${updatedGuest.name} checked in successfully!`);
-
-  } catch (error: any) {
-    set({ loading: false, error: error.message });
-    // This will now display the "Invalid confirmation code" error
-    toast.error(`Check-in failed: ${error.message}`);
-  }
-},
-
+  },
 
   checkOutGuest: async (bookingId: string) => {
-    // --- FIX 2: This whole function is updated ---
-    set({ loading: true }); // Use loading state
+    set({ loading: true });
     try {
       const token = useAuthStore.getState().token;
 
-      // --- FIX 1: Standardized URL ---
       const response = await fetch(`${VITE_API_URL}/api/receptionist/${bookingId}/check-out`, {
         method: 'PATCH',
         headers: {
@@ -219,7 +183,6 @@ export const useCheckInStore = create<CheckInState>((set, get) => ({
           'Authorization': `Bearer ${token}`,
         },
         credentials: 'include' as RequestCredentials,
-        // body is no longer needed, the endpoint handles the logic
       });
 
       const result = await response.json();
@@ -228,20 +191,17 @@ export const useCheckInStore = create<CheckInState>((set, get) => ({
         throw new Error(result.error || 'Failed to check out');
       }
       
-      // --- THIS FIXES THE UI UPDATE ---
-      // Use the same mapping logic as check-in
-      const updatedGuest = mapBookingToGuest(result.data); 
+      const updatedGuest = mapBookingToGuest(result.data);
       set((state) => ({
         loading: false,
         guests: state.guests.map((guest) =>
-          guest.id === bookingId ? updatedGuest : guest // Replace the entire guest object
+          guest.id === bookingId ? updatedGuest : guest
         ),
       }));
-      // --- END OF UI UPDATE FIX ---
 
       toast.success(result.message || `${updatedGuest.name} checked out successfully`);
     } catch (error: any) {
-      set({ loading: false }); // Clear loading on error
+      set({ loading: false });
       toast.error(`Check-out failed: ${error.message}`);
     }
   },
@@ -267,34 +227,31 @@ export const useCheckInStore = create<CheckInState>((set, get) => ({
   },
 
   createGuestAccountAndCheckIn: async (userData) => {
-          set({ loading: true, error: null });
-          try {
-              // Note: This endpoint is protected, assuming the receptionist is logged in.
-              const response = await fetch(`${VITE_API_URL}/api/users/create-guest-account`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  credentials: "include", // Include cookies/auth headers for protected routes
-                  body: JSON.stringify(userData),
-              });
+    set({ loading: true, error: null });
+    try {
+      const response = await fetch(`${VITE_API_URL}/api/users/create-guest-account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: "include",
+        body: JSON.stringify(userData),
+      });
 
-              const result = await response.json();
+      const result = await response.json();
 
-              if (!response.ok || !result.success) {
-                  const error = result.error || result.message || 'Account creation failed.';
-                  throw new Error(error);
-              }
+      if (!response.ok || !result.success) {
+        const error = result.error || result.message || 'Account creation failed.';
+        throw new Error(error);
+      }
 
-              // Return the new userId obtained from the backend
-              return result.userId as string; 
-
-          } catch (err) {
-              const message = err instanceof Error ? err.message : 'A network or server error occurred during account creation.';
-              set({ error: message });
-              throw err; // Re-throw the error so the calling component can handle it
-          } finally {
-              set({ loading: false });
-          }
-      },
+      return result.userId as string;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'A network or server error occurred during account creation.';
+      set({ error: message });
+      throw err;
+    } finally {
+      set({ loading: false });
+    }
+  },
 
   checkInWithRegistration: async (bookingId: string, formData: any) => {
     set({ loading: true });
@@ -348,30 +305,86 @@ export const useCheckInStore = create<CheckInState>((set, get) => ({
   },
 
   createBooking: async (data) => {
-  set({ loading: true, error: null });
+    set({ loading: true, error: null });
+    try {
+      const res = await axios.post(`${VITE_API_URL}/api/bookings/create`, data, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        withCredentials: true,
+      });
 
-  // console.log('Creating booking with data:', data);
+      await get().fetchGuests();
+      toast.success('Booking created successfully');
+      set({ loading: false });
+    } catch (err: any) {
+      set({
+        loading: false,
+        error: err.response?.data?.error || "Booking failed",
+      });
+    }
+  },
 
-  try {
-    const res = await axios.post(`${VITE_API_URL}/api/bookings/create`, data, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-    });
+  // NEW: Extend guest stay
+  extendGuestStay: async (bookingId: string, days: number, additionalAmount: number) => {
+    set({ loading: true });
+    try {
+      const token = useAuthStore.getState().token;
+      const response = await fetch(`${VITE_API_URL}/api/receptionist/${bookingId}/extend`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({ days, additionalAmount }),
+      });
 
-    // refresh guest list
-    await get().fetchGuests();
+      const result = await response.json();
 
-    toast.success('Booking created successfully');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to extend stay');
+      }
 
-    set({ loading: false });
-  } catch (err: any) {
-    set({
-      loading: false,
-      error: err.response?.data?.error || "Booking failed",
-    });
-  }
-},
+      const updatedGuest = mapBookingToGuest(result.data);
+      set((state) => ({
+        loading: false,
+        guests: state.guests.map((guest) =>
+          guest.id === bookingId ? updatedGuest : guest
+        ),
+      }));
+    } catch (error: any) {
+      set({ loading: false });
+      throw error;
+    }
+  },
 
+  // NEW: Get checkout alerts
+  getCheckoutAlerts: async () => {
+    try {
+      const token = useAuthStore.getState().token;
+      const response = await fetch(`${VITE_API_URL}/api/receptionist/checkout-alerts`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        credentials: 'include',
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch alerts');
+      }
+
+      return {
+        urgent: result.data.urgent.map(mapBookingToGuest),
+        overdue: result.data.overdue.map(mapBookingToGuest),
+      };
+    } catch (error: any) {
+      toast.error(`Failed to fetch checkout alerts: ${error.message}`);
+      return { urgent: [], overdue: [] };
+    }
+  },
 }));
