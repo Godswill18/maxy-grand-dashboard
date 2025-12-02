@@ -139,7 +139,7 @@ export default function Reports() {
                   <YAxis
                     yAxisId="left"
                     className="text-xs"
-                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                    tickFormatter={(value) => `₦ ${(value / 1000).toFixed(0)}k`}
                   />
                   {/* Secondary Y-Axis (Bookings) */}
                   <YAxis

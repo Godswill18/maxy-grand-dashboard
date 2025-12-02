@@ -8,8 +8,8 @@ interface CleaningRoom {
   roomNumber: string;
   status: string;
   roomTypeId: { name: string };
-  hotelId: string;
-  branchId: { _id: string; name: string };
+  hotelId: { _id: string; name: string };
+  branchId?: { _id: string; name: string }; // Optional, for display only
 }
 
 interface CleaningRequest {
@@ -25,8 +25,8 @@ interface CleaningRequest {
   finishTime?: string;
   actualDuration?: number;
   estimatedDuration?: string;
-  hotelId: string;
-  branchId: { _id: string; name: string };
+  hotelId: { _id: string; name: string };
+  branchId?: { _id: string; name: string }; // Optional, for display only
 }
 
 interface Cleaner {
@@ -35,13 +35,12 @@ interface Cleaner {
   lastName: string;
   email: string;
   hotelId: string;
-  branchId: { _id: string; name: string };
+  branchId?: { _id: string; name: string }; // Optional, for display only
 }
 
-interface Branch {
+interface Hotel {
   _id: string;
   name: string;
-  hotelId: string;
 }
 
 interface CleaningState {
@@ -52,27 +51,30 @@ interface CleaningState {
   inProgressTasks: CleaningRequest[];
   completedTasks: CleaningRequest[];
   cleaners: Cleaner[];
-  branches: Branch[];
+  hotels: Hotel[];
   
-  // Filters
-  selectedBranchId: string | null;
+  // Filters (simplified to hotelId only)
+  viewMode: 'all-hotels' | 'single-hotel';
+  selectedHotelId: string | null;
   
   // UI State
   isLoading: boolean;
   
   // Actions
-  fetchBranches: () => Promise<void>;
-  fetchCleaningRooms: (branchId?: string) => Promise<void>;
-  fetchAllRequests: (branchId?: string) => Promise<void>;
-  fetchCleaners: (branchId?: string) => Promise<void>;
+  fetchHotels: () => Promise<void>;
+  fetchCleaningRooms: (filters?: { hotelId?: string }) => Promise<void>;
+  fetchAllRequests: (filters?: { hotelId?: string }) => Promise<void>;
+  fetchCleaners: (filters?: { hotelId?: string }) => Promise<void>;
   assignCleaner: (roomId: string, cleanerId: string, notes?: string) => Promise<void>;
-  setSelectedBranch: (branchId: string | null) => void;
+  setViewMode: (mode: 'all-hotels' | 'single-hotel') => void;
+  setSelectedHotel: (hotelId: string | null) => void;
   updateTaskStatus: (taskId: string, status: string) => Promise<void>;
+  refreshData: () => Promise<void>;
 }
 
 const getToken = () => useAuthStore.getState().token;
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
-const getHotelId = () => useAuthStore.getState().user?.hotelId;
+const getUserHotelId = () => useAuthStore.getState().user?.hotelId;
 
 // Socket.IO setup
 const socket = io(VITE_API_URL);
@@ -85,42 +87,54 @@ export const useCleaningStore = create<CleaningState>((set, get) => ({
   inProgressTasks: [],
   completedTasks: [],
   cleaners: [],
-  branches: [],
-  selectedBranchId: null,
+  hotels: [],
+  viewMode: 'single-hotel',
+  selectedHotelId: null,
   isLoading: false,
 
-  // Fetch Branches
-  fetchBranches: async () => {
+  // Fetch Hotels
+  fetchHotels: async () => {
     try {
       const token = getToken();
-      const hotelId = getHotelId();
       
-      const response = await fetch(`${VITE_API_URL}/api/branches?hotelId=${hotelId}`, {
+      const response = await fetch(`${VITE_API_URL}/api/hotels/getHotel-branch-admin`, {
         headers: { Authorization: `Bearer ${token}` },
         credentials: 'include',
       });
       
-      if (!response.ok) throw new Error('Failed to fetch branches');
+      if (!response.ok) throw new Error('Failed to fetch hotels');
       
-      const branches = await response.json();
-      set({ branches });
+      const hotels = await response.json();
+      set({ hotels });
+      
+      // Set user's hotel as default if not already set
+      const userHotelId = getUserHotelId();
+      if (userHotelId && !get().selectedHotelId) {
+        set({ selectedHotelId: userHotelId });
+      }
     } catch (error) {
-      toast.error('Failed to fetch branches');
+      toast.error('Failed to fetch hotels');
       console.error(error);
     }
   },
 
   // Fetch Cleaning Rooms
-  fetchCleaningRooms: async (branchId?: string) => {
+  fetchCleaningRooms: async (filters?: { hotelId?: string }) => {
     try {
       set({ isLoading: true });
       const token = getToken();
-      const hotelId = getHotelId();
-      const selectedBranch = branchId || get().selectedBranchId;
+      const state = get();
       
-      let url = `${VITE_API_URL}/api/cleaning/rooms/cleaning?hotelId=${hotelId}`;
-      if (selectedBranch) {
-        url += `&branchId=${selectedBranch}`;
+      let url = `${VITE_API_URL}/api/cleaning/rooms/cleaning?`;
+      
+      // Determine hotel filter
+      if (state.viewMode === 'all-hotels') {
+        url += `all=true&`;
+      } else {
+        const hotelId = filters?.hotelId || state.selectedHotelId || getUserHotelId();
+        if (hotelId) {
+          url += `hotelId=${hotelId}&`;
+        }
       }
       
       const response = await fetch(url, {
@@ -140,15 +154,22 @@ export const useCleaningStore = create<CleaningState>((set, get) => ({
   },
 
   // Fetch All Requests
-  fetchAllRequests: async (branchId?: string) => {
+  fetchAllRequests: async (filters?: { hotelId?: string }) => {
     try {
       set({ isLoading: true });
       const token = getToken();
-      const selectedBranch = branchId || get().selectedBranchId;
+      const state = get();
       
-      let url = `${VITE_API_URL}/api/cleaning/hotel`;
-      if (selectedBranch) {
-        url += `?branchId=${selectedBranch}`;
+      let url = `${VITE_API_URL}/api/cleaning/hotel?`;
+      
+      // Determine hotel filter
+      if (state.viewMode === 'all-hotels') {
+        url += `all=true&`;
+      } else {
+        const hotelId = filters?.hotelId || state.selectedHotelId || getUserHotelId();
+        if (hotelId) {
+          url += `hotelId=${hotelId}&`;
+        }
       }
       
       const response = await fetch(url, {
@@ -179,14 +200,21 @@ export const useCleaningStore = create<CleaningState>((set, get) => ({
   },
 
   // Fetch Cleaners
-  fetchCleaners: async (branchId?: string) => {
+  fetchCleaners: async (filters?: { hotelId?: string }) => {
     try {
       const token = getToken();
-      const selectedBranch = branchId || get().selectedBranchId;
+      const state = get();
       
-      let url = `${VITE_API_URL}/api/cleaning/cleaners`;
-      if (selectedBranch) {
-        url += `?branchId=${selectedBranch}`;
+      let url = `${VITE_API_URL}/api/cleaning/cleaners?`;
+      
+      // Determine hotel filter
+      if (state.viewMode === 'all-hotels') {
+        url += `all=true&`;
+      } else {
+        const hotelId = filters?.hotelId || state.selectedHotelId || getUserHotelId();
+        if (hotelId) {
+          url += `hotelId=${hotelId}&`;
+        }
       }
       
       const response = await fetch(url, {
@@ -224,26 +252,32 @@ export const useCleaningStore = create<CleaningState>((set, get) => ({
       toast.success('Cleaner assigned successfully');
       
       // Refetch to update state
-      const selectedBranch = get().selectedBranchId;
-      await Promise.all([
-        get().fetchAllRequests(selectedBranch || undefined),
-        get().fetchCleaningRooms(selectedBranch || undefined),
-      ]);
+      await get().refreshData();
     } catch (error) {
       toast.error('Failed to assign cleaner');
       console.error(error);
     }
   },
 
-  // Set Selected Branch
-  setSelectedBranch: (branchId: string | null) => {
-    set({ selectedBranchId: branchId });
+  // Set View Mode
+  setViewMode: (mode: 'all-hotels' | 'single-hotel') => {
+    set({ viewMode: mode });
     
-    // Refetch data with new branch filter
-    const state = get();
-    state.fetchCleaningRooms(branchId || undefined);
-    state.fetchAllRequests(branchId || undefined);
-    state.fetchCleaners(branchId || undefined);
+    if (mode === 'single-hotel') {
+      const userHotelId = getUserHotelId();
+      set({ selectedHotelId: userHotelId });
+    }
+    
+    // Refetch data with new mode
+    get().refreshData();
+  },
+
+  // Set Selected Hotel
+  setSelectedHotel: (hotelId: string | null) => {
+    set({ selectedHotelId: hotelId });
+    
+    // Refetch data with new hotel
+    get().refreshData();
   },
 
   // Update Task Status
@@ -266,21 +300,39 @@ export const useCleaningStore = create<CleaningState>((set, get) => ({
       toast.success('Task status updated');
       
       // Refetch to update state
-      const selectedBranch = get().selectedBranchId;
-      await get().fetchAllRequests(selectedBranch || undefined);
+      await get().refreshData();
     } catch (error) {
       toast.error('Failed to update task status');
       console.error(error);
     }
   },
+
+  // Refresh Data
+  refreshData: async () => {
+    await Promise.all([
+      get().fetchCleaningRooms(),
+      get().fetchAllRequests(),
+      get().fetchCleaners(),
+    ]);
+  },
 }));
 
-// Socket.IO Event Listeners
+// Socket.IO Event Listeners (simplified to hotelId only)
 socket.on('newCleaningRequest', (newRequest: CleaningRequest) => {
-  const { allRequests, selectedBranchId } = useCleaningStore.getState();
+  const { 
+    allRequests, 
+    viewMode, 
+    selectedHotelId
+  } = useCleaningStore.getState();
   
-  // Only add if it matches the selected branch or no branch is selected
-  if (!selectedBranchId || newRequest.branchId._id === selectedBranchId) {
+  // Filter based on current view mode (hotelId only)
+  let shouldAdd = true;
+  
+  if (viewMode === 'single-hotel' && selectedHotelId) {
+    shouldAdd = newRequest.hotelId._id === selectedHotelId;
+  }
+  
+  if (shouldAdd) {
     const updatedRequests = [newRequest, ...allRequests];
     const pending = updatedRequests.filter(r => r.status === 'pending');
     const inProgress = updatedRequests.filter(r => r.status === 'in-progress');

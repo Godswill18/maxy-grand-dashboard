@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  MapPin, 
   Clock, 
   CheckCircle, 
   AlertCircle, 
@@ -13,11 +12,14 @@ import {
   Bed, 
   Timer,
   Building2,
-  RefreshCw 
+  RefreshCw,
+  Hotel as HotelIcon,
+  MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Popover,
   PopoverContent,
@@ -26,15 +28,16 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { format, formatDistanceToNow } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCleaningStore } from "@/store/useCleaningStore"; // (1)
+import { useCleaningStore } from "@/store/useCleaningStore";
 
 interface UnassignedRoomCardProps {
   room: any;
   onAssign: (roomId: string, cleanerId: string, notes: string) => void;
   cleaners: any[];
+  showHotelName: boolean;
 }
 
-const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign, cleaners }) => {
+const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign, cleaners, showHotelName }) => {
   const [selectedCleanerId, setSelectedCleanerId] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -54,10 +57,10 @@ const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign,
             <Bed className="h-4 w-4 text-muted-foreground" />
             <span>{room.roomTypeId.name}</span>
           </div>
-          {room.branchId && (
+          {showHotelName && room.hotelId && (
             <div className="flex items-center gap-2 text-sm">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              <span>{room.branchId.name}</span>
+              <HotelIcon className="h-4 w-4 text-muted-foreground" />
+              <span>{room.hotelId.name}</span>
             </div>
           )}
         </div>
@@ -107,7 +110,12 @@ const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign,
   );
 };
 
-const AssignedTaskCard: React.FC<{ task: any }> = ({ task }) => {
+interface AssignedTaskCardProps {
+  task: any;
+  showHotelName: boolean;
+}
+
+const AssignedTaskCard: React.FC<AssignedTaskCardProps> = ({ task, showHotelName }) => {
   const getStatusBadge = () => {
     switch (task.status) {
       case 'pending':
@@ -125,7 +133,7 @@ const AssignedTaskCard: React.FC<{ task: any }> = ({ task }) => {
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Room {task.roomId.roomNumber}</CardTitle>
+          <CardTitle className="text-lg">Room {task.roomId?.roomNumber}</CardTitle>
           {getStatusBadge()}
         </div>
       </CardHeader>
@@ -133,13 +141,13 @@ const AssignedTaskCard: React.FC<{ task: any }> = ({ task }) => {
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
             <Bed className="h-4 w-4 text-muted-foreground" />
-            <span>{task.roomId.roomTypeId.name}</span>
+            <span>{task.roomId?.roomTypeId.name}</span>
           </div>
           
-          {task.roomId.branchId && (
+          { task.roomId && (
             <div className="flex items-center gap-2 text-sm">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              <span>{task.roomId.branchId.name}</span>
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <span>{task?.hotelId.name}</span>
             </div>
           )}
           
@@ -173,6 +181,7 @@ const AssignedTaskCard: React.FC<{ task: any }> = ({ task }) => {
               <span>Completed in {task.actualDuration} minutes</span>
             </div>
           )}
+
 
           {task.status === 'completed' && task.finishTime && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -258,28 +267,33 @@ export default function Cleaners() {
     inProgressTasks,
     completedTasks,
     cleaners,
-    branches,
-    selectedBranchId,
+    hotels,
+    viewMode,
+    selectedHotelId,
     isLoading,
-    fetchBranches,
+    fetchHotels,
     fetchCleaningRooms,
     fetchAllRequests,
     fetchCleaners,
     assignCleaner,
-    setSelectedBranch,
+    setViewMode,
+    setSelectedHotel,
+    refreshData,
   } = useCleaningStore();
+
+    const safeHotels = Array.isArray(hotels) ? hotels : [];
 
   useEffect(() => {
     const loadData = async () => {
       await Promise.all([
-        fetchBranches(),
+        fetchHotels(),
         fetchCleaningRooms(),
         fetchAllRequests(),
         fetchCleaners(),
       ]);
     };
     loadData();
-  }, [fetchBranches, fetchCleaningRooms, fetchAllRequests, fetchCleaners]);
+  }, [fetchHotels, fetchCleaningRooms, fetchAllRequests, fetchCleaners]);
 
   const unassignedRooms = useMemo(
     () =>
@@ -300,28 +314,36 @@ export default function Cleaners() {
   }, [completedTasks, fromDate, toDate]);
 
   const stats = [
-    { label: "Rooms Needing Cleaning", value: cleaningRooms.length, color: "text-warning" },
+    { label: "Rooms Needing Cleaning", value: cleaningRooms.length, color: "text-orange-600" },
     { label: "Pending", value: pendingTasks.length, color: "text-yellow-600" },
-    { label: "In Progress", value: inProgressTasks.length, color: "text-info" },
-    { label: "Completed", value: filteredCompletedTasks.length, color: "text-success" },
+    { label: "In Progress", value: inProgressTasks.length, color: "text-blue-600" },
+    { label: "Completed", value: filteredCompletedTasks.length, color: "text-green-600" },
   ];
 
-  const handleBranchChange = (branchId: string) => {
-    if (branchId === "all") {
-      setSelectedBranch(null);
+  const handleRefresh = async () => {
+    await refreshData();
+    toast.success('Data refreshed');
+  };
+
+  // Handler for hotel toggle selection
+  const handleHotelToggleChange = (value: string) => {
+    if (value === 'all-hotels') {
+      setViewMode('all-hotels');
     } else {
-      setSelectedBranch(branchId);
+      // value is a hotel ID
+      setViewMode('single-hotel');
+      setSelectedHotel(value);
     }
   };
 
-  const handleRefresh = async () => {
-    await Promise.all([
-      fetchCleaningRooms(),
-      fetchAllRequests(),
-      fetchCleaners(),
-    ]);
-    toast.success('Data refreshed');
-  };
+    const selectedHotelName = selectedHotelId 
+    ? safeHotels.find(h => h._id === selectedHotelId)?.name || 'selected hotel'
+    : 'selected hotel';
+
+  const showHotelName = viewMode === 'all-hotels';
+
+  // Determine current toggle value
+  const currentToggleValue = viewMode === 'all-hotels' ? 'all-hotels' : selectedHotelId || '';
 
   if (isLoading && cleaningRooms.length === 0) {
     return (
@@ -356,38 +378,72 @@ export default function Cleaners() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Cleaning Management</h1>
-        <p className="text-muted-foreground">Manage cleaning assignments across all branches</p>
+           <h1 className="text-3xl font-bold">Cleaning Management</h1>
+        <p className="text-muted-foreground">
+          {viewMode === 'all-hotels' 
+            ? 'Manage cleaning assignments across all hotels' 
+            : `Manage cleaning assignments for ${selectedHotelName}`}
+        </p>
       </div>
 
-      {/* Branch Selector & Refresh */}
-      <div className="flex items-center gap-4">
-        <div className="flex-1 max-w-xs">
-          <label className="text-sm font-medium block mb-2">Filter by Branch</label>
-          <Select 
-            value={selectedBranchId || "all"} 
-            onValueChange={handleBranchChange}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select branch" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Branches</SelectItem>
-              {branches.map((branch) => (
-                <SelectItem key={branch._id} value={branch._id}>
-                  {branch.name}
-                </SelectItem>
+      {/* Filter Controls */}
+      <Card className="border-2">
+        <CardContent className="p-4 space-y-4">
+          {/* Hotel Level Toggle - Now with individual hotel names */}
+          <div className="space-y-3">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <HotelIcon className="h-4 w-4" />
+              Hotel View
+            </label>
+            <ToggleGroup 
+              type="single" 
+              value={currentToggleValue} 
+              onValueChange={handleHotelToggleChange}
+              className="justify-start flex-wrap"
+            >
+              {/* All Hotels Toggle */}
+              <ToggleGroupItem 
+                value="all-hotels" 
+                aria-label="All Hotels"
+                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
+                <HotelIcon className="h-4 w-4 mr-2" />
+                All Hotels
+              </ToggleGroupItem>
+
+              {/* Individual Hotel Toggles */}
+              {safeHotels.map((hotel) => (
+                <ToggleGroupItem 
+                  key={hotel._id}
+                  value={hotel._id} 
+                  aria-label={hotel.name}
+                  className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                >
+                  <Building2 className="h-4 w-4 mr-2" />
+                  {hotel.name}
+                </ToggleGroupItem>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex-shrink-0 mt-6">
-          <Button onClick={handleRefresh} variant="outline" disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
+            </ToggleGroup>
+          </div>
+
+          {/* Refresh Button */}
+          <div className="pt-3 border-t">
+            <Button onClick={handleRefresh} variant="outline" disabled={isLoading} size="sm">
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh Data
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Active Filter Display */}
+       <div className="flex flex-wrap gap-2">
+        <Badge variant="outline" className="text-sm py-1 px-3">
+          <HotelIcon className="h-3 w-3 mr-1" />
+          {viewMode === 'all-hotels' ? 'All Hotels' : selectedHotelName}
+        </Badge>
       </div>
+
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -442,6 +498,7 @@ export default function Cleaners() {
                   room={room}
                   cleaners={cleaners}
                   onAssign={assignCleaner}
+                  showHotelName={showHotelName}
                 />
               ))}
             </div>
@@ -467,7 +524,7 @@ export default function Cleaners() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {pendingTasks.map((task) => (
-                <AssignedTaskCard key={task._id} task={task} />
+                <AssignedTaskCard key={task._id} task={task} showHotelName={showHotelName} />
               ))}
             </div>
           )}
@@ -492,7 +549,7 @@ export default function Cleaners() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {inProgressTasks.map((task) => (
-                <AssignedTaskCard key={task._id} task={task} />
+                <AssignedTaskCard key={task._id} task={task} showHotelName={showHotelName} />
               ))}
             </div>
           )}
@@ -527,7 +584,7 @@ export default function Cleaners() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredCompletedTasks.map((task) => (
-                <AssignedTaskCard key={task._id} task={task} />
+                <AssignedTaskCard key={task._id} task={task} showHotelName={showHotelName} />
               ))}
             </div>
           )}
