@@ -104,7 +104,7 @@ export default function BookGuestForm({
   });
 
   const [bookingData, setBookingData] = useState({
-    guests: 1,
+    numberOfGuests: 2,
     specialRequests: "",
     address: "",
     city: "",
@@ -238,7 +238,7 @@ export default function BookGuestForm({
       return toast.error("Please select at least one room");
     }
 
-    if (bookingData.guests < 1) {
+    if (bookingData.numberOfGuests < 1) {
       return toast.error("Number of guests must be at least 1");
     }
 
@@ -290,7 +290,7 @@ export default function BookGuestForm({
         amountPaid: 0, // Initial payment
         paymentStatus: 'pending',
         bookingStatus: 'confirmed',
-        guests: bookingData.guests,
+        numberOfGuests: bookingData.numberOfGuests,
         specialRequests: bookingData.specialRequests,
         
         // Guest details for check-in
@@ -429,11 +429,11 @@ export default function BookGuestForm({
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
                         <span className="text-muted-foreground">Name:</span>
-                        <p className="font-medium">{guestData.firstName} {guestData.lastName}</p>
+                        <p className="font-medium text-black">{guestData.firstName} {guestData.lastName}</p>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Phone:</span>
-                        <p className="font-medium">{guestData.phoneNumber}</p>
+                        <p className="font-medium text-black">{guestData.phoneNumber}</p>
                       </div>
                     </div>
                   </div>
@@ -617,7 +617,7 @@ export default function BookGuestForm({
                       <div>
                         <p className="font-medium">Room {room.roomNumber}</p>
                         <p className="text-sm text-muted-foreground">
-                          {room.roomTypeId?.name} - {room.roomTypeId?.capacity} guests
+                          {room.roomTypeId?.name} - {room.roomTypeId?.capacity} Guests
                         </p>
                       </div>
                       <div className="text-right">
@@ -641,12 +641,12 @@ export default function BookGuestForm({
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>Number of Guests</Label>
+                <Label>Number of guests</Label>
                 <Input
                   type="number"
-                  name="guests"
+                  name="numberOfGuests"
                   min="1"
-                  value={bookingData.guests}
+                  value={bookingData.numberOfGuests}
                   onChange={handleBookingDataChange}
                 />
               </div>

@@ -260,7 +260,7 @@ export default function Rooms() {
                         </div>
                       </div>
 
-                      <Link to={isSuperAdmin ? `/rooms/${room._id}` : `/manager/rooms/${room._id}`}>
+                      <Link to={isSuperAdmin ? `/rooms-type/${room._id}` : `/manager/rooms-type/${room._id}`}>
                         <Button variant="outline" className="w-full">View Details</Button>
                       </Link>
                     </CardContent>

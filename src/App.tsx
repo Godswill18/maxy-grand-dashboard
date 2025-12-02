@@ -61,6 +61,7 @@ import RoomDetailPage from "./pages/RoomDetails";
 import Housekeeping from "./pages/manager/HouseKeeping";
 import Restaurant from "./pages/manager/Restaurant";
 import BookingCalendar from "./pages/receptionist/Bookingcalendar";
+import OrderDetail from "./pages/waiter/Orderdetail";
 
 const queryClient = new QueryClient();
 
@@ -78,7 +79,7 @@ const RoleBasedLayout = () => {
 
   let nav: any[], userName: string, userRole: string;
 
-  switch (user.role) {
+  switch (user.role as string) {
     case 'superadmin':
       nav = superAdminNav;
       userName = `${user.firstName} ${user.lastName}`;
@@ -88,6 +89,11 @@ const RoleBasedLayout = () => {
       nav = waiterNav;
       userName = `${user.firstName} ${user.lastName}`;
       userRole = 'Waiter';
+      break;
+    case 'headWaiter':
+      nav = waiterNav;
+      userName = `${user.firstName} ${user.lastName}`;
+      userRole = 'Head Waiter';
       break;
     case 'admin':
       nav = managerNav;
@@ -154,10 +160,12 @@ const RoleBasedRoot = () => {
     return <Navigate to="/login" replace />;
   }
 
-  switch (user.role) {
+  switch (user.role as string) {
     case 'superadmin':
       return <Dashboard />; // The superadmin's home IS the Dashboard
     case 'waiter':
+      return <Navigate to="/waiter" replace />;
+    case 'headWaiter':
       return <Navigate to="/waiter" replace />;
     case 'admin': // Branch Manager
       return <Navigate to="/manager" replace />;
@@ -239,13 +247,15 @@ const App = () => (
 
             {/* --- Waiter Routes --- */}
             {/* These routes are *only* accessible to 'waiter' */}
-            <Route element={<RoleProtectedRoute allowedRoles={['waiter']} />}>
+            <Route element={<RoleProtectedRoute allowedRoles={['waiter','headWaiter']} />}>
               <Route path="/waiter" element={<WaiterDashboard />} />
               <Route path="/waiter/orders" element={<Orders />} />
+              <Route path="/waiter/orders/:orderId" element={<OrderDetail />} />
               <Route path="/waiter/tables" element={<Tables />} />
               <Route path="/waiter/menu" element={<Menu />} />
               <Route path="/waiter/reservations" element={<Reservations />} />
               <Route path="/waiter/performance" element={<TipsPerformance />} />
+              <Route path="/waiter/settings" element={<Settings />} />
             </Route>
 
             {/* --- Branch Manager Routes --- */}
@@ -255,15 +265,17 @@ const App = () => (
               <Route path="/manager/staff" element={<StaffManagement />} />
               <Route path="/manager/analytics" element={<BranchAnalytics />} />
               <Route path="/manager/requests" element={<ManagerRequests />} />
-              <Route path="/manager/rooms" element={<Rooms />} />
-              <Route path="/manager/rooms/:id" element={<RoomDetailPage />} />
+              <Route path="/manager/rooms-type" element={<Rooms />} />
+              <Route path="/manager/rooms-type/:id" element={<RoomDetailPage />} />
               <Route path="/manager/operations" element={<Operations />} />
               <Route path="/manager/house-keeping" element={<Housekeeping />} />
               <Route path="/manager/bookings" element={<Bookings />} />
               <Route path="/manager/orders" element={<Restaurant />} />
               <Route path="/manager/reviews" element={<Reviews />} />
               <Route path="/manager/transactions" element={<Transactions />} />
-              <Route path="/manager/settings" element={<ManagerSettings />} />
+              <Route path="/manager/rooms" element={<RoomReceptionist />} />
+              {/* <Route path="/manager/settings" element={<ManagerSettings />} /> */}
+              <Route path="/manager/settings" element={<Settings />} />
             </Route>
 
             {/* --- Cleaner Routes --- */}
@@ -274,6 +286,7 @@ const App = () => (
               <Route path="/cleaner/rooms" element={<RoomStatus />} />
               <Route path="/cleaner/history" element={<TaskHistory />} />
               <Route path="/cleaner/performance" element={<CleanerPerformance />} />
+              <Route path="/cleaner/settings" element={<Settings />} />
             </Route>
 
             {/* --- Receptionist Routes --- */}
@@ -285,6 +298,7 @@ const App = () => (
               <Route path="/receptionist/bookings" element={<BookingManagement />} />
               <Route path="/receptionist/calendar" element={<BookingCalendar />} />
               <Route path="/receptionist/payments" element={<PaymentProcessing />} />
+              <Route path="/receptionist/settings" element={<Settings />} />
             </Route>
 
           </Route>

@@ -108,6 +108,7 @@ const OrderDetailsModal = ({ order, isOpen, onClose }: { order: any; isOpen: boo
               </TableHeader>
               <TableBody>
                 {order.items.map((item: any, idx: number) => (
+                  
                   <TableRow key={idx}>
                     <TableCell>{item.name}</TableCell>
                     <TableCell>{item.quantity}</TableCell>
@@ -115,6 +116,7 @@ const OrderDetailsModal = ({ order, isOpen, onClose }: { order: any; isOpen: boo
                     <TableCell>₦{(item.price * item.quantity).toFixed(2)}</TableCell>
                   </TableRow>
                 ))}
+                {/* {console.log(order.items)} */}
               </TableBody>
             </Table>
           </div>
@@ -234,7 +236,7 @@ export default function Restaurant() {
       start: new Date(order.createdAt),
       end: new Date(order.createdAt), // Point event, or extend if needed
       allDay: false,
-      resource: { waiter: order.waiterId?.name || 'Unassigned', status: order.orderStatus },
+      resource: { waiter: order.waiterId|| 'Unassigned', status: order.orderStatus },
       backgroundColor: statusColors[order.orderStatus as keyof typeof statusColors] || '#ccc',
     }));
   }, [orders]);

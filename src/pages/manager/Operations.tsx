@@ -267,7 +267,7 @@ export default function Operations() {
     const restaurantColumns = [
         { key: "_id" as const, label: "Order ID", sortable: true, render: (o: any) => `ORD-${o._id.slice(-6)}` },
         { key: "tableNumber" as const, label: "Table/Room", sortable: true, render: (o: any) => o.tableNumber || (o.orderType === 'room service' ? `Room ${o.roomNumber}` : 'N/A') },
-        { key: "waiterId" as const, label: "Waiter", sortable: true, render: (o: any) => o.waiterId?.name || 'Unassigned' },
+        { key: "waiterId" as const, label: "Waiter", sortable: true, render: (o: any) => o.waiterId?.firstName + " " + o.waiterId?.lastName || 'Unassigned' },
         { key: "items" as const, label: "Items", sortable: false, render: (o: any) => `${o.items.length} items` },
         { key: "totalAmount" as const, label: "Total", sortable: true, render: (o: any) => `₦${o.totalAmount.toLocaleString()}` },
         { key: "orderStatus" as const, label: "Status", sortable: true, render: (o: any) => <Badge className={statusColors[o.orderStatus]}>{o.orderStatus}</Badge> },

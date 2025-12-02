@@ -75,7 +75,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   fetchHotels: async () => {
     try {
       const token = getToken();
-      const response = await axios.get(`${VITE_API_URL}/api/hotels`, {
+      const response = await axios.get(`${VITE_API_URL}/api/hotels/list`, {
         headers: { Authorization: `Bearer ${token}` },
         withCredentials: true,
       });
@@ -134,9 +134,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const token = getToken();
-      const response = await axios.put(
-        `${VITE_API_URL}/api/bookings/${id}`,
-        data,
+      const response = await axios.put(`${VITE_API_URL}/api/bookings/update/${id}`,data,
         {
           headers: {
             'Content-Type': 'application/json',

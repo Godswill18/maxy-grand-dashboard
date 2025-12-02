@@ -58,10 +58,11 @@ export const superAdminNav: NavItem[] = [
 export const waiterNav: NavItem[] = [
   { name: "Dashboard", href: "/waiter", icon: Home },
   { name: "Orders", href: "/waiter/orders", icon: ClipboardList },
-  { name: "Tables", href: "/waiter/tables", icon: UtensilsCrossed },
+  // { name: "Tables", href: "/waiter/tables", icon: UtensilsCrossed },
   { name: "Menu", href: "/waiter/menu", icon: Pizza },
-  { name: "Reservations", href: "/waiter/reservations", icon: CalendarDays },
+  // { name: "Reservations", href: "/waiter/reservations", icon: CalendarDays },
   { name: "Tips & Performance", href: "/waiter/performance", icon: TrendingUp },
+  { name: "Settings", href: "/waiter/settings", icon: Settings },
 ];
 
 // 3. Branch Manager Navigation
@@ -70,7 +71,8 @@ export const managerNav: NavItem[] = [
   { name: "Staff Management", href: "/manager/staff", icon: Users },
   { name: "Branch Analytics", href: "/manager/analytics", icon: TrendingUp },
   { name: "Requests", href: "/manager/requests", icon: FileText },
-  { name: "Rooms", href: "/manager/rooms", icon: Bed },
+  { name: "Room Type", href: "/manager/rooms-type", icon: Bed },
+  { name: "Rooms", href: "/manager/rooms", icon: BedDouble },
   { name: "Bookings", href: "/manager/bookings", icon: Calendar },
   { name: "Transactions", href: "/manager/transactions", icon: CreditCard },
   { name: "Housekeeping", href: "/manager/house-keeping", icon: Sparkles },
@@ -87,6 +89,7 @@ export const cleanerNav: NavItem[] = [
   { name: "Room Status", href: "/cleaner/rooms", icon: Sparkles },
   { name: "Task History", href: "/cleaner/history", icon: History },
   { name: "Performance", href: "/cleaner/performance", icon: TrendingUp },
+  { name: "Settings", href: "/cleaner/settings", icon: Settings },
 ];
 
 // 5. Receptionist Navigation
@@ -96,5 +99,6 @@ export const receptionistNav: NavItem[] = [
   { name: "Rooms", href: "/receptionist/rooms", icon: BedDouble },
   { name: "Bookings", href: "/receptionist/bookings", icon: Calendar },
   { name: "Booking Calendar", href: "/receptionist/calendar", icon: Calendar1Icon },
+  { name: "Settings", href: "/receptionist/settings", icon: Settings },
   // { name: "Payments", href: "/receptionist/payments", icon: CreditCard },
 ];

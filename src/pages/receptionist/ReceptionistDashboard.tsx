@@ -1,32 +1,100 @@
+import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { UserCheck, Users, BedDouble, CreditCard, Clock, TrendingUp } from "lucide-react";
+import { UserCheck, Clock, BedDouble, CreditCard, AlertCircle } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-
-const checkInData = [
-  { time: "8 AM", checkins: 2, checkouts: 5 },
-  { time: "10 AM", checkins: 8, checkouts: 3 },
-  { time: "12 PM", checkins: 15, checkouts: 2 },
-  { time: "2 PM", checkins: 12, checkouts: 7 },
-  { time: "4 PM", checkins: 6, checkouts: 10 },
-  { time: "6 PM", checkins: 4, checkouts: 8 },
-];
-
-const revenueData = [
-  { day: "Mon", revenue: 45000 },
-  { day: "Tue", revenue: 52000 },
-  { day: "Wed", revenue: 48000 },
-  { day: "Thu", revenue: 61000 },
-  { day: "Fri", revenue: 72000 },
-  { day: "Sat", revenue: 85000 },
-  { day: "Sun", revenue: 78000 },
-];
+import { useReceptionistDashboardStore } from "@/store/usereceptionistdashboardStore";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ReceptionistDashboard() {
+  const {
+    stats,
+    checkInActivity,
+    weeklyRevenue,
+    pendingCheckIns,
+    expectedCheckOuts,
+    isLoading,
+    error,
+    fetchDashboardData,
+  } = useReceptionistDashboardStore();
+
+  useEffect(() => {
+    fetchDashboardData();
+
+    // Auto-refresh every 5 minutes
+    const interval = setInterval(() => {
+      fetchDashboardData();
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [fetchDashboardData]);
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // Format time
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+  };
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 text-destructive">
+              <AlertCircle className="h-6 w-6" />
+              <div>
+                <p className="font-semibold">Error Loading Dashboard</p>
+                <p className="text-sm text-muted-foreground">{error}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Loading skeleton
+  if (isLoading && !stats.todayCheckIns.total) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-64" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28" />)}
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-[400px]" />)}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Front Desk Dashboard</h1>
-        <p className="text-muted-foreground">Manage guest check-ins, bookings, and payments</p>
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Front Desk Dashboard</h1>
+          <p className="text-muted-foreground">Manage guest check-ins, bookings, and payments</p>
+        </div>
+        {isLoading && (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+            <span className="text-sm">Refreshing...</span>
+          </div>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -37,8 +105,10 @@ export default function ReceptionistDashboard() {
             <UserCheck className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">18</div>
-            <p className="text-xs text-muted-foreground">12 completed, 6 pending</p>
+            <div className="text-2xl font-bold">{stats.todayCheckIns.total}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.todayCheckIns.completed} completed, {stats.todayCheckIns.pending} pending
+            </p>
           </CardContent>
         </Card>
 
@@ -48,8 +118,10 @@ export default function ReceptionistDashboard() {
             <Clock className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">15</div>
-            <p className="text-xs text-muted-foreground">8 completed, 7 pending</p>
+            <div className="text-2xl font-bold">{stats.todayCheckOuts.total}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.todayCheckOuts.completed} completed, {stats.todayCheckOuts.pending} pending
+            </p>
           </CardContent>
         </Card>
 
@@ -59,8 +131,12 @@ export default function ReceptionistDashboard() {
             <BedDouble className="h-4 w-4 text-info" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">68/80</div>
-            <p className="text-xs text-muted-foreground">85% occupancy rate</p>
+            <div className="text-2xl font-bold">
+              {stats.occupiedRooms.occupied}/{stats.occupiedRooms.total}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {stats.occupiedRooms.occupancyRate}% occupancy rate
+            </p>
           </CardContent>
         </Card>
 
@@ -70,8 +146,13 @@ export default function ReceptionistDashboard() {
             <CreditCard className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₦425,000</div>
-            <p className="text-xs text-success">+12% from yesterday</p>
+            <div className="text-2xl font-bold">
+              {formatCurrency(stats.todayRevenue.amount)}
+            </div>
+            <p className={`text-xs ${stats.todayRevenue.percentageChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+              {stats.todayRevenue.percentageChange >= 0 ? '+' : ''}
+              {stats.todayRevenue.percentageChange}% from yesterday
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -83,17 +164,29 @@ export default function ReceptionistDashboard() {
             <CardTitle>Check-in/Check-out Activity</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={checkInData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="checkins" fill="hsl(var(--success))" name="Check-ins" />
-                <Bar dataKey="checkouts" fill="hsl(var(--warning))" name="Check-outs" />
-              </BarChart>
-            </ResponsiveContainer>
+            {checkInActivity.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={checkInActivity}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="time" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="checkins" fill="hsl(var(--success))" name="Check-ins" />
+                  <Bar dataKey="checkouts" fill="hsl(var(--warning))" name="Check-outs" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                <p>No activity data available</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -102,15 +195,34 @@ export default function ReceptionistDashboard() {
             <CardTitle>Weekly Revenue Trend</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="day" />
-                <YAxis />
-                <Tooltip formatter={(value) => `₦${value.toLocaleString()}`} />
-                <Line type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} name="Revenue" />
-              </LineChart>
-            </ResponsiveContainer>
+            {weeklyRevenue.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={weeklyRevenue}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="day" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <Tooltip 
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="revenue" 
+                    stroke="hsl(var(--primary))" 
+                    strokeWidth={2} 
+                    name="Revenue" 
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                <p>No revenue data available</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -125,21 +237,30 @@ export default function ReceptionistDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[
-                { name: "John Doe", room: "205", time: "2:00 PM", booking: "BK-1001" },
-                { name: "Sarah Johnson", room: "312", time: "3:30 PM", booking: "BK-1002" },
-                { name: "Mike Wilson", room: "108", time: "4:00 PM", booking: "BK-1003" },
-              ].map((guest, index) => (
-                <div key={index} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors">
-                  <div>
-                    <p className="font-semibold">{guest.name}</p>
-                    <p className="text-sm text-muted-foreground">Room {guest.room} • {guest.time}</p>
+            {pendingCheckIns.length > 0 ? (
+              <div className="space-y-4">
+                {pendingCheckIns.slice(0, 5).map((guest) => (
+                  <div 
+                    key={guest._id} 
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors"
+                  >
+                    <div>
+                      <p className="font-semibold">{guest.guestName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Room {guest.roomNumber} • {formatTime(guest.checkInDate)}
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {guest.confirmationCode}
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">{guest.booking}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-32 text-muted-foreground">
+                <p>No pending check-ins</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -151,25 +272,34 @@ export default function ReceptionistDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[
-                { name: "Emma Davis", room: "401", time: "11:00 AM", status: "Completed" },
-                { name: "James Brown", room: "215", time: "12:00 PM", status: "Pending" },
-                { name: "Lisa Anderson", room: "307", time: "1:00 PM", status: "Pending" },
-              ].map((guest, index) => (
-                <div key={index} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors">
-                  <div>
-                    <p className="font-semibold">{guest.name}</p>
-                    <p className="text-sm text-muted-foreground">Room {guest.room} • {guest.time}</p>
+            {expectedCheckOuts.length > 0 ? (
+              <div className="space-y-4">
+                {expectedCheckOuts.slice(0, 5).map((guest) => (
+                  <div 
+                    key={guest._id} 
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors"
+                  >
+                    <div>
+                      <p className="font-semibold">{guest.guestName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Room {guest.roomNumber} • {formatTime(guest.checkOutDate)}
+                      </p>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      guest.bookingStatus === "checked-out" 
+                        ? "bg-success/10 text-success" 
+                        : "bg-warning/10 text-warning"
+                    }`}>
+                      {guest.bookingStatus === "checked-out" ? "Completed" : "Pending"}
+                    </span>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    guest.status === "Completed" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
-                  }`}>
-                    {guest.status}
-                  </span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-32 text-muted-foreground">
+                <p>No expected check-outs</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

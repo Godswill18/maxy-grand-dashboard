@@ -2,6 +2,7 @@ import { useLocation } from "react-router-dom";
 import { Moon, Sun, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
+import { useEffect } from "react";
 
 // Define the type for a navigation item
 type NavItem = {
@@ -25,6 +26,12 @@ export function Header({
   navigation,
 }: HeaderProps) {
   const location = useLocation();
+  const { pathname } = useLocation();
+
+   useEffect(() => {
+      window.scrollTo(0, 0);
+      
+    }, [ pathname]);
 
   const getPageTitle = () => {
     return (
