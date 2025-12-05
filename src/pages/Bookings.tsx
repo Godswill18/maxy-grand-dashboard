@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, User, Bed, DollarSign, Loader2, AlertCircle, Trash, Search, CalendarIcon } from "lucide-react";
+import { Calendar, User, Bed, DollarSign, Loader2, AlertCircle, Trash, Search, CalendarIcon, MapPin } from "lucide-react";
 import { useBookingStore } from "../store/useBookingStore"; 
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -236,6 +236,7 @@ export default function Bookings() {
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
                 <SelectItem value="checked-in">Checked In</SelectItem>
                 <SelectItem value="checked-out">Checked Out</SelectItem>
               </SelectContent>
@@ -309,7 +310,7 @@ export default function Bookings() {
       <BookingCalendar bookings={filteredBookings} />
 
       {/* --- Upcoming Bookings --- */}
-      <div className="mt-6">
+      {/* <div className="mt-6">
         <h2 className="text-2xl font-semibold mb-3">Upcoming Bookings</h2>
         {filteredBookings
           .filter((b) => new Date(b.checkInDate) > new Date())
@@ -325,19 +326,20 @@ export default function Bookings() {
                 <div>
                   <p className="font-semibold">{b.guestName}</p>
                   <p className="text-sm text-muted-foreground">
-                    Room {b.roomId?.roomNumber} — {format(new Date(b.checkInDate), "PP")}
+                    Room {b.roomTypeId?.roomNumber} — {format(new Date(b.checkInDate), "PP")}
                   </p>
                 </div>
                 <Badge>{b.bookingStatus}</Badge>
               </div>
             ))
         )}
-      </div>
+      </div> */}
 
       {/* --- Data State --- */}
       {!isLoading && !error && (
         <>
           <div className="grid grid-cols-1 gap-4">
+             <h2 className="text-2xl font-semibold mb-3">Upcoming Bookings</h2>
             {paginatedBookings.length === 0 ? (
               <div className="text-center text-muted-foreground py-16">
                 <h3 className="text-xl font-semibold">No Bookings Found</h3>
@@ -360,7 +362,13 @@ export default function Bookings() {
                           <h3 className="font-semibold text-lg text-foreground">{booking.guestName}</h3>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Bed className="h-4 w-4" />
-                            <span>Room {booking.roomId?.roomNumber || 'N/A'} ({booking.hotelId?.name || 'N/A'})</span>
+                            <span>Room {booking.roomTypeId?.roomNumber || 'N/A'} </span>
+                            {/* {console.log(booking)} */}
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <MapPin className="h-4 w-4" />
+                            <span>Hotel Location: ({booking.hotelId?.name || 'N/A'})</span>
+                            {/* {console.log(booking)} */}
                           </div>
                         </div>
                       </div>

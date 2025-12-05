@@ -24,7 +24,7 @@ export default function BookingCalendar({ bookings }: BookingCalendarProps) {
     () =>
       bookings.map((b) => ({
         id: b._id,
-        title: `${b.guestName} (${b.roomId?.roomNumber || "N/A"})`,
+        title: `${b.guestName} Hotel: (${b.hotelId?.name || "N/A"})`,
         start: new Date(b.checkInDate),
         end: new Date(b.checkOutDate),
         resource: b,
@@ -77,7 +77,7 @@ export default function BookingCalendar({ bookings }: BookingCalendarProps) {
                       <Badge>{b.bookingStatus}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Room: <span className="font-medium">{b.roomId?.roomNumber}</span>
+                      Room: <span className="font-medium">{b.roomTypeId?.roomNumber}</span>
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Check-in: {format(new Date(b.checkInDate), "PP")}

@@ -54,6 +54,19 @@ const RoomCardSkeleton = () => (
   </Card>
 );
 
+const getSafeHotelName = (hotelData: any) => {
+  if (!hotelData) return "Unknown Branch";
+  // If it's an object with a name property
+  if (typeof hotelData === 'object' && hotelData.name) {
+    return hotelData.name;
+  }
+  // If it's just a string ID
+  if (typeof hotelData === 'string') {
+    return hotelData; 
+  }
+  return "Unknown Branch";
+};
+
 export default function Rooms() {
   const { rooms, isLoading, error, fetchRoomsAdmin, openModal } = useRoomStore();
   const { branches, fetchBranches, isLoading: isBranchesLoading } = useBranchStore();
@@ -211,9 +224,19 @@ export default function Rooms() {
                 const status = rawStatus.toLowerCase(); // Ensure it matches keys in statusColors
                 const displayStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1); // Capitalize for display
 
-                const getBranchName = () => {
-                  const name = branchNameMap.get(room.hotelId);
-                  return name || (isSuperAdmin ? room.hotelId : "My Branch");
+               const getBranchName = () => {
+                  // 1. Try looking it up in the branches map (if room.hotelId is just an ID string)
+                  const mappedName = typeof room.hotelId === 'string' ? branchNameMap.get(room.hotelId) : null;
+                  
+                  if (mappedName) return mappedName;
+
+                  // 2. If room.hotelId is an object (populated), use its .name property
+                  if (room.hotelId && typeof room.hotelId === 'object' && (room.hotelId as any).name) {
+                    return (room.hotelId as any).name;
+                  }
+
+                  // 3. Fallbacks
+                  return isSuperAdmin ? "Unknown Branch" : "My Branch";
                 };
                 
                 return (

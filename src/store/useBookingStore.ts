@@ -20,7 +20,7 @@ interface Booking {
     _id: string;
     name: string;
   };
-  roomId: {
+  roomTypeId: {
     _id: string;
     roomNumber: string;
   };

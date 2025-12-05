@@ -10,7 +10,7 @@ import { UserCheck, LogOut, Search, Phone, Mail, Calendar, BedDouble, Clock } fr
 import { useCheckInStore, Guest } from "../../store/useCheckInStore";
 import { Skeleton } from "@/components/ui/skeleton";
 import BookGuestForm from "@/components/BookGuestForm";
-import ExtendStayDialog from "@/components/ExtendStayDialog"; // Import the new component
+import ExtendStayDialog from "@/components/ExtendStayDialog";
 import { toast } from "sonner";
 import CheckInForm from "@/components/modals/CheckInForm";
 
@@ -74,7 +74,7 @@ const CheckoutTimer = ({ checkOutIsoDate }: { checkOutIsoDate: string }) => {
 };
 
 const GuestCard = ({ guest }: { guest: Guest }) => {
-  const { checkInGuest, checkOutGuest, extendGuestStay } = useCheckInStore();
+  const { checkInWithRegistration, checkOutGuest, extendGuestStay } = useCheckInStore();
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [isCheckOutOpen, setIsCheckOutOpen] = useState(false);
 
@@ -87,12 +87,15 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
     }
   };
 
-  const handleCheckInConfirm = async (email: string, confirmationCode: string) => {
+  const handleCheckInConfirm = async (formData: any) => {
     try {
-      await checkInGuest(guest.id, confirmationCode);
+      // Use checkInWithRegistration which handles the full form data
+      await checkInWithRegistration(guest.id, formData);
       setIsCheckInOpen(false);
+      toast.success(`${guest.name} checked in successfully!`);
     } catch (error: any) {
-      throw error; // Re-throw to show error in form
+      // Error is already shown by the form
+      throw error;
     }
   };
 
@@ -142,6 +145,12 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
             <span className="font-medium">{guest.bookingId}</span>
           </div>
           <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Booking Type:</span>
+            <Badge variant="outline" className={guest.bookingType === 'online' ? 'border-blue-500 text-blue-700' : 'border-gray-500'}>
+              {guest.bookingType === 'online' ? 'Online' : 'Walk-in'}
+            </Badge>
+          </div>
+          <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Guests:</span>
             <span className="font-medium">{guest.guests}</span>
           </div>
@@ -161,7 +170,7 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
                   Check In
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg">
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden">
                 <DialogHeader>
                   <DialogTitle>Check-in: {guest.name}</DialogTitle>
                 </DialogHeader>
@@ -194,7 +203,8 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
                       Check Out
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="max-h-[90vh] overflow-y-auto">
+
                     <DialogHeader>
                       <DialogTitle>Check-out Guest</DialogTitle>
                     </DialogHeader>
@@ -266,7 +276,7 @@ const GuestCardSkeleton = () => (
 
 export default function CheckInOut() {
   const [searchQuery, setSearchQuery] = useState("");
-  const { guests, loading, error, fetchGuests } = useCheckInStore(); // Removed createBooking from here
+  const { guests, loading, error, fetchGuests } = useCheckInStore();
   const [openForm, setOpenForm] = useState(false);
 
   useEffect(() => {
@@ -285,10 +295,8 @@ export default function CheckInOut() {
 
   const handleBookConfirm = async (formData: any) => {
     try {
-      // The booking is already created in the form via useBookingStore
-      // Just close the dialog and refresh the guest list
       setOpenForm(false);
-      await fetchGuests(); // Refresh the list to show new booking
+      await fetchGuests();
     } catch (err) {
       toast.error("Failed to complete booking.");
     }
