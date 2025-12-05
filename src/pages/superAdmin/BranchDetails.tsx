@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useBranchStore } from '../store/useBranchStore'; // Changed path
+import { useBranchStore } from '../../store/useBranchStore'; // Changed path
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, ArrowLeft, MapPin, Phone, Users, Bed, User, Building, Trash, Edit, AlertCircle } from 'lucide-react';
@@ -16,9 +16,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { BranchModal } from '../components/modals/BranchModal'; // Changed path
+import { BranchModal } from '../../components/modals/BranchModal'; // Changed path
 import { Badge } from '@/components/ui/badge';
-import { useStaffStore } from '../store/useUserStore';
+import { useStaffStore } from '../../store/useUserStore';
 
 export default function BranchDetails() {
   const { id } = useParams<{ id: string }>();

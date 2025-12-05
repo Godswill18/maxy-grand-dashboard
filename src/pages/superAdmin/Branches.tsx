@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin, Users, Bed, Loader2, AlertCircle, Building, Plus } from "lucide-react";
-import { useBranchStore } from "../store/useBranchStore"; // Changed path
-import { useStaffStore } from "../store/useUserStore";
-import { BranchModal } from "../components/modals/BranchModal"; // Changed path
+import { useBranchStore } from "../../store/useBranchStore"; // Changed path
+import { useStaffStore } from "../../store/useUserStore";
+import { BranchModal } from "../../components/modals/BranchModal"; // Changed path
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 

@@ -15,7 +15,10 @@ interface Staff {
   phoneNumber: string;
   role: StaffRole;
   isActive?: boolean;
-  hotelId?: string;
+  hotelId?: {
+    _id: string;
+    name: string;
+  }
   createdAt: string;
   password?: string; // Included for staff creation
 }

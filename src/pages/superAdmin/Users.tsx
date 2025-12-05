@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Mail, Phone, Calendar } from "lucide-react";
-import { useStaffStore } from "../store/useUserStore";
+import { useStaffStore } from "../../store/useUserStore";
 
 export default function Users() {
   const guests = useStaffStore((state) => state.guests);

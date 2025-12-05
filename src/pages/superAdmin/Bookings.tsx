@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, User, Bed, DollarSign, Loader2, AlertCircle, Trash, Search, CalendarIcon, MapPin } from "lucide-react";
-import { useBookingStore } from "../store/useBookingStore"; 
+import { useBookingStore } from "../../store/useBookingStore"; 
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,

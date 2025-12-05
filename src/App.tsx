@@ -8,6 +8,8 @@ import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom
 import { DashboardLayout } from "./components/DashboardLayout";
 // Import the auth store
 import { useAuthStore } from "./store/useAuthStore";
+// ✅ Import force logout hook
+import { useForceLogout } from "./store/useForceLogout";
 
 // Import the navigation arrays
 import {
@@ -19,9 +21,9 @@ import {
 } from "./config/navigation";
 
 // --- Import ALL your pages ---
-import Dashboard from "./pages/Dashboard";
-import Staffs from "./pages/Staffs";
-import Users from "./pages/Users";
+import Dashboard from "./pages/superAdmin/Dashboard";
+import Staffs from "./pages/superAdmin/Staffs";
+import Users from "./pages/superAdmin/Users";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/auth/Login";
 import Signup from "./pages/auth/Signup";
@@ -30,18 +32,18 @@ import Orders from "./pages/waiter/Orders";
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
 import CleanerDashboard from "./pages/cleaner/CleanerDashboard";
 import ReceptionistDashboard from "./pages/receptionist/ReceptionistDashboard";
-import Reviews from "./pages/Reviews";
+import Reviews from "./pages/superAdmin/Reviews";
 import TipsPerformance from "./pages/waiter/TipsPerformance";
 import ManagerSettings from "./pages/manager/ManagerSettings";
 import CleanerPerformance from "./pages/cleaner/CleanerPerformance";
 import PaymentProcessing from "./pages/receptionist/PaymentProcessing";
-import Rooms from "./pages/Rooms";
-import Bookings from "./pages/Bookings";
-import Cleaners from "./pages/Cleaners";
-import Transactions from "./pages/Transactions";
-import Requests from "./pages/Requests";
-import Reports from "./pages/Reports";
-import Branches from "./pages/Branches";
+import Rooms from "./pages/superAdmin/Rooms";
+import Bookings from "./pages/superAdmin/Bookings";
+import Cleaners from "./pages/superAdmin/Cleaners";
+import Transactions from "./pages/superAdmin/Transactions";
+import Requests from "./pages/superAdmin/Requests";
+import Reports from "./pages/superAdmin/Reports";
+import Branches from "./pages/superAdmin/Branches";
 import Tables from "./pages/waiter/Tables";
 import Menu from "./pages/waiter/Menu";
 import Reservations from "./pages/waiter/Reservations";
@@ -55,13 +57,15 @@ import TaskHistory from "./pages/cleaner/TaskHistory";
 import CheckInOut from "./pages/receptionist/CheckInOut";
 import RoomReceptionist from "./pages/receptionist/RoomReceptionist";
 import BookingManagement from "./pages/receptionist/BookingManagement";
-import BranchDetails from "./pages/BranchDetails";
-import Settings from "./pages/Settings";
-import RoomDetailPage from "./pages/RoomDetails";
+import BranchDetails from "./pages/superAdmin/BranchDetails";
+import Settings from "./pages/superAdmin/Settings";
+import RoomDetailPage from "./pages/superAdmin/RoomDetails";
 import Housekeeping from "./pages/manager/HouseKeeping";
 import Restaurant from "./pages/manager/Restaurant";
 import BookingCalendar from "./pages/receptionist/Bookingcalendar";
 import OrderDetail from "./pages/waiter/Orderdetail";
+import ShiftScheduler from "./pages/superAdmin/ShiftScheduler";
+import MySchedule from "./pages/Myschedule";
 
 const queryClient = new QueryClient();
 
@@ -125,15 +129,45 @@ const RoleBasedLayout = () => {
 };
 
 /**
+ * ✅ CRITICAL: Main layout component that wraps authenticated routes
+ * This component listens for force logout events from the backend
+ * When a staff member's shift ends, they will be automatically logged out
+ */
+function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+  // ✅ This hook listens for force logout events via Socket.IO
+  // When shift ends: Shows toast → Logs out → Redirects to login
+  useForceLogout();
+
+  return <>{children}</>;
+}
+
+/**
  * A component to protect routes. It checks if a user is logged in.
- * If yes, it renders the child routes (Outlet).
+ * If yes, it wraps the layout with AuthenticatedLayout (force logout listener)
  * If no, it redirects to the /login page.
  */
-const ProtectedRoutes = () => {
-  const { user } = useAuthStore();
-  
-  return user ? <RoleBasedLayout /> : <Navigate to="/login" replace />;
-};
+function ProtectedRoutes() {
+  const { user, isLoading } = useAuthStore();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // ✅ Wrap with AuthenticatedLayout to enable force logout
+  return (
+    <AuthenticatedLayout>
+      <RoleBasedLayout />
+    </AuthenticatedLayout>
+  );
+}
 
 /**
  * A component to handle routes that should only be accessible
@@ -146,7 +180,6 @@ const PublicRoutes = () => {
   return !user ? <Outlet /> : <Navigate to="/" replace />;
 };
 
-// --- NEW COMPONENT ---
 /**
  * This component is rendered at the root path ("/") for logged-in users.
  * It checks the user's role and renders the correct dashboard or
@@ -179,7 +212,6 @@ const RoleBasedRoot = () => {
   }
 };
 
-// --- NEW COMPONENT FOR ROLE-BASED ROUTE PROTECTION ---
 /**
  * This component checks if the logged-in user's role is included
  * in the `allowedRoles` prop.
@@ -204,7 +236,6 @@ const RoleProtectedRoute = ({ allowedRoles }: { allowedRoles: string[] }) => {
   return <Navigate to="/" replace />;
 };
 
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -220,15 +251,14 @@ const App = () => (
 
           {/* Protected routes (all dashboards) */}
           {/* This parent route provides the main layout (`RoleBasedLayout`) */}
+          {/* ✅ ProtectedRoutes now wraps everything with AuthenticatedLayout */}
           <Route element={<ProtectedRoutes />}>
-
             {/* The root path for all logged-in users. */}
             {/* RoleBasedRoot handles redirecting to the correct dashboard. */}
             <Route path="/" element={<RoleBasedRoot />} />
 
             {/* --- SuperAdmin Routes --- */}
             {/* These routes are *only* accessible to 'superadmin' */}
-            {/* Note: The '/' route (Dashboard) is handled by RoleBasedRoot */}
             <Route element={<RoleProtectedRoute allowedRoles={['superadmin']} />}>
               <Route path="/staffs" element={<Staffs />} />
               <Route path="/users" element={<Users />} />
@@ -242,6 +272,7 @@ const App = () => (
               <Route path="/requests" element={<Requests />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/reviews" element={<Reviews />} />
+              <Route path="/shifts" element={<ShiftScheduler />} />
               <Route path="/settings" element={<Settings />} />
             </Route>
 
@@ -255,6 +286,7 @@ const App = () => (
               <Route path="/waiter/menu" element={<Menu />} />
               <Route path="/waiter/reservations" element={<Reservations />} />
               <Route path="/waiter/performance" element={<TipsPerformance />} />
+              <Route path="/waiter/my-shift" element={<MySchedule />} />
               <Route path="/waiter/settings" element={<Settings />} />
             </Route>
 
@@ -263,6 +295,7 @@ const App = () => (
             <Route element={<RoleProtectedRoute allowedRoles={['admin']} />}>
               <Route path="/manager" element={<ManagerDashboard />} />
               <Route path="/manager/staff" element={<StaffManagement />} />
+              <Route path="/manager/shifts" element={<ShiftScheduler />} />
               <Route path="/manager/analytics" element={<BranchAnalytics />} />
               <Route path="/manager/requests" element={<ManagerRequests />} />
               <Route path="/manager/rooms-type" element={<Rooms />} />
@@ -274,7 +307,6 @@ const App = () => (
               <Route path="/manager/reviews" element={<Reviews />} />
               <Route path="/manager/transactions" element={<Transactions />} />
               <Route path="/manager/rooms" element={<RoomReceptionist />} />
-              {/* <Route path="/manager/settings" element={<ManagerSettings />} /> */}
               <Route path="/manager/settings" element={<Settings />} />
             </Route>
 
@@ -286,6 +318,7 @@ const App = () => (
               <Route path="/cleaner/rooms" element={<RoomStatus />} />
               <Route path="/cleaner/history" element={<TaskHistory />} />
               <Route path="/cleaner/performance" element={<CleanerPerformance />} />
+              <Route path="/cleaner/my-shift" element={<MySchedule />} />
               <Route path="/cleaner/settings" element={<Settings />} />
             </Route>
 
@@ -297,10 +330,10 @@ const App = () => (
               <Route path="/receptionist/rooms" element={<RoomReceptionist />} />
               <Route path="/receptionist/bookings" element={<BookingManagement />} />
               <Route path="/receptionist/calendar" element={<BookingCalendar />} />
+              <Route path="/receptionist/my-shift" element={<MySchedule />} />
               <Route path="/receptionist/payments" element={<PaymentProcessing />} />
               <Route path="/receptionist/settings" element={<Settings />} />
             </Route>
-
           </Route>
 
           {/* Catch-all 404 Route */}

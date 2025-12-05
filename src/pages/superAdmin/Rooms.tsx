@@ -4,12 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, BedDouble, CheckCircle, Sparkles, DoorOpen } from "lucide-react"; // Added icons
-import { useRoomStore } from "../store/useRoomStore";
+import { useRoomStore } from "../../store/useRoomStore";
 import { CreateRoomModal } from "@/components/CreateRoomModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
-import { useBranchStore } from "../store/useBranchStore";
-import { useAuthStore } from "../store/useAuthStore";
+import { useBranchStore } from "../../store/useBranchStore";
+import { useAuthStore } from "../../store/useAuthStore";
 
 const statusColors: Record<string, string> = {
   available: "bg-success text-success-foreground", // Lowercase to match backend usually

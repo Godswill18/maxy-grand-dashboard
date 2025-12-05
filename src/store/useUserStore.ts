@@ -14,6 +14,8 @@ export interface StaffUser {
     _id: string;
     name: string;
   } | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface AdminUser {

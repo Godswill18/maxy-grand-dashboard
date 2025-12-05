@@ -47,6 +47,7 @@ export const superAdminNav: NavItem[] = [
   { name: "Rooms", href: "/rooms", icon: Bed },
   { name: "Bookings", href: "/bookings", icon: Calendar },
   { name: "Cleaners", href: "/cleaners", icon: Sparkles },
+  { name: "Shift Scheduler", href: "/shifts", icon: CalendarDays },
   { name: "Transactions", href: "/transactions", icon: CreditCard },
   { name: "Requests", href: "/requests", icon: FileText },
   { name: "Reports", href: "/reports", icon: BarChart3 },
@@ -61,6 +62,7 @@ export const waiterNav: NavItem[] = [
   // { name: "Tables", href: "/waiter/tables", icon: UtensilsCrossed },
   { name: "Menu", href: "/waiter/menu", icon: Pizza },
   // { name: "Reservations", href: "/waiter/reservations", icon: CalendarDays },
+  { name: "My Shift", href: "/waiter/my-shift", icon: CalendarDays },
   { name: "Tips & Performance", href: "/waiter/performance", icon: TrendingUp },
   { name: "Settings", href: "/waiter/settings", icon: Settings },
 ];
@@ -69,6 +71,8 @@ export const waiterNav: NavItem[] = [
 export const managerNav: NavItem[] = [
   { name: "Dashboard", href: "/manager", icon: LayoutDashboard },
   { name: "Staff Management", href: "/manager/staff", icon: Users },
+  { name: "Shift Scheduler", href: "/manager/shifts", icon: CalendarDays },
+  // { name: "User Management", href: "/manager/users", icon: UserCircle },
   { name: "Branch Analytics", href: "/manager/analytics", icon: TrendingUp },
   { name: "Requests", href: "/manager/requests", icon: FileText },
   { name: "Room Type", href: "/manager/rooms-type", icon: Bed },
@@ -85,6 +89,7 @@ export const managerNav: NavItem[] = [
 // 4. Cleaner Navigation
 export const cleanerNav: NavItem[] = [
   { name: "Dashboard", href: "/cleaner", icon: LayoutDashboard },
+  { name: "My Shift", href: "/cleaner/my-shift", icon: CalendarDays },
   { name: "Cleaning Tasks", href: "/cleaner/tasks", icon: ClipboardList },
   { name: "Room Status", href: "/cleaner/rooms", icon: Sparkles },
   { name: "Task History", href: "/cleaner/history", icon: History },
@@ -99,6 +104,7 @@ export const receptionistNav: NavItem[] = [
   { name: "Rooms", href: "/receptionist/rooms", icon: BedDouble },
   { name: "Bookings", href: "/receptionist/bookings", icon: Calendar },
   { name: "Booking Calendar", href: "/receptionist/calendar", icon: Calendar1Icon },
+  { name: "My Shift", href: "/receptionist/my-shift", icon: CalendarDays },
   { name: "Settings", href: "/receptionist/settings", icon: Settings },
   // { name: "Payments", href: "/receptionist/payments", icon: CreditCard },
 ];
