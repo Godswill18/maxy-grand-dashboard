@@ -66,6 +66,7 @@ import BookingCalendar from "./pages/receptionist/Bookingcalendar";
 import OrderDetail from "./pages/waiter/Orderdetail";
 import ShiftScheduler from "./pages/superAdmin/ShiftScheduler";
 import MySchedule from "./pages/Myschedule";
+import GalleryManagement from "./pages/superAdmin/GalleryManagement";
 
 const queryClient = new QueryClient();
 
@@ -261,6 +262,7 @@ const App = () => (
             {/* These routes are *only* accessible to 'superadmin' */}
             <Route element={<RoleProtectedRoute allowedRoles={['superadmin']} />}>
               <Route path="/staffs" element={<Staffs />} />
+              <Route path="/shifts" element={<ShiftScheduler />} />
               <Route path="/users" element={<Users />} />
               <Route path="/branches" element={<Branches />} />
               <Route path="/branches/:id" element={<BranchDetails />} />
@@ -272,7 +274,7 @@ const App = () => (
               <Route path="/requests" element={<Requests />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/reviews" element={<Reviews />} />
-              <Route path="/shifts" element={<ShiftScheduler />} />
+              <Route path="/gallery-management" element={<GalleryManagement />} />
               <Route path="/settings" element={<Settings />} />
             </Route>
 

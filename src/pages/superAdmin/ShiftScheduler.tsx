@@ -119,8 +119,8 @@ export default function ShiftScheduler() {
     // Update Nigerian time every second
     const interval = setInterval(() => {
       const now = new Date();
-      // Add 1 hour for WAT (UTC+1)
-      const wat = new Date(now.getTime() + (1 * 60 * 60 * 1000));
+      // Niferian time
+      const wat = new Date(now.getTime());
       setNigerianTime(wat);
     }, 1000);
 
@@ -179,25 +179,33 @@ export default function ShiftScheduler() {
   });
 
   // Get stats
-  const stats = {
-    total: validShifts.length,
-    today: validShifts.filter(shift => {
-      const todayStr = format(nigerianTime, "yyyy-MM-dd");
-      return safeFormatDate(shift.startDate, "yyyy-MM-dd", "") <= todayStr &&
-        safeFormatDate(shift.endDate, "yyyy-MM-dd", "") >= todayStr;
-    }).length,
-    week: validShifts.filter(shift => {
-      const startOfWeek = new Date(nigerianTime);
-      startOfWeek.setDate(nigerianTime.getDate() - nigerianTime.getDay());
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6);
-      const shiftStart = new Date(safeFormatDate(shift.startDate, "yyyy-MM-dd", ""));
-      const shiftEnd = new Date(safeFormatDate(shift.endDate, "yyyy-MM-dd", ""));
-      return shiftStart <= endOfWeek && shiftEnd >= startOfWeek;
-    }).length,
-    active: validShifts.filter(shift => shift.isActive).length,
-    emergencyActive: validShifts.filter(shift => shift.emergencyActivated).length,
-  };
+const stats = {
+  total: validShifts.length,
+  today: validShifts.filter(shift => {
+    const todayStr = format(nigerianTime, "yyyy-MM-dd");
+    return safeFormatDate(shift.startDate, "yyyy-MM-dd", "") <= todayStr &&
+      safeFormatDate(shift.endDate, "yyyy-MM-dd", "") >= todayStr;
+  }).length,
+  week: validShifts.filter(shift => {
+    const startOfWeek = new Date(nigerianTime);
+    startOfWeek.setDate(nigerianTime.getDate() - nigerianTime.getDay());
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    const shiftStart = new Date(safeFormatDate(shift.startDate, "yyyy-MM-dd", ""));
+    const shiftEnd = new Date(safeFormatDate(shift.endDate, "yyyy-MM-dd", ""));
+    return shiftStart <= endOfWeek && shiftEnd >= startOfWeek;
+  }).length,
+  shiftTime: validShifts.filter(shift => shift.isActive).length, // ✅ Within shift hours
+  emergencyActive: validShifts.filter(shift => shift.emergencyActivated).length,
+  offShift: validShifts.filter(shift => 
+    !shift.userId?.isActive && 
+    shift.userId?.role !== 'superadmin' && 
+    shift.userId?.role !== 'admin'
+  ).length, // ✅ Users outside shift time
+  deactivated: validShifts.filter(shift => 
+    shift.userId?.isActive === false
+  ).length, // ✅ NEW: Accounts deactivated by admin
+};
 
   // Handle staff selection - auto-set hotelId from selected staff
   const handleStaffSelection = (staffId: string) => {
@@ -532,48 +540,100 @@ export default function ShiftScheduler() {
       </Card>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Shifts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Today's Shifts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-500">{stats.today}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">This Week</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-500">{stats.week}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Active Now</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-500">{stats.active}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Emergency Active</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-500">{stats.emergencyActive}</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+  <Card>
+    <CardHeader className="pb-2">
+      <CardTitle className="text-sm font-medium">Total Shifts</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold">{stats.total}</div>
+    </CardContent>
+  </Card>
+  
+  <Card>
+    <CardHeader className="pb-2">
+      <CardTitle className="text-sm font-medium">Today's Shifts</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold text-blue-500">{stats.today}</div>
+    </CardContent>
+  </Card>
+  
+  <Card>
+    <CardHeader className="pb-2">
+      <CardTitle className="text-sm font-medium">This Week</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold text-purple-500">{stats.week}</div>
+    </CardContent>
+  </Card>
+  
+  {/* ✅ Shift Time status (Shift System) */}
+  <Card>
+    <CardHeader className="pb-2">
+      <CardTitle className="text-sm font-medium">Within Shift Time</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold text-green-500">{stats.shiftTime}</div>
+      <p className="text-xs text-muted-foreground mt-1">Can login now</p>
+    </CardContent>
+  </Card>
+  
+  <Card>
+    <CardHeader className="pb-2">
+      <CardTitle className="text-sm font-medium">Emergency Active</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold text-orange-500">{stats.emergencyActive}</div>
+    </CardContent>
+  </Card>
+  
+  {/* ✅ Off Shift (Shift System) */}
+  <Card>
+    <CardHeader className="pb-2">
+      <CardTitle className="text-sm font-medium">Off Shift</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold text-red-500">{stats.offShift}</div>
+      <p className="text-xs text-muted-foreground mt-1">Outside shift hours</p>
+    </CardContent>
+  </Card>
+  
+  {/* ✅ NEW: Deactivated Accounts (Staff Management) */}
+  <Card>
+    <CardHeader className="pb-2">
+      <CardTitle className="text-sm font-medium">Deactivated</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold text-red-600">{stats.deactivated}</div>
+      <p className="text-xs text-muted-foreground mt-1">Account disabled</p>
+    </CardContent>
+  </Card>
+</div>
+
+<Card className="border-blue-500 bg-blue-50 dark:bg-blue-950">
+  <CardContent className="pt-6">
+    <div className="flex items-start gap-3">
+      <Clock className="h-5 w-5 text-blue-600 mt-0.5" />
+      <div>
+        <p className="font-semibold text-blue-700 dark:text-blue-300">
+          Dual Status System
+        </p>
+        <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+          <strong>Account Status (isActive):</strong> Manually controlled by admins in Staff Management. 
+          When deactivated, staff cannot login at all.
+        </p>
+        <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">
+          <strong>Shift Time (isActive):</strong> Automatically controlled by the shift system. 
+          Staff can only login during their scheduled shift hours. Updates daily at start/end times.
+        </p>
+        <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">
+          <strong>Both must be true</strong> for staff to login (except superadmin/admin who are always allowed).
+        </p>
       </div>
+    </div>
+  </CardContent>
+</Card>
 
       {/* Filters */}
       <Card>
@@ -652,25 +712,50 @@ export default function ShiftScheduler() {
                         </h3>
                         <Badge variant="outline">{shift.userId?.role}</Badge>
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge className={getStatusBadgeColor(shift.status)}>
-                          <span className="flex items-center gap-1">
-                            {getStatusIcon(shift.status)}
-                            {shift.status}
-                          </span>
-                        </Badge>
-                        {shift.isActive && (
-                          <Badge className="bg-green-500 animate-pulse">
-                            Active Now
-                          </Badge>
-                        )}
-                        {shift.emergencyActivated && (
-                          <Badge className="bg-orange-500">
-                            <Zap className="h-3 w-3 mr-1" />
-                            Emergency Activated
-                          </Badge>
-                        )}
-                      </div>
+                   <div className="flex items-center gap-2 flex-wrap">
+  <Badge className={getStatusBadgeColor(shift.status)}>
+    <span className="flex items-center gap-1">
+      {getStatusIcon(shift.status)}
+      {shift.status}
+    </span>
+  </Badge>
+  
+  {/* ✅ Show isActive badge (Shift System) */}
+  {shift.isActive ? (
+    <Badge className="bg-green-500 animate-pulse">
+      <Clock className="h-3 w-3 mr-1" />
+      Within Shift Time
+    </Badge>
+  ) : (
+    <Badge className="bg-gray-500">
+      <Clock className="h-3 w-3 mr-1" />
+      Off Shift
+    </Badge>
+  )}
+  
+  {shift.emergencyActivated && (
+    <Badge className="bg-orange-500">
+      <Zap className="h-3 w-3 mr-1" />
+      Emergency Activated
+    </Badge>
+  )}
+  
+  {/* ✅ NEW: Show user's account status (isActive - Staff Management) */}
+  {shift.userId?.isActive === false && (
+    <Badge className="bg-red-600">
+      <XCircle className="h-3 w-3 mr-1" />
+      Account Deactivated
+    </Badge>
+  )}
+  
+  {/* ✅ NEW: Show combined off-shift status */}
+  {!shift.userId?.isActive && shift.userId?.role !== 'superadmin' && shift.userId?.role !== 'admin' && (
+    <Badge className="bg-red-500">
+      <AlertCircle className="h-3 w-3 mr-1" />
+      User Off Shift
+    </Badge>
+  )}
+</div>
                     </div>
                     <div className="flex gap-2 flex-wrap">
                       {/* ✅ UPDATED: Activate/Deactivate with modal confirmation */}

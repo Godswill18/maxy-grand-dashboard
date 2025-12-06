@@ -11,6 +11,8 @@ export interface ShiftData {
     firstName: string;
     lastName: string;
     role: string;
+    // isShiftTime: boolean;
+    isActive: boolean;
   };
   hotelId: {
     _id: string;
@@ -23,6 +25,7 @@ export interface ShiftData {
   shiftType: string;
   status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
   isActive: boolean;
+//   isShiftTime: boolean;
   notes?: string;
   createdBy: {
     _id: string;

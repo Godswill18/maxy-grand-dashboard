@@ -28,6 +28,7 @@ import {
   BedDouble,
   Space,
   Calendar1Icon,
+  ImagesIcon,
 } from "lucide-react";
 
 // Define a reusable NavItem type
@@ -41,17 +42,18 @@ export type NavItem = {
 export const superAdminNav: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Staffs", href: "/staffs", icon: Users },
+  { name: "Shift Scheduler", href: "/shifts", icon: CalendarDays },
   { name: "Users", href: "/users", icon: UserCircle },
   { name: "Branches", href: "/branches", icon: Building2 },
   // { name: "Branch Details", href: "/branches/:id", icon: Building2 },
   { name: "Rooms", href: "/rooms", icon: Bed },
   { name: "Bookings", href: "/bookings", icon: Calendar },
   { name: "Cleaners", href: "/cleaners", icon: Sparkles },
-  { name: "Shift Scheduler", href: "/shifts", icon: CalendarDays },
   { name: "Transactions", href: "/transactions", icon: CreditCard },
   { name: "Requests", href: "/requests", icon: FileText },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Reviews", href: "/reviews", icon: Star },
+  { name: "Gallery Management", href: "/gallery-management", icon: ImagesIcon},
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
