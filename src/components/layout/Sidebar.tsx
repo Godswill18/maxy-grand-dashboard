@@ -1,6 +1,8 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { LogOut, UserCircle, X } from "lucide-react";
+// import { getProfileRoute } from "@/components/utils/getProfileRoute";
+import { getProfileRoute } from "../utils/GetprofileRoute";
 
 type NavItem = {
   name: string;
@@ -15,6 +17,7 @@ interface SidebarProps {
   navigation: NavItem[];
   userName: string;
   userRole: string;
+  userRoleKey: string; // The actual role key from auth store (e.g., 'waiter', 'admin')
 }
 
 export function Sidebar({
@@ -24,8 +27,17 @@ export function Sidebar({
   navigation,
   userName,
   userRole,
+  userRoleKey,
 }: SidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // ✅ NEW: Handle profile navigation based on user role
+  const handleProfileNav = () => {
+    const profileRoute = getProfileRoute(userRoleKey);
+    navigate(profileRoute);
+    setIsSidebarOpen(false); // Close sidebar on mobile after navigation
+  };
 
   return (
     <>
@@ -88,11 +100,15 @@ export function Sidebar({
 
         {/* User Info + Logout */}
         <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-sidebar-accent flex items-center justify-center">
+          {/* ✅ UPDATED: Profile button with role-based navigation */}
+          <Button
+            onClick={handleProfileNav}
+            className="flex items-center gap-3 mb-3 w-full justify-start hover:bg-sidebar-accent/10"
+          >
+            <div className="w-10 h-10 rounded-full bg-sidebar-accent flex items-center justify-center flex-shrink-0">
               <UserCircle className="h-6 w-6 text-sidebar-accent-foreground" />
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 text-left">
               <p className="text-sm font-medium text-sidebar-foreground truncate">
                 {userName}
               </p>
@@ -100,7 +116,7 @@ export function Sidebar({
                 {userRole}
               </p>
             </div>
-          </div>
+          </Button>
           <Button
             variant="outline"
             className="w-full justify-start gap-2"

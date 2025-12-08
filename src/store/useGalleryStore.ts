@@ -117,7 +117,7 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'Authorization': `Bearer ${sessionStorage.getItem('token')}`,
           },
           credentials: 'include',
           body: formData,

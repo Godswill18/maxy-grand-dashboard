@@ -130,7 +130,7 @@ export default function BranchAnalytics() {
 
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card>
+                {/* <Card>
                     <CardContent className="p-6">
                         <p className="text-sm text-muted-foreground">
                             Total Revenue {monthlyRevenue.length > 0 ? `(${monthlyRevenue[monthlyRevenue.length - 1]?.month})` : ''}
@@ -144,7 +144,7 @@ export default function BranchAnalytics() {
                             </p>
                         )}
                     </CardContent>
-                </Card>
+                </Card> */}
                 
                 <Card>
                     <CardContent className="p-6">
@@ -213,14 +213,14 @@ export default function BranchAnalytics() {
                                                 }}
                                             />
                                             <Legend />
-                                            <Line 
+                                            {/* <Line 
                                                 yAxisId="left" 
                                                 type="monotone" 
                                                 dataKey="revenue" 
                                                 stroke="hsl(var(--primary))" 
                                                 strokeWidth={2} 
                                                 name="Revenue (₦)" 
-                                            />
+                                            /> */}
                                             <Line 
                                                 yAxisId="right" 
                                                 type="monotone" 
@@ -252,7 +252,9 @@ export default function BranchAnalytics() {
                                                 cx="50%"
                                                 cy="50%"
                                                 labelLine={false}
-                                                label={({ type, value }) => `${type}: ${formatCurrency(value)}`}
+                                                label={({ type, value }) => `${type}:
+                                                `}
+                                                // ${formatCurrency(value)}
                                                 outerRadius={100}
                                                 fill="hsl(var(--primary))"
                                                 dataKey="value"
@@ -262,14 +264,14 @@ export default function BranchAnalytics() {
                                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                                 ))}
                                             </Pie>
-                                            <Tooltip 
+                                            {/* <Tooltip 
                                                 contentStyle={{ 
-                                                    backgroundColor: 'hsl(var(--card))',
+                                                    backgroundColor: 'white',
                                                     border: '1px solid hsl(var(--border))',
                                                     borderRadius: '8px'
                                                 }}
-                                                formatter={(value: number) => formatCurrency(value)}
-                                            />
+                                                // formatter={(value: number) => formatCurrency(value)}
+                                            /> */}
                                         </PieChart>
                                     </ResponsiveContainer>
                                 ) : (

@@ -41,7 +41,7 @@ export default function OrderDetail() {
       
       try {
         // Fetch from API
-        const token = sessionStorage.getItem('authToken');
+        const token = sessionStorage.getItem('token');
         const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/orders/${orderId}`, {
           headers: {
             'Authorization': `Bearer ${token}`

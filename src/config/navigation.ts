@@ -53,6 +53,7 @@ export const superAdminNav: NavItem[] = [
   { name: "Requests", href: "/requests", icon: FileText },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Reviews", href: "/reviews", icon: Star },
+  {name: "Blog Management", href: "/blog-management", icon: Space},
   { name: "Gallery Management", href: "/gallery-management", icon: ImagesIcon},
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -80,7 +81,7 @@ export const managerNav: NavItem[] = [
   { name: "Room Type", href: "/manager/rooms-type", icon: Bed },
   { name: "Rooms", href: "/manager/rooms", icon: BedDouble },
   { name: "Bookings", href: "/manager/bookings", icon: Calendar },
-  { name: "Transactions", href: "/manager/transactions", icon: CreditCard },
+  // { name: "Transactions", href: "/manager/transactions", icon: CreditCard },
   { name: "Housekeeping", href: "/manager/house-keeping", icon: Sparkles },
   { name: "Orders", href: "/manager/orders", icon: UtensilsCrossed },
   { name: "Operations", href: "/manager/operations", icon: ClipboardList },

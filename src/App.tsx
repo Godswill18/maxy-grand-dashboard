@@ -67,6 +67,10 @@ import OrderDetail from "./pages/waiter/Orderdetail";
 import ShiftScheduler from "./pages/superAdmin/ShiftScheduler";
 import MySchedule from "./pages/Myschedule";
 import GalleryManagement from "./pages/superAdmin/GalleryManagement";
+import BlogManagement from "./pages/superAdmin/Blogmanagement";
+import StaffProfile from "./pages/StaffProfile";
+import ProfileUpdate from "./pages/Profileupdate";
+import ChangePassword from "./pages/Changepassword";
 
 const queryClient = new QueryClient();
 
@@ -274,7 +278,11 @@ const App = () => (
               <Route path="/requests" element={<Requests />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/reviews" element={<Reviews />} />
+              <Route path="/blog-management" element={<BlogManagement />} />
               <Route path="/gallery-management" element={<GalleryManagement />} />
+              <Route path="/profile" element={<StaffProfile/>}/>
+              <Route path="/profile/update" element={<ProfileUpdate/>}/>
+              <Route path="/profile/change-password" element={<ChangePassword/>}/>
               <Route path="/settings" element={<Settings />} />
             </Route>
 
@@ -289,6 +297,9 @@ const App = () => (
               <Route path="/waiter/reservations" element={<Reservations />} />
               <Route path="/waiter/performance" element={<TipsPerformance />} />
               <Route path="/waiter/my-shift" element={<MySchedule />} />
+              <Route path="/waiter/profile" element={<StaffProfile/>}/>
+              <Route path="/waiter/profile/update" element={<ProfileUpdate/>}/>
+              <Route path="/waiter/profile/change-password" element={<ChangePassword/>}/>
               <Route path="/waiter/settings" element={<Settings />} />
             </Route>
 
@@ -307,8 +318,11 @@ const App = () => (
               <Route path="/manager/bookings" element={<Bookings />} />
               <Route path="/manager/orders" element={<Restaurant />} />
               <Route path="/manager/reviews" element={<Reviews />} />
-              <Route path="/manager/transactions" element={<Transactions />} />
+              {/* <Route path="/manager/transactions" element={<Transactions />} /> */}
               <Route path="/manager/rooms" element={<RoomReceptionist />} />
+              <Route path="/manager/profile" element={<StaffProfile/>}/>
+              <Route path="/manager/profile/update" element={<ProfileUpdate/>}/>
+              <Route path="/manager/profile/change-password" element={<ChangePassword/>}/>
               <Route path="/manager/settings" element={<Settings />} />
             </Route>
 
@@ -321,6 +335,9 @@ const App = () => (
               <Route path="/cleaner/history" element={<TaskHistory />} />
               <Route path="/cleaner/performance" element={<CleanerPerformance />} />
               <Route path="/cleaner/my-shift" element={<MySchedule />} />
+              <Route path="/cleaner/profile" element={<StaffProfile/>}/>
+              <Route path="/cleaner/profile/update" element={<ProfileUpdate/>}/>
+              <Route path="/cleaner/profile/change-password" element={<ChangePassword/>}/>
               <Route path="/cleaner/settings" element={<Settings />} />
             </Route>
 
@@ -334,6 +351,9 @@ const App = () => (
               <Route path="/receptionist/calendar" element={<BookingCalendar />} />
               <Route path="/receptionist/my-shift" element={<MySchedule />} />
               <Route path="/receptionist/payments" element={<PaymentProcessing />} />
+              <Route path="/receptionist/profile" element={<StaffProfile/>}/>
+              <Route path="/receptionist/profile/update" element={<ProfileUpdate/>}/>
+              <Route path="/receptionist/profile/change-password" element={<ChangePassword/>}/>
               <Route path="/receptionist/settings" element={<Settings />} />
             </Route>
           </Route>

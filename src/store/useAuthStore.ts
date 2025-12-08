@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-// Define the shape of the User object based on your backend response
 interface User {
   _id: string;
   firstName: string;
@@ -10,10 +9,10 @@ interface User {
   role: 'superadmin' | 'admin' | 'waiter' | 'headWaiter' | 'cleaner' | 'receptionist' | 'guest';
   hotelId?: string;
   token?: string;
-  isActive?: boolean; // Add isActive field
+  isActive?: boolean;
+  isShiftTime?: boolean;
 }
 
-// Define the shape of the store's state
 interface AuthState {
   user: User | null;
   isLoading: boolean;
@@ -24,21 +23,20 @@ interface AuthState {
   signup: (userData: any) => Promise<void>;
   getMe: () => Promise<User>;
   logout: () => Promise<void>;
+  checkAuth: () => Promise<boolean>;
 }
 
-// Define the API base URL
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       isLoading: false,
       token: null,
       isAuthenticated: false,
       error: null,
 
-      // --- LOGIN ACTION (UPDATED) ---
       login: async (credentials) => {
         set({ isLoading: true, error: null });
         try {
@@ -51,7 +49,6 @@ export const useAuthStore = create<AuthState>()(
 
           const data = await response.json();
           
-          // ✅ Handle successful login
           if (response.ok && data.success) {
             set({
               user: data.data as User,
@@ -70,8 +67,7 @@ export const useAuthStore = create<AuthState>()(
             };
           }
 
-          // ❌ Handle inactive account (403 status)
-          if (response.status === 403 && data.code === 'ACCOUNT_INACTIVE') {
+          if (response.status === 403 && data.code === 'ACCOUNT_DEACTIVATED') {
             set({ 
               error: data.message,
               user: null,
@@ -81,11 +77,38 @@ export const useAuthStore = create<AuthState>()(
             return { 
               success: false, 
               message: data.message,
-              code: 'ACCOUNT_INACTIVE'
+              code: 'ACCOUNT_DEACTIVATED'
             };
           }
 
-          // ❌ Handle other errors
+          if (response.status === 403 && data.code === 'NOT_SHIFT_TIME') {
+            set({ 
+              error: data.message,
+              user: null,
+              isAuthenticated: false,
+              token: null 
+            });
+            return { 
+              success: false, 
+              message: data.message,
+              code: 'NOT_SHIFT_TIME'
+            };
+          }
+
+          if (response.status === 403 && data.code === 'NO_ACTIVE_SHIFT') {
+            set({ 
+              error: data.message,
+              user: null,
+              isAuthenticated: false,
+              token: null 
+            });
+            return { 
+              success: false, 
+              message: data.message,
+              code: 'NO_ACTIVE_SHIFT'
+            };
+          }
+
           const errorMessage = data.message || data.error || "Login failed";
           set({ 
             error: errorMessage,
@@ -96,7 +119,8 @@ export const useAuthStore = create<AuthState>()(
           
           return { 
             success: false, 
-            message: errorMessage 
+            message: errorMessage,
+            code: data.code
           };
 
         } catch (error) {
@@ -116,11 +140,9 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      // --- SIGNUP ACTION ---
       signup: async (userData) => {
         set({ isLoading: true, error: null });
         
-        // Split fullName into firstName and lastName for the backend
         const nameParts = userData.fullName.split(' ');
         const firstName = nameParts[0] || '';
         const lastName = nameParts.slice(1).join(' ') || '';
@@ -149,7 +171,7 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      // --- GET ME ACTION ---
+      // ✅ FIXED: getMe with explicit admin skip
       getMe: async () => {
         set({ isLoading: true, error: null });
         try {
@@ -170,22 +192,69 @@ export const useAuthStore = create<AuthState>()(
           }
 
           const data = await res.json();
+          
           if (!res.ok) {
-            throw new Error(data.error || 'Failed to fetch user');
-          }
-
-          // Check if user is active
-          if (data.isActive === false) {
+            // ✅ IMPORTANT: Don't logout admin/superadmin on 403
+            if (res.status === 403) {
+              const currentUser = get().user;
+              if (currentUser?.role === 'superadmin' || currentUser?.role === 'admin') {
+                console.log('⚠️ 403 error for admin/superadmin - ignoring');
+                return currentUser;
+              }
+            }
+            
             set({ 
               user: null, 
               isAuthenticated: false, 
               token: null, 
-              error: 'Account is inactive' 
+              error: data.message 
             });
             sessionStorage.removeItem('token');
-            throw new Error('Account has been deactivated');
+            throw new Error(data.message || data.error || 'Failed to fetch user');
           }
 
+          // ✅ SKIP ALL CHECKS for superadmin/admin/guest
+          if (data.role === 'superadmin' || data.role === 'admin' || data.role === 'guest') {
+            console.log(`✅ ${data.role} access - skip all checks`);
+            set({ 
+              user: data, 
+              isAuthenticated: true 
+            });
+            
+            if (data.token) {
+              sessionStorage.setItem('token', data.token);
+              set({ token: data.token });
+            }
+            
+            return data;
+          }
+
+          // ✅ Check both isActive and isShiftTime (for staff only)
+          if (data.isActive === false) {
+            console.log('❌ Staff account deactivated');
+            set({ 
+              user: null, 
+              isAuthenticated: false, 
+              token: null, 
+              error: 'Account deactivated' 
+            });
+            sessionStorage.removeItem('token');
+            throw new Error('Your account has been deactivated');
+          }
+
+          if (data.isShiftTime === false) {
+            console.log('❌ Staff shift time ended');
+            set({ 
+              user: null, 
+              isAuthenticated: false, 
+              token: null, 
+              error: 'Shift time ended' 
+            });
+            sessionStorage.removeItem('token');
+            throw new Error('Your shift time has ended');
+          }
+
+          console.log('✅ Staff access allowed');
           set({ 
             user: data, 
             isAuthenticated: true 
@@ -199,6 +268,15 @@ export const useAuthStore = create<AuthState>()(
           return data;
         } catch (error) {
           const message = error instanceof Error ? error.message : 'A network or server error occurred.';
+          
+          // ✅ Don't clear state for admin/superadmin
+          const currentUser = get().user;
+          if (currentUser?.role === 'superadmin' || currentUser?.role === 'admin') {
+            console.log('⚠️ Error for admin/superadmin - preserving state');
+            set({ isLoading: false });
+            return currentUser;
+          }
+          
           set({ 
             error: message, 
             user: null, 
@@ -212,7 +290,47 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      // --- LOGOUT ACTION ---
+      // ✅ FIXED: checkAuth with admin skip
+      checkAuth: async () => {
+        try {
+          const token = sessionStorage.getItem('token');
+          
+          if (!token) {
+            // ✅ Check if current user is admin before logging out
+            const currentUser = get().user;
+            if (currentUser?.role === 'superadmin' || currentUser?.role === 'admin') {
+              console.log('⚠️ No token but admin/superadmin - keeping logged in');
+              return true;
+            }
+            
+            set({ 
+              user: null, 
+              isAuthenticated: false, 
+              token: null 
+            });
+            return false;
+          }
+
+          const user = await get().getMe();
+          return !!user;
+        } catch (error) {
+          // ✅ Don't logout admin/superadmin on error
+          const currentUser = get().user;
+          if (currentUser?.role === 'superadmin' || currentUser?.role === 'admin') {
+            console.log('⚠️ Auth check error for admin/superadmin - keeping logged in');
+            return true;
+          }
+          
+          set({ 
+            user: null, 
+            isAuthenticated: false, 
+            token: null 
+          });
+          sessionStorage.removeItem('token');
+          return false;
+        }
+      },
+
       logout: async () => {
         set({ isLoading: true, error: null });
         try {

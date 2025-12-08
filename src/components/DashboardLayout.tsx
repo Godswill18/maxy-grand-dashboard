@@ -23,8 +23,9 @@ export function DashboardLayout({
   userRole,
 }: DashboardLayoutProps) {
   
+  
   // Get the logout action from the store
-  const { logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
 
   // State for dark mode
   const [isDark, setIsDark] = useState(() => {
@@ -55,7 +56,9 @@ export function DashboardLayout({
     }
   }, [isDark]);
 
-  
+   // ✅ NEW: Get the actual role key from the auth store
+  // This is used by Sidebar to determine which profile route to navigate to
+  const userRoleKey = user?.role || "guest";
 
   return (
     <div className="min-h-screen bg-background flex w-full">
@@ -69,6 +72,7 @@ export function DashboardLayout({
           navigation={navigation}
           userName={userName}
           userRole={userRole}
+          userRoleKey={userRoleKey}
         />
 
         {/* Main content area */}

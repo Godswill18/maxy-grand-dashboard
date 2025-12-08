@@ -55,7 +55,7 @@ interface BookingState {
 }
 
 // Helper to get auth token
-const getToken = () => sessionStorage.getItem('authToken');
+const getToken = () => sessionStorage.getItem('token');
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
 const getUser = () => {

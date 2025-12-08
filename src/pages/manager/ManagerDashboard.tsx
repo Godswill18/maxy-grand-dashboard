@@ -79,13 +79,13 @@ export default function ManagerDashboard() {
           color="primary"
           trend={{ value: 8, isPositive: true }}
         />
-        <StatCard
+        {/* <StatCard
           title="Monthly Revenue"
           value={formatCurrency(stats.monthlyRevenue)}
           icon={DollarSign}
           color="success"
           trend={{ value: 12, isPositive: true }}
-        />
+        /> */}
         <StatCard
           title="Occupancy Rate"
           value={`${stats.occupancyRate}%`}
@@ -142,7 +142,7 @@ export default function ManagerDashboard() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle>Revenue vs Expenses</CardTitle>
           </CardHeader>
@@ -172,7 +172,7 @@ export default function ManagerDashboard() {
               </div>
             )}
           </CardContent>
-        </Card>
+        </Card> */}
 
         <Card>
           <CardHeader>

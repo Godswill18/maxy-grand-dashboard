@@ -54,7 +54,7 @@ interface RoomState {
 // Helper function to get the auth token (if you have one)
 const getToken = () => {
   // Replace with your actual token logic (e.g., from localStorage, context)
-  return localStorage.getItem('authToken'); 
+  return sessionStorage.getItem('token'); 
 }
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';

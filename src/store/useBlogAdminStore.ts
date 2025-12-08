@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-// import { BlogPost, BlogImage } from './useBlogStore';
+import { useAuthStore } from './useAuthStore';
 
 export interface BlogImage {
   id: string;
@@ -10,7 +10,7 @@ export interface BlogImage {
 
 export interface BlogPost {
   _id: string;
-  id: string;
+  id?: string;
   title: string;
   slug: string;
   excerpt: string;
@@ -19,12 +19,12 @@ export interface BlogPost {
   author: string;
   date: string;
   readTime: string;
-  image: string; // Featured image
-  images?: BlogImage[]; // Additional images in blog
+  image: string;
+  images?: BlogImage[];
   isLive: boolean;
   views: number;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface BlogFormData {
@@ -38,7 +38,6 @@ interface BlogFormData {
 }
 
 interface BlogAdminStore {
-  // State
   posts: BlogPost[];
   loading: boolean;
   imageUploading: boolean;
@@ -47,7 +46,6 @@ interface BlogAdminStore {
   categories: string[];
   editingId: string | null;
 
-  // Actions
   fetchAllBlogs: () => Promise<void>;
   createBlog: (data: BlogFormData, featuredImage: File) => Promise<string | null>;
   updateBlog: (id: string, data: BlogFormData, featuredImage?: File) => Promise<void>;
@@ -59,8 +57,30 @@ interface BlogAdminStore {
   clearMessages: () => void;
 }
 
+const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
+const getToken = () => sessionStorage.getItem('token');
+
+// Helper function to handle API errors
+const handleApiError = async (response: Response) => {
+  const contentType = response.headers.get('content-type');
+  
+  if (!response.ok) {
+    if (contentType?.includes('application/json')) {
+      try {
+        const data = await response.json();
+        return data.error || `Error: ${response.statusText}`;
+      } catch {
+        return `Error: ${response.statusText} (${response.status})`;
+      }
+    } else {
+      return `Error: ${response.statusText} (${response.status})`;
+    }
+  }
+  
+  return null;
+};
+
 export const useBlogAdminStore = create<BlogAdminStore>((set, get) => ({
-  // Initial state
   posts: [],
   loading: false,
   imageUploading: false,
@@ -76,35 +96,62 @@ export const useBlogAdminStore = create<BlogAdminStore>((set, get) => ({
   ],
   editingId: null,
 
-  // Fetch all blogs (including drafts) for admin
+  // Fetch all blogs
   fetchAllBlogs: async () => {
+    const token = getToken();
+
+    // if (!token) {
+    //   set({ error: 'No authentication token found', loading: false });
+    //   return;
+    // }
+
     set({ loading: true, error: null });
     try {
-      const response = await fetch('/api/blogs/admin', {
+      const response = await fetch(`${VITE_API_URL}/api/blogs/admin`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch blogs');
+      const apiError = await handleApiError(response);
+      if (apiError) {
+        throw new Error(apiError);
       }
 
       const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch blogs');
+      }
+
       set({
-        posts: data.posts,
+        posts: data.posts || [],
         loading: false,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Fetch blogs error:', errorMessage);
       set({ error: errorMessage, loading: false });
     }
   },
 
-  // Create new blog post
+  // Create new blog
   createBlog: async (data: BlogFormData, featuredImage: File) => {
+    const token = getToken();
+
+    // if (!token) {
+    //   set({ error: 'No authentication token found', loading: false });
+    //   return null;
+    // }
+
+    if (!featuredImage) {
+      set({ error: 'Featured image is required', loading: false });
+      return null;
+    }
+
     set({ loading: true, error: null });
     try {
       const formData = new FormData();
@@ -117,39 +164,51 @@ export const useBlogAdminStore = create<BlogAdminStore>((set, get) => ({
       formData.append('isLive', String(data.isLive));
       formData.append('image', featuredImage);
 
-      const response = await fetch('/api/blogs', {
+      const response = await fetch(`${VITE_API_URL}/api/blogs`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to create blog');
+      const apiError = await handleApiError(response);
+      if (apiError) {
+        throw new Error(apiError);
       }
 
       const result = await response.json();
 
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create blog');
+      }
+
       set((state) => ({
         posts: [result.post, ...state.posts],
-        success: 'Blog created successfully!',
+        success: result.message || 'Blog created successfully!',
         loading: false,
       }));
 
-      // Clear success message after 5 seconds
       setTimeout(() => set({ success: null }), 5000);
-
       return result.post._id;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Create blog error:', errorMessage);
       set({ error: errorMessage, loading: false });
       return null;
     }
   },
 
-  // Update existing blog post
+  // Update blog
   updateBlog: async (id: string, data: BlogFormData, featuredImage?: File) => {
+    const token = getToken();
+
+    // if (!token) {
+    //   set({ error: 'No authentication token found', loading: false });
+    //   return;
+    // }
+
     set({ loading: true, error: null });
     try {
       const formData = new FormData();
@@ -164,158 +223,221 @@ export const useBlogAdminStore = create<BlogAdminStore>((set, get) => ({
         formData.append('image', featuredImage);
       }
 
-      const response = await fetch(`/api/blogs/${id}`, {
+      const response = await fetch(`${VITE_API_URL}/api/blogs/${id}`, {
         method: 'PUT',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to update blog');
+      const apiError = await handleApiError(response);
+      if (apiError) {
+        throw new Error(apiError);
       }
 
       const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update blog');
+      }
 
       set((state) => ({
         posts: state.posts.map((post) =>
           post._id === id ? result.post : post
         ),
-        success: 'Blog updated successfully!',
+        success: result.message || 'Blog updated successfully!',
         loading: false,
         editingId: null,
       }));
 
-      // Clear success message after 5 seconds
       setTimeout(() => set({ success: null }), 5000);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Update blog error:', errorMessage);
       set({ error: errorMessage, loading: false });
     }
   },
 
-  // Delete blog post
+  // Delete blog (also deletes all associated images)
   deleteBlog: async (id: string) => {
+    const token = getToken();
+
+    // if (!token) {
+    //   set({ error: 'No authentication token found', loading: false });
+    //   return;
+    // }
+
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`/api/blogs/${id}`, {
+      const response = await fetch(`${VITE_API_URL}/api/blogs/${id}`, {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to delete blog');
+      const apiError = await handleApiError(response);
+      if (apiError) {
+        throw new Error(apiError);
+      }
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete blog');
       }
 
       set((state) => ({
         posts: state.posts.filter((post) => post._id !== id),
-        success: 'Blog deleted successfully!',
+        success: result.message || 'Blog and all associated images deleted successfully!',
         loading: false,
       }));
 
-      // Clear success message after 5 seconds
       setTimeout(() => set({ success: null }), 5000);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Delete blog error:', errorMessage);
       set({ error: errorMessage, loading: false });
     }
   },
 
-  // Toggle blog live/draft status
-  toggleBlogLive: async (id: string) => {
-    set({ loading: true, error: null });
-    try {
-      const post = get().posts.find((p) => p._id === id);
-      if (!post) throw new Error('Blog not found');
+  // ✅ Fixed: Properly toggle blog live/draft status
+   toggleBlogLive: async (id: string) => {
+  const token = getToken();
 
-      const response = await fetch(`/api/blogs/${id}/toggle-live`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-        },
-        body: JSON.stringify({ isLive: !post.isLive }),
-      });
+  set({ loading: true, error: null });
+  try {
+    const post = get().posts.find((p) => p._id === id);
+    if (!post) throw new Error('Blog not found');
 
-      if (!response.ok) {
-        throw new Error('Failed to toggle blog status');
-      }
+    // ✅ IMPORTANT: Send the CURRENT status, let backend toggle it
+    // NOT the new status!
 
-      const result = await response.json();
+    const response = await fetch(`${VITE_API_URL}/api/blogs/${id}/toggle-live`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: 'include',
+      // ✅ Send current status (not toggled) - backend will toggle it
+      body: JSON.stringify({ isLive: post.isLive }),
+    });
 
-      set((state) => ({
-        posts: state.posts.map((post) =>
-          post._id === id ? result.post : post
-        ),
-        success: `Blog ${!post.isLive ? 'published' : 'unpublished'} successfully!`,
-        loading: false,
-      }));
-
-      // Clear success message after 5 seconds
-      setTimeout(() => set({ success: null }), 5000);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      set({ error: errorMessage, loading: false });
+    const apiError = await handleApiError(response);
+    if (apiError) {
+      throw new Error(apiError);
     }
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to toggle blog status');
+    }
+
+
+    set((state) => ({
+      posts: state.posts.map((p) =>
+        p._id === id ? result.post : p
+      ),
+      success: result.message || `Blog ${result.post.isLive ? 'published' : 'unpublished'} successfully!`,
+      loading: false,
+    }));
+
+    setTimeout(() => set({ success: null }), 5000);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error('Toggle blog error:', errorMessage);
+    set({ error: errorMessage, loading: false });
+  }
   },
 
-  // Set blog to live or draft
+  // Set blog live/draft
   setBlogLive: async (id: string, isLive: boolean) => {
+    const token = getToken();
+
+    // if (!token) {
+    //   set({ error: 'No authentication token found', loading: false });
+    //   return;
+    // }
+
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`/api/blogs/${id}/set-live`, {
+      const response = await fetch(`${VITE_API_URL}/api/blogs/${id}/set-live`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
         body: JSON.stringify({ isLive }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to set blog status');
+      const apiError = await handleApiError(response);
+      if (apiError) {
+        throw new Error(apiError);
       }
 
       const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to set blog status');
+      }
 
       set((state) => ({
         posts: state.posts.map((post) =>
           post._id === id ? result.post : post
         ),
-        success: `Blog ${isLive ? 'published' : 'moved to draft'} successfully!`,
+        success: result.message || `Blog ${isLive ? 'published' : 'moved to draft'} successfully!`,
         loading: false,
       }));
 
       setTimeout(() => set({ success: null }), 5000);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Set blog live error:', errorMessage);
       set({ error: errorMessage, loading: false });
     }
   },
 
-  // Upload additional image to blog
+  // Upload blog image
   uploadBlogImage: async (blogId: string, image: File) => {
+    const token = getToken();
+
+    if (!token) {
+      set({ error: 'No authentication token found', imageUploading: false });
+      return null;
+    }
+
     set({ imageUploading: true, error: null });
     try {
       const formData = new FormData();
       formData.append('image', image);
 
-      const response = await fetch(`/api/blogs/${blogId}/images`, {
+      const response = await fetch(`${VITE_API_URL}/api/blogs/${blogId}/images`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to upload image');
+      
+
+      const apiError = await handleApiError(response);
+      if (apiError) {
+        throw new Error(apiError);
       }
 
       const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to upload image');
+      }
 
       set((state) => ({
         posts: state.posts.map((post) =>
@@ -324,35 +446,51 @@ export const useBlogAdminStore = create<BlogAdminStore>((set, get) => ({
             : post
         ),
         imageUploading: false,
-        success: 'Image uploaded successfully!',
+        success: result.message || 'Image uploaded successfully!',
       }));
 
       setTimeout(() => set({ success: null }), 5000);
-
       return result.image;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Upload image error:', errorMessage);
       set({ error: errorMessage, imageUploading: false });
       return null;
     }
   },
 
-  // Delete image from blog
+  // Delete blog image
   deleteBlogImage: async (blogId: string, imageId: string) => {
+    const token = getToken();
+
+    // if (!token) {
+    //   set({ error: 'No authentication token found', loading: false });
+    //   return;
+    // }
+
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`/api/blogs/${blogId}/images/${imageId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-        },
-      });
+      const response = await fetch(
+        `${VITE_API_URL}/api/blogs/${blogId}/images/${imageId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: 'include',
+        }
+      );
 
-      if (!response.ok) {
-        throw new Error('Failed to delete image');
+      const apiError = await handleApiError(response);
+      if (apiError) {
+        throw new Error(apiError);
       }
 
       const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete image');
+      }
 
       set((state) => ({
         posts: state.posts.map((post) =>
@@ -360,18 +498,19 @@ export const useBlogAdminStore = create<BlogAdminStore>((set, get) => ({
             ? { ...post, images: result.images }
             : post
         ),
-        success: 'Image deleted successfully!',
+        success: result.message || 'Image deleted successfully!',
         loading: false,
       }));
 
       setTimeout(() => set({ success: null }), 5000);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Delete image error:', errorMessage);
       set({ error: errorMessage, loading: false });
     }
   },
 
-  // Clear error and success messages
+  // Clear messages
   clearMessages: () => {
     set({ error: null, success: null });
   },
