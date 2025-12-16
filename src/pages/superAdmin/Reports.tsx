@@ -60,7 +60,7 @@ export default function Reports() {
         <div className="rounded-lg border bg-card p-2 text-card-foreground shadow-sm">
           <p className="font-bold">{label}</p>
           <p className="text-sm" style={{ color: 'hsl(var(--primary))' }}>
-            Revenue: ${payload[0].value.toLocaleString()}
+            Revenue: ₦{payload[0].value.toLocaleString()}
           </p>
           <p className="text-sm" style={{ color: 'hsl(var(--secondary))' }}>
             Bookings: {payload[1].value}
@@ -206,7 +206,7 @@ export default function Reports() {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
+                      // backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
                       borderRadius: '8px',
                     }}

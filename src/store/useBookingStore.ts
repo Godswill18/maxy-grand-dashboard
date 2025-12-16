@@ -162,37 +162,39 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     }
   },
 
-  cancelBooking: async (id: string) => {
-    set({ isLoading: true, error: null });
-    try {
-      const token = getToken();
-      await axios.patch(
-        `${VITE_API_URL}/api/bookings/${id}/cancel`,
-        {},
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
-        }
-      );
-      
-      // Refetch bookings after cancellation
-      await get().fetchBookings(get().currentHotelId || undefined);
-      
-      set({ isLoading: false });
-      toast.success('Booking cancelled successfully');
-    } catch (err) {
-      const error = err as AxiosError;
-      set({ 
-        isLoading: false, 
-        error:  error.message 
-      });
-      toast.error(`Failed to cancel booking: ${ error.message}`);
-      throw error;
-    }
-  },
+cancelBooking: async (id: string) => {
+  set({ isLoading: true, error: null });
+  try {
+    const token = getToken();
+    
+    // ✅ CORRECT: Config is 3rd parameter for axios.patch
+    await axios.patch(
+      `${VITE_API_URL}/api/bookings/cancel/${id}`,
+      {},  // ✅ Empty body (PATCH doesn't need data)
+      {    // ✅ Config object as 2nd parameter (after data)
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        withCredentials: true,
+      }
+    );
+    
+    // Refetch bookings after cancellation
+    await get().fetchBookings(get().currentHotelId || undefined);
+    
+    set({ isLoading: false });
+    toast.success('Booking cancelled successfully');
+  } catch (err) {
+    const error = err as AxiosError;
+    set({ 
+      isLoading: false, 
+      error: error.message 
+    });
+    toast.error(`Failed to cancel booking: ${error.message}`);
+    throw error;
+  }
+},
 
   deleteBooking: async (id: string) => {
     try {
@@ -215,7 +217,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
 
     try {
       const token = getToken();
-      const res = await axios.post(`${VITE_API_URL}/api/bookings/create`, data, {
+      const res = await axios.post(`${VITE_API_URL}/api/bookings/create-walkin`, data, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,

@@ -140,7 +140,7 @@ export default function ReceptionistDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Today's Revenue</CardTitle>
             <CreditCard className="h-4 w-4 text-primary" />
@@ -154,7 +154,7 @@ export default function ReceptionistDashboard() {
               {stats.todayRevenue.percentageChange}% from yesterday
             </p>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       {/* Charts */}

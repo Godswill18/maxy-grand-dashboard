@@ -1,4 +1,4 @@
-// Operations.tsx (Updated with Modal, Pagination, Sorting, and Skeleton)
+// Operations.tsx (Optimized with better modal handling)
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,9 @@ import { Bed, Users, Utensils, Sparkles, Loader2, RefreshCw, AlertTriangle, Arro
 import { useOperationsStore } from '../../store/useOperationsStore.ts';
 import { useStaffStore } from "@/store/useStaffStore.ts";
 import { useAuthStore } from "@/store/useAuthStore.ts";
-import { useEffect, useState, useMemo } from 'react'; // Added useState and useMemo
+import { useEffect, useState, useMemo } from 'react';
 
-// Import new components
+// Import components
 import { TableViewModal } from "@/components/operations/TableViewModal.tsx";
 import { DataTablePagination } from "@/components/operations/DataTablePagination.tsx";
 import { TableSkeleton } from "@/components/skeleton/TableSkeleton.tsx";
@@ -18,7 +18,6 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 // --- Utility Functions ---
 
-// Placeholder Hook for Auth/Context
 const useUserHotelContext = () => {
     const { user } = useAuthStore();
     const hotelId = user?.hotelId || null;
@@ -35,10 +34,8 @@ const statusColors: Record<string, string> = {
     "in progress": "bg-info text-info-foreground",
     completed: "bg-success text-success-foreground",
     served: "bg-info text-info-foreground",
-    // Ensure all possible statuses from your backend are covered
 };
 
-// Simplified Type for clarity in component logic
 type SortDirection = 'asc' | 'desc';
 
 interface TableState {
@@ -95,7 +92,6 @@ const PaginatedSortableTable = <T extends Record<string, any>>({
         sortDirection: 'asc',
     });
 
-    // Reset page index when data or sorting changes
     useEffect(() => {
         setState(prev => ({ ...prev, pageIndex: 0 }));
     }, [data, state.sortBy, state.sortDirection]);
@@ -211,7 +207,6 @@ export default function Operations() {
     const { staff, fetchStaffByLoggedInUserHotel } = useStaffStore();
     const { hotelId, token } = useUserHotelContext();
 
-    // 3. Fetch data on component mount
     useEffect(() => {
         if (hotelId) {
             fetchOperationsData();
@@ -225,7 +220,7 @@ export default function Operations() {
         };
     }, [hotelId, token, fetchOperationsData, fetchRoomDetails, connectSocket, disconnectSocket, fetchStaffByLoggedInUserHotel]);
     
-    // Derived State (for quick stats)
+    // Derived State
     const occupiedRoomsCount = allRoomDetails.filter(r => r.status === "occupied").length;
     const pendingCleaningTasksCount = cleaningTasks.filter(t => t.status !== "completed").length;
     const activeOrdersCount = restaurantOrders.filter(o => o.orderStatus !== "delivered" && o.orderStatus !== "cancelled").length;
@@ -239,21 +234,34 @@ export default function Operations() {
         }
     };
 
+    // ✅ FIXED: Extract guest name from currentBookingId object
+    const getGuestNameFromBooking = (booking: any): string => {
+        if (!booking) return "-";
+        if (typeof booking === 'string') return booking;
+        if (booking.guestName) return booking.guestName;
+        if (booking.firstName && booking.lastName) return `${booking.firstName} ${booking.lastName}`;
+        return "-";
+    };
+
+    // ✅ FIXED: Extract booking ID from currentBookingId object
+    const getBookingIdDisplay = (booking: any): string => {
+        if (!booking) return "-";
+        if (typeof booking === 'string') return booking;
+        if (booking._id) return booking._id.slice(-8); // Show last 8 chars
+        if (booking.id) return booking.id.slice(-8);
+        return "-";
+    };
+
     const handleViewDetails = (title: string, data: any) => {
         setModalState({ isOpen: true, title, data });
     };
-
-    // --- Mapped Data for Tables (Simplified for UI display) ---
-    // Note: Use allRoomDetails, cleaningTasks, and restaurantOrders directly
-    // as the source for the modal data, but map the display-friendly fields
-    // for the table columns. The original data is passed to the modal.
 
     const roomColumns = [
         { key: "roomNumber" as const, label: "Room", sortable: true },
         { key: "roomTypeId" as const, label: "Type", sortable: true, render: (r: any) => r.roomTypeId?.name || "Unknown" },
         { key: "status" as const, label: "Status", sortable: true, render: (r: any) => <Badge className={statusColors[r.status]}>{r.status}</Badge> },
-        { key: "guestName" as const, label: "Guest", sortable: true },
-        { key: "checkOut" as const, label: "Check-out", sortable: true },
+        { key: "guestName" as const, label: "Guest", render: (r: any) => getGuestNameFromBooking(r.currentBookingId) },
+        { key: "currentBookingId" as const, label: "Booking ID", sortable: false, render: (r: any) => getBookingIdDisplay(r.currentBookingId) },
     ];
 
     const cleaningColumns = [
@@ -274,7 +282,6 @@ export default function Operations() {
         { key: "createdAt" as const, label: "Time", sortable: true, render: (o: any) => new Date(o.createdAt).toLocaleTimeString() },
     ];
 
-    // Filtered data for tables
     const nonCompletedCleaningTasks = cleaningTasks.filter(t => t.status !== 'completed');
     const activeRestaurantOrders = restaurantOrders.filter(o => o.orderStatus !== 'delivered' && o.orderStatus !== 'cancelled');
 
@@ -282,7 +289,7 @@ export default function Operations() {
         return (
             <div className="p-6 text-center text-destructive border border-destructive rounded-lg">
                 <AlertTriangle className="h-6 w-6 inline mr-2" />
-                Error loading operations data: **{error}**
+                Error loading operations data: {error}
                 <Button variant="ghost" onClick={handleRefresh} className="ml-4">
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Retry
@@ -314,13 +321,12 @@ export default function Operations() {
             </div>
 
             {/* Quick Stats */}
-           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card>
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">Occupied Rooms</p>
-                                {/* FIX: Changed <p> to <div> */}
                                 <div className="text-2xl font-bold text-foreground">
                                     {tableLoading ? <Skeleton className="h-7 w-12" /> : occupiedRoomsCount}
                                 </div>
@@ -334,7 +340,6 @@ export default function Operations() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">Cleaning Tasks</p>
-                                {/* FIX: Changed <p> to <div> */}
                                 <div className="text-2xl font-bold text-foreground">
                                     {tableLoading ? <Skeleton className="h-7 w-12" /> : pendingCleaningTasksCount}
                                 </div>
@@ -348,7 +353,6 @@ export default function Operations() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">Active Orders</p>
-                                {/* FIX: Changed <p> to <div> */}
                                 <div className="text-2xl font-bold text-foreground">
                                     {tableLoading ? <Skeleton className="h-7 w-12" /> : activeOrdersCount}
                                 </div>
@@ -362,7 +366,6 @@ export default function Operations() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">Staff On Duty</p>
-                                {/* FIX: Changed <p> to <div> */}
                                 <div className="text-2xl font-bold text-foreground">
                                     {tableLoading ? <Skeleton className="h-7 w-12" /> : activeStaffCount}
                                 </div>

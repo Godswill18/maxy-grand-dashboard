@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { BedDouble, Search, Loader2, Clock, ArrowRightLeft, AlertTriangle } from "lucide-react";
+import { BedDouble, Search, Loader2, Clock, ArrowRightLeft, AlertTriangle, Eye, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { useRoomStore as useRecepRoomStore, ReceptionistRoom } from "@/store/useRecepRoomStore";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -48,16 +48,195 @@ const CheckoutCountdown = ({ checkOutDate }: { checkOutDate: string }) => {
   const pad = (num: number) => num.toString().padStart(2, '0');
 
   return (
-    <div className={`flex items-center gap-2 text-xs font-medium ${isOverdue ? 'text-white' : 'text-white/90'}`}>
-      <Clock className="h-3 w-3" />
+    <div className={`flex items-center gap-2 text-sm font-bold ${isOverdue ? 'text-red-700' : 'text-green-700'}`}>
+      <Clock className="h-5 w-5" />
       {isOverdue ? (
-        <span>Overdue: {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
+        <span className="text-base">Overdue: {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
       ) : (
-        <span>Checkout: {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
+        <span className="text-base">Checkout: {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
       )}
     </div>
   );
 };
+
+// Occupant Details Dialog
+interface OccupantDetailsDialogProps {
+  room: ReceptionistRoom;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function OccupantDetailsDialog({ room, open, onOpenChange }: OccupantDetailsDialogProps) {
+  const booking = room.currentBookingId;
+  
+  if (!booking) return null;
+
+  const checkInDate = new Date(room.checkInDate || '');
+  const checkOutDate = new Date(room.checkOutDate || '');
+  const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+  const totalAmount = (room.roomTypeId?.price || 0) * nights;
+
+  // Check if overdue
+  const checkoutTime = new Date(room.checkOutDate || '');
+  checkoutTime.setHours(12, 0, 0, 0);
+  const isOverdue = new Date() > checkoutTime;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Occupant Details - Room {room.roomNumber}</DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4">
+          {/* Status Alert */}
+          {isOverdue && (
+            <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5" />
+              <div className="text-sm text-red-800">
+                <p className="font-medium">Checkout Overdue!</p>
+                <p>This guest has exceeded their checkout time.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Guest Information */}
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="text-sm font-semibold text-blue-900 mb-3">Guest Information</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs text-blue-600 mb-1">Guest Name</p>
+                <p className="text-sm font-medium text-blue-900">{booking.guestName}</p>
+              </div>
+              <div>
+                <p className="text-xs text-blue-600 mb-1">Booking ID</p>
+                <p className="text-sm font-mono text-blue-900">{booking._id}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Booking Details */}
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Booking Details</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Check-In Date</p>
+                <p className="text-sm font-medium">{checkInDate.toLocaleDateString('en-US', { 
+                  weekday: 'short', 
+                  year: 'numeric', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}</p>
+                <p className="text-xs text-muted-foreground">{checkInDate.toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Check-Out Date</p>
+                <p className="text-sm font-medium">{checkOutDate.toLocaleDateString('en-US', { 
+                  weekday: 'short', 
+                  year: 'numeric', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}</p>
+                <p className="text-xs text-muted-foreground">12:00 PM</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Number of Nights</p>
+                <p className="text-sm font-medium">{nights} {nights === 1 ? 'night' : 'nights'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Booking Status</p>
+                <Badge className={isOverdue ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}>
+                  {isOverdue ? 'Overdue' : 'Active'}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          {/* Room Information */}
+          <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+            <h3 className="text-sm font-semibold text-purple-900 mb-3">Room Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-purple-600 mb-1">Room Number</p>
+                <p className="text-sm font-medium text-purple-900">{room.roomNumber}</p>
+              </div>
+              <div>
+                <p className="text-xs text-purple-600 mb-1">Room Type</p>
+                <p className="text-sm font-medium text-purple-900">{room.roomTypeId?.name || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-purple-600 mb-1">Capacity</p>
+                <p className="text-sm font-medium text-purple-900">{room.roomTypeId?.capacity || 'N/A'} guests</p>
+              </div>
+              <div>
+                <p className="text-xs text-purple-600 mb-1">Price per Night</p>
+                <p className="text-sm font-medium text-purple-900">₦{room.roomTypeId?.price?.toLocaleString() || 'N/A'}</p>
+              </div>
+            </div>
+
+            {/* Amenities */}
+            {room.roomTypeId && Array.isArray(room.roomTypeId.amenities) && room.roomTypeId.amenities.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-purple-600 mb-2">Amenities</p>
+                <div className="flex flex-wrap gap-2">
+                  {room.roomTypeId.amenities.map((amenity, index) => (
+                    <span key={index} className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700">
+                      {amenity}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Financial Summary */}
+          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h3 className="text-sm font-semibold text-green-900 mb-3">Financial Summary</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-green-700">Rate per night</p>
+                <p className="text-sm font-medium text-green-900">₦{room.roomTypeId?.price?.toLocaleString() || 'N/A'}</p>
+              </div>
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-green-700">Number of nights</p>
+                <p className="text-sm font-medium text-green-900">{nights}</p>
+              </div>
+              <div className="h-px bg-green-200 my-2"></div>
+              <div className="flex justify-between items-center">
+                <p className="text-sm font-semibold text-green-900">Total Amount</p>
+                <p className="text-lg font-bold text-green-900">₦{totalAmount.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Time Remaining */}
+          {!isOverdue && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-amber-600" />
+                  <p className="text-sm font-medium text-amber-900">Time until checkout</p>
+                </div>
+                <CheckoutCountdown checkOutDate={room.checkOutDate || ''} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Close
+            </Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // Room Reassignment Dialog
 interface ReassignRoomDialogProps {
@@ -66,6 +245,322 @@ interface ReassignRoomDialogProps {
   onReassign: (currentRoomId: string, newRoomId: string) => Promise<void>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+// ✅ NEW: Room Status Update Dialog
+interface UpdateStatusDialogProps {
+  room: ReceptionistRoom;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onUpdateStatus: (roomId: string, status: ReceptionistRoom['status']) => Promise<void>;
+}
+
+function UpdateStatusDialog({ room, open, onOpenChange, onUpdateStatus }: UpdateStatusDialogProps) {
+  const [selectedStatus, setSelectedStatus] = useState<ReceptionistRoom['status']>(room.status);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    setSelectedStatus(room.status);
+  }, [room.status, open]);
+
+  const handleUpdateStatus = async () => {
+    if (selectedStatus === room.status) {
+      return toast.info("Status hasn't changed");
+    }
+
+    setIsLoading(true);
+    try {
+      await onUpdateStatus(room._id, selectedStatus);
+      onOpenChange(false);
+    } catch (error) {
+      // Error handled in parent
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getStatusInfo = (status: ReceptionistRoom['status']) => {
+    switch (status) {
+      case 'available':
+        return { label: 'Available', color: 'bg-green-100 text-green-800', icon: '✓' };
+      case 'occupied':
+        return { label: 'Occupied', color: 'bg-green-700 text-white', icon: '●' };
+      case 'cleaning':
+        return { label: 'Cleaning', color: 'bg-yellow-100 text-yellow-800', icon: '🧹' };
+      case 'reserved':
+        return { label: 'Reserved', color: 'bg-blue-100 text-blue-800', icon: '📅' };
+      case 'maintenance':
+        return { label: 'Maintenance', color: 'bg-gray-200 text-gray-800', icon: '🔧' };
+      default:
+        return { label: status, color: 'bg-gray-100 text-gray-800', icon: '' };
+    }
+  };
+
+  const currentStatusInfo = getStatusInfo(room.status);
+  const newStatusInfo = getStatusInfo(selectedStatus);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Update Room Status</DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4">
+          {/* Current Room Info */}
+          <div className="p-3 bg-gray-50 rounded-lg border">
+            <p className="text-sm font-medium mb-2">Room Details</p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="text-muted-foreground">Room:</span>
+                <span className="ml-2 font-medium">{room.roomNumber}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Type:</span>
+                <span className="ml-2 font-medium">{room.roomTypeId?.name}</span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-muted-foreground">Current Status:</span>
+                <Badge className={`ml-2 ${currentStatusInfo.color}`}>
+                  {currentStatusInfo.icon} {currentStatusInfo.label}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          {/* Status Selection */}
+          <div>
+            <Label>Select New Status</Label>
+            <Select value={selectedStatus} onValueChange={(value) => setSelectedStatus(value as ReceptionistRoom['status'])}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="available">
+                  <span className="flex items-center gap-2">
+                    <span>✓</span>
+                    <span>Available</span>
+                  </span>
+                </SelectItem>
+                <SelectItem value="cleaning">
+                  <span className="flex items-center gap-2">
+                    <span>🧹</span>
+                    <span>Cleaning</span>
+                  </span>
+                </SelectItem>
+                <SelectItem value="maintenance">
+                  <span className="flex items-center gap-2">
+                    <span>🔧</span>
+                    <span>Maintenance</span>
+                  </span>
+                </SelectItem>
+                <SelectItem value="reserved" disabled={!room.currentBookingId}>
+                  <span className="flex items-center gap-2">
+                    <span>📅</span>
+                    <span>Reserved</span>
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Note: "Occupied" status is set automatically during check-in
+            </p>
+          </div>
+
+          {/* Status Change Preview */}
+          {selectedStatus !== room.status && (
+            <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge className={currentStatusInfo.color}>
+                    {currentStatusInfo.icon} {currentStatusInfo.label}
+                  </Badge>
+                  <span className="text-blue-600">→</span>
+                  <Badge className={newStatusInfo.color}>
+                    {newStatusInfo.icon} {newStatusInfo.label}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Warning for occupied rooms */}
+          {room.status === 'occupied' && selectedStatus !== 'occupied' && (
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5" />
+              <div className="text-sm text-amber-800">
+                <p className="font-medium">Warning:</p>
+                <p>This room is currently occupied. Changing the status may affect the guest's booking.</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" disabled={isLoading}>
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button 
+            onClick={handleUpdateStatus} 
+            disabled={isLoading || selectedStatus === room.status}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Updating...
+              </>
+            ) : (
+              'Update Status'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ✅ Room Status Update Dialog
+interface StatusUpdateDialogProps {
+  room: ReceptionistRoom;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onUpdateStatus: (roomId: string, newStatus: string) => Promise<void>;
+}
+
+function StatusUpdateDialog({ room, open, onOpenChange, onUpdateStatus }: StatusUpdateDialogProps) {
+  const [selectedStatus, setSelectedStatus] = useState(room.status);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Reset selected status when dialog opens/closes
+  useEffect(() => {
+    if (open) {
+      setSelectedStatus(room.status);
+    }
+  }, [open, room.status]);
+
+  const handleUpdateStatus = async () => {
+    if (selectedStatus === room.status) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await onUpdateStatus(room._id, selectedStatus);
+      onOpenChange(false);
+    } catch (error) {
+      // Error handled in parent
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getStatusInfo = (status: ReceptionistRoom['status']) => {
+    switch (status) {
+      case 'available':
+        return { label: 'Available', color: 'bg-green-200 text-green-800 border-green-400', icon: '✓' };
+      case 'occupied':
+        return { label: 'Occupied', color: 'bg-green-700 text-white border-green-800', icon: '●' };
+      case 'cleaning':
+        return { label: 'Cleaning', color: 'bg-yellow-200 text-yellow-800 border-yellow-400', icon: '🧹' };
+      case 'reserved':
+        return { label: 'Reserved', color: 'bg-blue-200 text-blue-800 border-blue-400', icon: '📅' };
+      case 'maintenance':
+        return { label: 'Maintenance', color: 'bg-gray-300 text-gray-800 border-gray-500', icon: '🔧' };
+      default:
+        return { label: status, color: 'bg-gray-200 text-gray-700', icon: '' };
+    }
+  };
+
+  const currentStatusInfo = getStatusInfo(room.status);
+  const newStatusInfo = getStatusInfo(selectedStatus);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Update Room Status - Room {room.roomNumber}</DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4">
+          {/* Current Status */}
+          <div className="p-3 bg-gray-50 rounded-lg">
+            <p className="text-sm text-muted-foreground mb-2">Current Status</p>
+            <Badge className={currentStatusInfo.color}>
+              {currentStatusInfo.icon} {currentStatusInfo.label}
+            </Badge>
+          </div>
+
+          {/* Status Selection */}
+          <div>
+            <Label>Select New Status</Label>
+            <Select value={selectedStatus} onValueChange={(value) => setSelectedStatus(value as ReceptionistRoom['status'])}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="available">✓ Available</SelectItem>
+                <SelectItem value="occupied">● Occupied</SelectItem>
+                <SelectItem value="cleaning">🧹 Cleaning</SelectItem>
+                <SelectItem value="reserved">📅 Reserved</SelectItem>
+                <SelectItem value="maintenance">🔧 Maintenance</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Status Change Preview */}
+          {selectedStatus !== room.status && (
+            <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge className={currentStatusInfo.color}>
+                    {currentStatusInfo.icon} {currentStatusInfo.label}
+                  </Badge>
+                  <span className="text-blue-600">→</span>
+                  <Badge className={newStatusInfo.color}>
+                    {newStatusInfo.icon} {newStatusInfo.label}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Warning for occupied status */}
+          {selectedStatus === 'occupied' && room.status !== 'occupied' && (
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5" />
+              <div className="text-sm text-amber-800">
+                <p className="font-medium">Note:</p>
+                <p>Setting status to "Occupied" requires an active booking. Make sure a guest has been checked in.</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" disabled={isLoading}>
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button 
+            onClick={handleUpdateStatus} 
+            disabled={isLoading || selectedStatus === room.status}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Updating...
+              </>
+            ) : (
+              'Update Status'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function ReassignRoomDialog({ currentRoom, availableRooms, onReassign, open, onOpenChange }: ReassignRoomDialogProps) {
@@ -103,7 +598,7 @@ function ReassignRoomDialog({ currentRoom, availableRooms, onReassign, open, onO
         
         <div className="space-y-4">
           {/* Current Room Info */}
-          <div className="p-3 bg-gray-50 rounded-lg">
+          <div className="p-3  rounded-lg">
             <p className="text-sm font-medium mb-2">Current Room</p>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
@@ -203,11 +698,13 @@ function ReassignRoomDialog({ currentRoom, availableRooms, onReassign, open, onO
 
 // Main Component
 export default function RoomReceptionist() {
-  const { rooms, isLoading, error, fetchRooms } = useRecepRoomStore();
+  const { rooms, isLoading, error, fetchRooms, updateRoomStatus } = useRecepRoomStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [reassignDialogOpen, setReassignDialogOpen] = useState<Record<string, boolean>>({});
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState<Record<string, boolean>>({});
+  const [statusDialogOpen, setStatusDialogOpen] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetchRooms();
@@ -217,9 +714,9 @@ export default function RoomReceptionist() {
     return () => clearInterval(interval);
   }, [fetchRooms]);
 
-  // Get room background color based on status
+  // ✅ Professional Color Scheme Function - DEEPER COLORS
   const getRoomCardStyle = (room: ReceptionistRoom) => {
-    const baseStyle = "hover:shadow-xl transition-all duration-300";
+    const baseStyle = "hover:shadow-xl transition-all duration-300 border-2";
     
     // Check if overdue (for occupied rooms)
     if (room.status === 'occupied' && room.checkOutDate) {
@@ -228,23 +725,29 @@ export default function RoomReceptionist() {
       const isOverdue = new Date() > checkoutTime;
       
       if (isOverdue) {
-        return `${baseStyle} bg-gradient-to-br from-[#962E2A] to-[#7a251f] text-white border-[#962E2A]`;
+        // ✅ DEEP RED for Overdue Checkout
+        return `${baseStyle} bg-red-100 border-red-400`;
       }
     }
 
     switch (room.status) {
       case "available":
-        return `${baseStyle} bg-gradient-to-br from-[#080205] to-[#1a0f16] text-white border-[#080205]`;
+        // ✅ NO BACKGROUND for Available (clean white)
+        return `${baseStyle} border-gray-300`;
       case "occupied":
-        return `${baseStyle} bg-gradient-to-br from-[#00246B] to-[#001a4d] text-white border-[#00246B]`;
+        // ✅ DEEP GREEN for Occupied
+        return `${baseStyle} bg-green-100 border-green-400`;
       case "cleaning":
-        return `${baseStyle} bg-gradient-to-br from-[#E58D2E] to-[#c77424] text-white border-[#E58D2E]`;
+        // ✅ DEEP YELLOW for Cleaning
+        return `${baseStyle} bg-yellow-100 border-yellow-400`;
       case "reserved":
-        return `${baseStyle} bg-gradient-to-br from-[#144058] to-[#0f3244] text-white border-[#144058]`;
+        // ✅ DEEP Blue for Reserved
+        return `${baseStyle} bg-blue-100 border-blue-400`;
       case "maintenance":
-        return `${baseStyle} bg-gray-100 border-gray-300`;
+        // ✅ DEEP Gray for Maintenance
+        return `${baseStyle} bg-gray-200 border-gray-400`;
       default:
-        return `${baseStyle} bg-white border-gray-200`;
+        return `${baseStyle} bg-white border-gray-300`;
     }
   };
 
@@ -256,26 +759,50 @@ export default function RoomReceptionist() {
       const isOverdue = new Date() > checkoutTime;
       
       if (isOverdue) {
-        return <Badge className="bg-white/20 text-white border-white/30">Overdue</Badge>;
+        return <Badge className="bg-red-200 text-red-800 border-red-400">⚠️ Overdue</Badge>;
       }
     }
 
-    const isDark = ['occupied', 'cleaning', 'reserved', 'available'].includes(room.status) || 
-                   (room.status === 'occupied' && room.checkOutDate && new Date() > new Date(room.checkOutDate));
-
     switch (room.status) {
       case "available":
-        return <Badge className="bg-white/20 text-white border-white/30">Available</Badge>;
+        return <Badge className="bg-green-200 text-green-800 border-green-400">✓ Available</Badge>;
       case "occupied":
-        return <Badge className="bg-white/20 text-white border-white/30">Occupied</Badge>;
+        return <Badge className="bg-green-700 text-white border-green-800">● Occupied</Badge>;
       case "cleaning":
-        return <Badge className="bg-white/20 text-white border-white/30">Cleaning</Badge>;
+        return <Badge className="bg-yellow-200 text-yellow-800 border-yellow-400">🧹 Cleaning</Badge>;
       case "reserved":
-        return <Badge className="bg-white/20 text-white border-white/30">Reserved</Badge>;
+        return <Badge className="bg-blue-200 text-blue-800 border-blue-400">📅 Reserved</Badge>;
       case "maintenance":
-        return <Badge className="bg-gray-200 text-gray-700">Maintenance</Badge>;
+        return <Badge className="bg-gray-300 text-gray-800 border-gray-500">🔧 Maintenance</Badge>;
       default:
         return <Badge>{room.status}</Badge>;
+    }
+  };
+
+  // ✅ Get text color based on room status
+  const getTextColors = (room: ReceptionistRoom) => {
+    // Check if overdue
+    if (room.status === 'occupied' && room.checkOutDate) {
+      const checkoutTime = new Date(room.checkOutDate);
+      checkoutTime.setHours(12, 0, 0, 0);
+      const isOverdue = new Date() > checkoutTime;
+      
+      if (isOverdue) {
+        return { text: 'text-red-900', muted: 'text-red-600' };
+      }
+    }
+
+    switch (room.status) {
+      case "occupied":
+        return { text: 'text-green-900', muted: 'text-green-600' };
+      case "cleaning":
+        return { text: 'text-yellow-900', muted: 'text-yellow-600' };
+      case "reserved":
+        return { text: 'text-blue-900', muted: 'text-blue-600' };
+      case "maintenance":
+        return { text: 'text-gray-700', muted: 'text-gray-500' };
+      default:
+        return { text: 'text-gray-400', muted: 'text-muted-foreground' };
     }
   };
 
@@ -413,36 +940,36 @@ export default function RoomReceptionist() {
         <p className="text-muted-foreground">Manage room availability and guest assignments</p>
       </div>
 
-      {/* Stats Cards */}
+      {/* ✅ Stats Cards with Deeper Professional Colors */}
       <div className="grid gap-4 md:grid-cols-5">
-        <Card style={{ backgroundColor: '#080205' }}>
+        <Card className="border-gray-300">
           <CardContent className="p-4">
-            <p className="text-sm text-white/70">Available</p>
-            <p className="text-3xl font-bold text-white">{stats.available}</p>
+            <p className="text-sm text-gray-400">Available</p>
+            <p className="text-3xl font-bold text-green-700">{stats.available}</p>
           </CardContent>
         </Card>
-        <Card style={{ backgroundColor: '#00246B' }}>
+        <Card className="bg-green-100 border-green-400">
           <CardContent className="p-4">
-            <p className="text-sm text-white/70">Occupied</p>
-            <p className="text-3xl font-bold text-white">{stats.occupied}</p>
+            <p className="text-sm text-green-800">Occupied</p>
+            <p className="text-3xl font-bold text-green-900">{stats.occupied}</p>
           </CardContent>
         </Card>
-        <Card style={{ backgroundColor: '#144058' }}>
+        <Card className="bg-blue-100 border-blue-400">
           <CardContent className="p-4">
-            <p className="text-sm text-white/70">Reserved</p>
-            <p className="text-3xl font-bold text-white">{stats.reserved}</p>
+            <p className="text-sm text-blue-800">Reserved</p>
+            <p className="text-3xl font-bold text-blue-900">{stats.reserved}</p>
           </CardContent>
         </Card>
-        <Card style={{ backgroundColor: '#E58D2E' }}>
+        <Card className="bg-yellow-100 border-yellow-400">
           <CardContent className="p-4">
-            <p className="text-sm text-white/70">Cleaning</p>
-            <p className="text-3xl font-bold text-white">{stats.cleaning}</p>
+            <p className="text-sm text-yellow-800">Cleaning</p>
+            <p className="text-3xl font-bold text-yellow-900">{stats.cleaning}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-gray-200 border-gray-400">
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Maintenance</p>
-            <p className="text-3xl font-bold text-gray-600">{stats.maintenance}</p>
+            <p className="text-sm text-gray-700">Maintenance</p>
+            <p className="text-3xl font-bold text-gray-800">{stats.maintenance}</p>
           </CardContent>
         </Card>
       </div>
@@ -485,49 +1012,62 @@ export default function RoomReceptionist() {
         </Select>
       </div>
 
-      {/* Room Grid */}
+      {/* ✅ Room Grid with Professional Colors */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filteredRooms.map((room) => {
-          const isDark = ['occupied', 'cleaning', 'reserved', 'available'].includes(room.status) || 
-                         (room.status === 'occupied' && room.checkOutDate && new Date() > new Date(room.checkOutDate));
-          const textColor = isDark ? 'text-white' : 'text-gray-900';
-          const mutedColor = isDark ? 'text-white/70' : 'text-muted-foreground';
+          const colors = getTextColors(room);
 
           return (
             <Card key={room._id} className={getRoomCardStyle(room)}>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className={`text-lg ${textColor}`}>Room {room.roomNumber}</CardTitle>
+                  <CardTitle className={`text-lg ${colors.text}`}>Room {room.roomNumber}</CardTitle>
                   {getStatusBadge(room)}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Countdown Timer for Occupied Rooms */}
                 {room.status === 'occupied' && room.checkOutDate && (
-                  <div className="p-2 rounded-md bg-white/10 backdrop-blur-sm">
+                  <div className="p-3 rounded-md bg-white/70 backdrop-blur-sm border-2 border-gray-300">
                     <CheckoutCountdown checkOutDate={room.checkOutDate} />
                   </div>
                 )}
 
-                <div className="flex items-center justify-center p-6 bg-white/10 rounded-lg backdrop-blur-sm">
-                  <BedDouble className={`h-16 w-16 ${isDark ? 'text-white/80' : 'text-primary'}`} />
+                <div className={`flex items-center justify-center p-6 rounded-lg ${
+                  room.status === 'occupied' && room.checkOutDate && new Date() > new Date(room.checkOutDate) 
+                    ? 'bg-red-200' 
+                    : room.status === 'occupied' 
+                    ? 'bg-green-200' 
+                    : room.status === 'cleaning' 
+                    ? 'bg-yellow-200' 
+                    : 'bg-gray-200'
+                }`}>
+                  <BedDouble className={`h-16 w-16 ${
+                    room.status === 'occupied' && room.checkOutDate && new Date() > new Date(room.checkOutDate)
+                      ? 'text-red-700'
+                      : room.status === 'occupied'
+                      ? 'text-green-700'
+                      : room.status === 'cleaning'
+                      ? 'text-yellow-700'
+                      : 'text-gray-500'
+                  }`} />
                 </div>
 
                 {/* Room Details */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm ${mutedColor}`}>Type:</span>
-                    <Badge className={isDark ? 'bg-white/20 text-white border-white/30' : ''}>
+                    <span className={`text-sm ${colors.muted}`}>Type:</span>
+                    <Badge variant="outline" className={colors.text}>
                       {room.roomTypeId?.name || "N/A"}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm ${mutedColor}`}>Capacity:</span>
-                    <span className={`font-medium ${textColor}`}>{room.roomTypeId?.capacity || "N/A"} guests</span>
+                    <span className={`text-sm ${colors.muted}`}>Capacity:</span>
+                    <span className={`font-medium ${colors.text}`}>{room.roomTypeId?.capacity || "N/A"} guests</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm ${mutedColor}`}>Price/Night:</span>
-                    <span className={`font-bold ${textColor}`}>
+                    <span className={`text-sm ${colors.muted}`}>Price/Night:</span>
+                    <span className={`font-bold ${colors.text}`}>
                       ₦{room.roomTypeId?.price?.toLocaleString() || "N/A"}
                     </span>
                   </div>
@@ -535,9 +1075,13 @@ export default function RoomReceptionist() {
 
                 {/* Guest Info */}
                 {room.currentBookingId && (
-                  <div className="p-3 bg-white/10 rounded-md backdrop-blur-sm">
-                    <p className={`text-sm font-medium ${textColor}`}>Guest: {room.currentBookingId.guestName}</p>
-                    <p className={`text-xs ${mutedColor}`}>Booking: {room.currentBookingId._id}</p>
+                  <div className={`p-3 rounded-md border-2 ${
+                    room.status === 'occupied' && room.checkOutDate && new Date() > new Date(room.checkOutDate)
+                      ? 'bg-red-200 border-red-400'
+                      : 'bg-white/70 border-gray-300'
+                  }`}>
+                    <p className={`text-sm font-medium ${colors.text}`}>Guest: {room.currentBookingId.guestName}</p>
+                    <p className={`text-xs ${colors.muted}`}>Booking: {room.currentBookingId._id}</p>
                   </div>
                 )}
 
@@ -545,7 +1089,7 @@ export default function RoomReceptionist() {
                 <div className="flex flex-wrap gap-2">
                   {room.roomTypeId && Array.isArray(room.roomTypeId.amenities) 
                     ? room.roomTypeId.amenities.slice(0, 3).map((amenity, index) => (
-                        <span key={index} className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-white/10 text-white/80' : 'bg-muted'}`}>
+                        <span key={index} className={`text-xs px-2 py-1 rounded-full bg-white/70 border-2 border-gray-300 ${colors.muted}`}>
                           {amenity}
                         </span>
                       ))
@@ -553,19 +1097,61 @@ export default function RoomReceptionist() {
                   }
                 </div>
 
-                {/* Action Button */}
-                {room.status === "occupied" && availableRooms.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="w-full"
-                    onClick={() => setReassignDialogOpen({ ...reassignDialogOpen, [room._id]: true })}
-                  >
-                    <ArrowRightLeft className="h-4 w-4 mr-2" />
-                    Reassign Room
-                  </Button>
+                {/* Action Buttons for Occupied Rooms */}
+                {room.status === "occupied" && (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setDetailsDialogOpen({ ...detailsDialogOpen, [room._id]: true })}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Details
+                    </Button>
+                    {availableRooms.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setReassignDialogOpen({ ...reassignDialogOpen, [room._id]: true })}
+                      >
+                        <ArrowRightLeft className="h-4 w-4 mr-2" />
+                        Reassign
+                      </Button>
+                    )}
+                  </div>
                 )}
+
+                {/* Status Update Button for All Rooms */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setStatusDialogOpen({ ...statusDialogOpen, [room._id]: true })}
+                >
+                  Update Status
+                </Button>
               </CardContent>
+
+              {/* Occupant Details Dialog */}
+              {detailsDialogOpen[room._id] && (
+                <OccupantDetailsDialog
+                  room={room}
+                  open={detailsDialogOpen[room._id]}
+                  onOpenChange={(open) => setDetailsDialogOpen({ ...detailsDialogOpen, [room._id]: open })}
+                />
+              )}
+
+              {/* Status Update Dialog */}
+              {statusDialogOpen[room._id] && (
+                <StatusUpdateDialog
+                  room={room}
+                  open={statusDialogOpen[room._id]}
+                  onOpenChange={(open) => setStatusDialogOpen({ ...statusDialogOpen, [room._id]: open })}
+                  onUpdateStatus={updateRoomStatus}
+                />
+              )}
 
               {/* Reassign Dialog */}
               {reassignDialogOpen[room._id] && (

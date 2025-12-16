@@ -1,20 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Phone, Mail, BedDouble, Edit, X, UserPlus, Calendar, Home, Users2 } from "lucide-react";
+import { Search, Phone, Mail, BedDouble, Edit, X, UserPlus, Calendar, Home, Users2, Eye, Clock, CheckCircle, LogOut, Star, CreditCard, MapPin, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useEffect } from "react";
+import { useEffect as useEffectDep } from "react";
 import BookingManagementSkeleton from "../../components/skeleton/BookingManagementSkeleton";
 import BookGuestForm from "@/components/BookGuestForm";
 import { useLocation } from "react-router-dom";
@@ -26,6 +26,7 @@ interface EditBookingFormData {
   checkInDate: string;
   checkOutDate: string;
   roomId: string;
+  roomTypeId: string;
   numberOfGuests: number;
   address: string;
   city: string;
@@ -34,8 +35,6 @@ interface EditBookingFormData {
   nextOfKinName: string;
   nextOfKinPhone: string;
   totalAmount: number;
-  // amountPaid: number;
-  // paymentMethod: string;
   extraBedding: boolean;
   specialRequests: string;
 }
@@ -57,13 +56,29 @@ export default function BookingManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isBookDialogOpen, setIsBookDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
+  const [viewingBooking, setViewingBooking] = useState<any>(null);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [bookingToCancel, setBookingToCancel] = useState<string | null>(null);
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
-   
+  
+  // ✅ Walk-in check-in confirmation
+  const [walkInConfirmOpen, setWalkInConfirmOpen] = useState(false);
+  const [walkInBookingToCheck, setWalkInBookingToCheck] = useState<any>(null);
+  
+  // ✅ Online booking confirmation code
+  const [onlineConfirmOpen, setOnlineConfirmOpen] = useState(false);
+  const [onlineBookingToCheck, setOnlineBookingToCheck] = useState<any>(null);
+  const [confirmationCode, setConfirmationCode] = useState("");
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  
+  // ✅ Early check-in error modal
+  const [earlyCheckInErrorOpen, setEarlyCheckInErrorOpen] = useState(false);
+  const [earlyCheckInMessage, setEarlyCheckInMessage] = useState("");
+  
   
   const [editFormData, setEditFormData] = useState<EditBookingFormData>({
     guestName: "",
@@ -72,6 +87,7 @@ export default function BookingManagement() {
     checkInDate: "",
     checkOutDate: "",
     roomId: "",
+    roomTypeId: "",
     numberOfGuests: 0,
     address: "",
     city: "",
@@ -80,8 +96,6 @@ export default function BookingManagement() {
     nextOfKinName: "",
     nextOfKinPhone: "",
     totalAmount: 0,
-    // amountPaid: 0,
-    // paymentMethod: "cash",
     extraBedding: false,
     specialRequests: "",
   });
@@ -91,30 +105,28 @@ export default function BookingManagement() {
   useEffect(() => {
     if (user?.hotelId) {
       fetchBookings();
-      //  window.scrollTo(0, 0);
     }
   }, [user?.hotelId, fetchBookings]);
 
-  // Fetch available rooms when editing dates change
   useEffect(() => {
     if (editFormData.checkInDate && editFormData.checkOutDate && isEditDialogOpen) {
       fetchAvailableRoomsForEdit();
     }
   }, [editFormData.checkInDate, editFormData.checkOutDate, isEditDialogOpen]);
 
-  // Calculate total amount when room is selected during edit
   useEffect(() => {
-    if (editFormData.roomId && editFormData.checkInDate && editFormData.checkOutDate) {
-      const selectedRoom = availableRooms.find(r => r._id === editFormData.roomId);
+    if (editFormData.roomTypeId && editFormData.checkInDate && editFormData.checkOutDate) {
+      const selectedRoom = availableRooms.find(r => r._id === editFormData.roomTypeId);
       if (selectedRoom) {
         const checkIn = new Date(editFormData.checkInDate);
         const checkOut = new Date(editFormData.checkOutDate);
         const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
         const total = nights * selectedRoom.roomTypeId.price;
-        setEditFormData(prev => ({ ...prev, totalAmount: total }));
+        // ✅ Also update roomId when roomTypeId changes
+        setEditFormData(prev => ({ ...prev, totalAmount: total, roomId: selectedRoom._id }));
       }
     }
-  }, [editFormData.roomId, editFormData.checkInDate, editFormData.checkOutDate, availableRooms]);
+  }, [editFormData.roomTypeId, editFormData.checkInDate, editFormData.checkOutDate, availableRooms]);
 
   const fetchAvailableRoomsForEdit = async () => {
     if (!editFormData.checkInDate || !editFormData.checkOutDate) {
@@ -124,7 +136,7 @@ export default function BookingManagement() {
     setLoadingRooms(true);
     try {
       const response = await fetch(
-        `${VITE_API_URL}/api/rooms/available?checkIn=${editFormData.checkInDate}&checkOut=${editFormData.checkOutDate}`,
+        `${VITE_API_URL}/api/rooms/available_rooms?checkIn=${editFormData.checkInDate}&checkOut=${editFormData.checkOutDate}`,
         {
           method: 'GET',
           headers: {
@@ -164,9 +176,8 @@ export default function BookingManagement() {
 
   const handleBookConfirm = async (formData: any) => {
     try {
-      // Booking already created in BookGuestForm via useBookingStore
       setIsBookDialogOpen(false);
-      await fetchBookings(); // Refresh list
+      await fetchBookings();
       toast.success("Guest booked successfully!");
     } catch (err) {
       toast.error("Failed to complete booking.");
@@ -199,7 +210,7 @@ export default function BookingManagement() {
         }
         break;
       case 2:
-        if (!editFormData.checkInDate || !editFormData.checkOutDate || !editFormData.roomId) {
+        if (!editFormData.checkInDate || !editFormData.checkOutDate || !editFormData.roomTypeId) {
           toast.error("Please select check-in/out dates and room");
           return false;
         }
@@ -249,8 +260,6 @@ export default function BookingManagement() {
         checkOutDate: editFormData.checkOutDate,
         numberOfGuests: editFormData.numberOfGuests,
         totalAmount: editFormData.totalAmount,
-        // amountPaid: editFormData.amountPaid,
-        // paymentStatus: editFormData.amountPaid >= editFormData.totalAmount ? "paid" : editFormData.amountPaid > 0 ? "partial" : "pending",
         guestDetails: {
           address: editFormData.address,
           city: editFormData.city,
@@ -273,6 +282,11 @@ export default function BookingManagement() {
     }
   };
 
+  const handleViewDetails = (booking: any) => {
+    setViewingBooking(booking);
+    setIsViewDetailsOpen(true);
+  };
+
   const handleEdit = (booking: any) => {
     setEditingBookingId(booking._id);
     setEditFormData({
@@ -281,7 +295,8 @@ export default function BookingManagement() {
       guestPhone: booking.guestPhone,
       checkInDate: new Date(booking.checkInDate).toISOString().split('T')[0],
       checkOutDate: new Date(booking.checkOutDate).toISOString().split('T')[0],
-      roomId: typeof booking.roomId === 'string' ? booking.roomId : booking.roomId._id,
+      roomId: typeof booking.roomTypeId === 'string' ? booking.roomTypeId : booking.roomTypeId._id,
+      roomTypeId: typeof booking.roomTypeId === 'string' ? booking.roomTypeId : booking.roomTypeId._id,
       numberOfGuests: booking.numberOfGuests,
       address: booking.guestDetails?.address || "",
       city: booking.guestDetails?.city || "",
@@ -290,8 +305,6 @@ export default function BookingManagement() {
       nextOfKinName: booking.guestDetails?.nextOfKinName || "",
       nextOfKinPhone: booking.guestDetails?.nextOfKinPhone || "",
       totalAmount: booking.totalAmount || 0,
-      // amountPaid: booking.amountPaid || 0,
-      // paymentMethod: "cash",
       extraBedding: booking.preferences?.extraBedding || false,
       specialRequests: booking.preferences?.specialRequests || booking.specialRequests || "",
     });
@@ -306,6 +319,7 @@ export default function BookingManagement() {
       checkInDate: "",
       checkOutDate: "",
       roomId: "",
+      roomTypeId: "",
       numberOfGuests: 2,
       address: "",
       city: "",
@@ -314,8 +328,6 @@ export default function BookingManagement() {
       nextOfKinName: "",
       nextOfKinPhone: "",
       totalAmount: 0,
-      // amountPaid: 0,
-      // paymentMethod: "cash",
       extraBedding: false,
       specialRequests: "",
     });
@@ -348,6 +360,124 @@ export default function BookingManagement() {
     setCancelDialogOpen(true);
   };
 
+  // ✅ NEW: Walk-in check-in with date validation
+  const handleWalkInCheckIn = (booking: any) => {
+    // ✅ Validate check-in date
+    const checkInDate = new Date(booking.checkInDate);
+    const today = new Date();
+    checkInDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
+    if (today < checkInDate) {
+      const formattedCheckInDate = checkInDate.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric'
+      });
+      setEarlyCheckInMessage(`Guest cannot check in before the scheduled check-in date (${formattedCheckInDate}).`);
+      setEarlyCheckInErrorOpen(true);
+      return;
+    }
+
+    setWalkInBookingToCheck(booking);
+    setWalkInConfirmOpen(true);
+  };
+
+  const confirmWalkInCheckIn = async () => {
+    if (!walkInBookingToCheck) return;
+    
+    try {
+      const response = await fetch(
+        `${VITE_API_URL}/api/receptionist/${walkInBookingToCheck._id}/check-in`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            guestDetails: walkInBookingToCheck.guestDetails || {},
+            preferences: walkInBookingToCheck.preferences || {},
+          }),
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Check-in failed");
+
+      toast.success(`${walkInBookingToCheck.guestName} checked in successfully!`);
+      setWalkInConfirmOpen(false);
+      setWalkInBookingToCheck(null);
+      await fetchBookings();
+    } catch (error: any) {
+      console.error('Walk-in check-in error:', error);
+      toast.error(error.message || "Check-in failed");
+    }
+  };
+
+  // ✅ Online booking confirmation code with date validation
+  const handleOnlineCheckIn = (booking: any) => {
+    // ✅ Validate check-in date FIRST
+    const checkInDate = new Date(booking.checkInDate);
+    const today = new Date();
+    checkInDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
+    if (today < checkInDate) {
+      const formattedCheckInDate = checkInDate.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric'
+      });
+      setEarlyCheckInMessage(`Guest cannot check in before the scheduled check-in date (${formattedCheckInDate}).`);
+      setEarlyCheckInErrorOpen(true);
+      return;
+    }
+
+    setOnlineBookingToCheck(booking);
+    setConfirmationCode("");
+    setOnlineConfirmOpen(true);
+  };
+
+  // ✅ Verify and check-in for online bookings
+  const verifyAndCheckIn = async () => {
+    if (!onlineBookingToCheck || !confirmationCode) {
+      toast.error("Please enter confirmation code");
+      return;
+    }
+
+    setIsVerifyingCode(true);
+    try {
+      const response = await fetch(
+        `${VITE_API_URL}/api/receptionist/${onlineBookingToCheck._id}/check-in`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            confirmationCode,
+            guestDetails: onlineBookingToCheck.guestDetails || {},
+            preferences: onlineBookingToCheck.preferences || {},
+          }),
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Check-in failed");
+
+      toast.success(`${onlineBookingToCheck.guestName} checked in successfully!`);
+      setOnlineConfirmOpen(false);
+      setOnlineBookingToCheck(null);
+      setConfirmationCode("");
+      await fetchBookings();
+    } catch (error: any) {
+      console.error('Online check-in error:', error);
+      toast.error(error.message || "Check-in failed");
+    } finally {
+      setIsVerifyingCode(false);
+    }
+  };
+
   // Filter bookings by hotelId
   const hotelBookings = bookings.filter(booking => {
     if (!user?.hotelId) return false;
@@ -372,29 +502,79 @@ export default function BookingManagement() {
   const checkedIn = filteredBookings.filter(b => b.bookingStatus === "checked-in");
   const completed = filteredBookings.filter(b => b.bookingStatus === "checked-out");
 
+  // Countdown timer for checkout
+  const CheckoutCountdownTimer = ({ booking }: { booking: any }) => {
+    const [timeLeft, setTimeLeft] = useState("");
+
+    useEffect(() => {
+      const calculateTimeLeft = () => {
+        const checkOutTime = new Date(booking.checkOutDate).getTime();
+        const now = new Date().getTime();
+        const difference = checkOutTime - now;
+
+        if (difference > 0) {
+          const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+          const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+          const minutes = Math.floor((difference / 1000 / 60) % 60);
+          const seconds = Math.floor((difference / 1000) % 60);
+
+          if (days > 0) {
+            setTimeLeft(`${days}d ${hours}h`);
+          } else if (hours > 0) {
+            setTimeLeft(`${hours}h ${minutes}m`);
+          } else {
+            setTimeLeft(`${minutes}m ${seconds}s`);
+          }
+        } else {
+          setTimeLeft("Checkout Due!");
+        }
+      };
+
+      calculateTimeLeft();
+      const timer = setInterval(calculateTimeLeft, 1000);
+      return () => clearInterval(timer);
+    }, [booking.checkOutDate]);
+
+    return (
+      <div className="text-center">
+        <div className="text-3xl font-bold text-red-600 animate-pulse flex items-center justify-center gap-2">
+          <LogOut className="h-6 w-6" />
+          {timeLeft}
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">Time until check-out</p>
+      </div>
+    );
+  };
+
   const BookingCard = ({ booking }: { booking: any }) => {
-    // Safely extract values with defaults
     const guestName = booking.guestName || 'Unknown Guest';
     const guestEmail = booking.guestEmail || 'No email provided';
     const guestPhone = booking.guestPhone || 'No phone provided';
-    const roomNumber = booking.roomId?.roomNumber || booking.roomId?.roomTypeId?.name || 'N/A';
+    const roomNumber = booking.roomTypeId.roomNumber || booking.roomTypeId?.name || 'N/A';
     const totalAmount = booking.totalAmount || 0;
-    // const amountPaid = booking.amountPaid || 0;
-    const numberOfGuests = booking.numberOfGuests ;
-    // const paymentStatus = booking.paymentStatus || 'pending';
+    const numberOfGuests = booking.numberOfGuests;
     const bookingStatus = booking.bookingStatus || 'pending';
     const specialRequests = booking.preferences?.specialRequests || booking.specialRequests || '';
+    const isWalkIn = booking.bookingType === 'walk-in';
+    const isOnline = booking.bookingType === 'online';
     
     return (
       <Card className="hover:shadow-lg transition-shadow">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">{guestName}</CardTitle>
-            <Badge className={getStatusColor(bookingStatus)}>
-              {bookingStatus === "checked-in" ? "Checked In" :
-               bookingStatus === "checked-out" ? "Checked Out" :
-               bookingStatus.charAt(0).toUpperCase() + bookingStatus.slice(1)}
-            </Badge>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1">
+              <CardTitle className="text-lg">{guestName}</CardTitle>
+            </div>
+            <div className="flex gap-2">
+              <Badge className={isWalkIn ? "bg-orange-100 text-orange-700 hover:bg-orange-200" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}>
+                {isWalkIn ? "🚶 Walk-in" : "💻 Online"}
+              </Badge>
+              <Badge className={getStatusColor(bookingStatus)}>
+                {bookingStatus === "checked-in" ? "Checked In" :
+                 bookingStatus === "checked-out" ? "Checked Out" :
+                 bookingStatus.charAt(0).toUpperCase() + bookingStatus.slice(1)}
+              </Badge>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -419,6 +599,12 @@ export default function BookingManagement() {
             </div>
           </div>
 
+          {bookingStatus === "checked-in" && (
+            <div className="py-3 bg-red-50 rounded-lg border-2 border-red-200">
+              <CheckoutCountdownTimer booking={booking} />
+            </div>
+          )}
+
           <div className="pt-2 border-t space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Guests:</span>
@@ -430,18 +616,6 @@ export default function BookingManagement() {
                 ₦{totalAmount.toLocaleString()}
               </span>
             </div>
-            {/* <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Amount Paid:</span>
-              <span className="font-medium">
-                ₦{amountPaid.toLocaleString()}
-              </span>
-            </div> */}
-            {/* <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Payment Status:</span>
-              <Badge variant="outline" className="text-xs">
-                {paymentStatus.toUpperCase()}
-              </Badge>
-            </div> */}
           </div>
 
           {specialRequests && (
@@ -452,9 +626,41 @@ export default function BookingManagement() {
             </div>
           )}
 
-          <div className="flex gap-2">
-            {bookingStatus !== "cancelled" && bookingStatus !== "checked-out" && (
+          <div className="flex gap-2 flex-wrap">
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={() => handleViewDetails(booking)}
+              className="flex-1"
+            >
+              <Eye className="h-4 w-4 mr-1" />
+              View Details
+            </Button>
+
+            {bookingStatus === "confirmed" && (
               <>
+                {isWalkIn && (
+                  <Button 
+                    size="sm"
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    onClick={() => handleWalkInCheckIn(booking)}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Check In
+                  </Button>
+                )}
+
+                {isOnline && (
+                  <Button 
+                    size="sm"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    onClick={() => handleOnlineCheckIn(booking)}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Verify & Check In
+                  </Button>
+                )}
+
                 <Button 
                   size="sm" 
                   variant="outline" 
@@ -475,14 +681,24 @@ export default function BookingManagement() {
                 </Button>
               </>
             )}
-            {bookingStatus === "cancelled" && (
-              <div className="w-full text-center text-sm text-muted-foreground py-2">
-                Booking Cancelled
-              </div>
+
+            {bookingStatus === "checked-in" && (
+              <>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => handleEdit(booking)}
+                >
+                  <Edit className="h-4 w-4 mr-1" />
+                  Edit
+                </Button>
+              </>
             )}
-            {bookingStatus === "checked-out" && (
+
+            {(bookingStatus === "cancelled" || bookingStatus === "checked-out") && (
               <div className="w-full text-center text-sm text-muted-foreground py-2">
-                Booking Completed
+                {bookingStatus === "cancelled" ? "Booking Cancelled" : "Booking Completed"}
               </div>
             )}
           </div>
@@ -501,61 +717,88 @@ export default function BookingManagement() {
           <p className="text-muted-foreground">Manage hotel reservations and bookings</p>
         </div>
         
-        <Dialog open={isBookDialogOpen} onOpenChange={setIsBookDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="lg" className="gap-2">
-              <UserPlus className="h-5 w-5" />
-              Book Guest
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-            <DialogHeader>
-              <DialogTitle>Book New Guest (Walk-in)</DialogTitle>
-            </DialogHeader>
-            <BookGuestForm 
-              guestName="" 
-              bookingId="" 
-              bookingType="walk-in"
-              onConfirm={handleBookConfirm} 
-              onCancel={handleBookCancel} 
-            />
-          </DialogContent>
-        </Dialog>
+       <Dialog open={isBookDialogOpen} onOpenChange={setIsBookDialogOpen}>
+  <DialogTrigger asChild>
+    <Button size="lg" className="gap-2">
+      <UserPlus className="h-5 w-5" />
+      Book Guest
+    </Button>
+  </DialogTrigger>
+  <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden z-50">
+    <DialogHeader>
+      <DialogTitle>Book New Guest (Walk-in)</DialogTitle>
+      <DialogDescription>
+        Fill in the guest information to create a new walk-in booking
+      </DialogDescription>
+    </DialogHeader>
+    <BookGuestForm 
+      guestName="" 
+      bookingId="" 
+      bookingType="walk-in"
+      onConfirm={handleBookConfirm} 
+      onCancel={handleBookCancel} 
+    />
+  </DialogContent>
+</Dialog>
+
       </div>
 
-      {/* Edit Booking Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogClose}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">Edit Booking</DialogTitle>
-            <div className="flex items-center gap-2 mt-4">
-              {[1, 2, 3, 4].map((step) => (
-                <div key={step} className="flex items-center flex-1">
-                  <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                    currentStep >= step ? 'bg-primary border-primary text-white' : 'border-muted-foreground text-muted-foreground'
-                  }`}>
-                    {step}
-                  </div>
-                  {step < 4 && <div className={`flex-1 h-0.5 ${currentStep > step ? 'bg-primary' : 'bg-muted'}`} />}
-                </div>
-              ))}
-            </div>
-            <div className="text-sm text-muted-foreground mt-2">
-              Step {currentStep} of 4: {
-                currentStep === 1 ? "Guest Information" :
-                currentStep === 2 ? "Booking Details" :
-                currentStep === 3 ? "Guest Details" :
-                "Payment & Preferences"
-              }
-            </div>
-          </DialogHeader>
+      {/* ✅ Early Check-in Error Modal */}
+      <AlertDialog open={earlyCheckInErrorOpen} onOpenChange={setEarlyCheckInErrorOpen}>
+        <AlertDialogContent className="z-50">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+              Cannot Check In Early
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              {earlyCheckInMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setEarlyCheckInErrorOpen(false)}>
+              Understood
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-          <div className="space-y-6 py-4">
-            {/* Step 1: Guest Information */}
+      {/* ✅ Edit Booking Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogClose}>
+  <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto z-50">
+    <DialogHeader>
+      <DialogTitle className="text-2xl">Edit Booking</DialogTitle>
+      <DialogDescription>
+        Update booking information. Complete all steps to save changes
+      </DialogDescription>
+      <div className="flex items-center gap-2 mt-4">
+        {[1, 2, 3, 4].map((step) => (
+          <div key={step} className="flex items-center flex-1">
+            <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+              currentStep >= step ? 'bg-primary border-primary text-white' : 'border-muted-foreground text-muted-foreground'
+            }`}>
+              {step}
+            </div>
+            {step < 4 && <div className={`flex-1 h-0.5 ${currentStep > step ? 'bg-primary' : 'bg-muted'}`} />}
+          </div>
+        ))}
+      </div>
+      <div className="text-sm text-muted-foreground mt-2">
+        Step {currentStep} of 4: {
+          currentStep === 1 ? "Guest Information" :
+          currentStep === 2 ? "Booking Details" :
+          currentStep === 3 ? "Guest Details" :
+          "Payment & Preferences"
+        }
+      </div>
+    </DialogHeader>
+
+    <div className="space-y-6 py-4">
+
             {currentStep === 1 && (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b">
-                  <UserPlus className="h-5 w-5 text-primary" />
+                  <span className="h-5 w-5 text-primary">1</span>
                   <h3 className="font-semibold text-lg">Guest Information</h3>
                 </div>
                 <div className="grid gap-4">
@@ -596,11 +839,10 @@ export default function BookingManagement() {
               </div>
             )}
 
-            {/* Step 2: Booking Details */}
             {currentStep === 2 && (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b">
-                  <Calendar className="h-5 w-5 text-primary" />
+                  <span className="h-5 w-5 text-primary">2</span>
                   <h3 className="font-semibold text-lg">Booking Details</h3>
                 </div>
                 <div className="grid gap-4">
@@ -631,8 +873,8 @@ export default function BookingManagement() {
                   <div>
                     <Label htmlFor="edit-roomId">Select Room *</Label>
                     <Select
-                      value={editFormData.roomId}
-                      onValueChange={(value) => setEditFormData(prev => ({ ...prev, roomId: value }))}
+                      value={editFormData.roomTypeId}
+                      onValueChange={(value) => setEditFormData(prev => ({ ...prev, roomTypeId: value }))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder={loadingRooms ? "Loading rooms..." : "Select a room"} />
@@ -644,7 +886,6 @@ export default function BookingManagement() {
                               Room {room.roomNumber} - {room.roomTypeId?.name || 'Unknown'} 
                               {room.roomTypeId?.price ? ` (₦${room.roomTypeId.price.toLocaleString()}/night)` : ''}
                             </SelectItem>
-                            
                           ))
                         ) : (
                           <SelectItem value="no-rooms" disabled>
@@ -670,11 +911,10 @@ export default function BookingManagement() {
               </div>
             )}
 
-            {/* Step 3: Guest Details */}
             {currentStep === 3 && (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b">
-                  <Home className="h-5 w-5 text-primary" />
+                  <span className="h-5 w-5 text-primary">3</span>
                   <h3 className="font-semibold text-lg">Guest Details</h3>
                 </div>
                 <div className="grid gap-4">
@@ -752,11 +992,10 @@ export default function BookingManagement() {
               </div>
             )}
 
-            {/* Step 4: Payment & Preferences */}
             {currentStep === 4 && (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b">
-                  <BedDouble className="h-5 w-5 text-primary" />
+                  <span className="h-5 w-5 text-primary">4</span>
                   <h3 className="font-semibold text-lg">Payment & Preferences</h3>
                 </div>
                 <div className="grid gap-4">
@@ -770,37 +1009,6 @@ export default function BookingManagement() {
                         {Math.ceil((new Date(editFormData.checkOutDate).getTime() - new Date(editFormData.checkInDate).getTime()) / (1000 * 60 * 60 * 24))} night(s)
                       </div>
                     )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* <div>
-                      <Label htmlFor="edit-amountPaid">Amount Paid</Label>
-                      <Input
-                        id="edit-amountPaid"
-                        name="amountPaid"
-                        type="number"
-                        placeholder="0"
-                        value={editFormData.amountPaid}
-                        onChange={handleEditInputChange}
-                      />
-                    </div> */}
-                    {/* <div>
-                      <Label htmlFor="edit-paymentMethod">Payment Method</Label>
-                      <Select
-                        value={editFormData.paymentMethod}
-                        onValueChange={(value) => setEditFormData(prev => ({ ...prev, paymentMethod: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="cash">Cash</SelectItem>
-                          <SelectItem value="card">Card</SelectItem>
-                          <SelectItem value="transfer">Bank Transfer</SelectItem>
-                          <SelectItem value="pos">POS</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div> */}
                   </div>
 
                   <div className="flex items-center space-x-2">
@@ -830,7 +1038,6 @@ export default function BookingManagement() {
             )}
           </div>
 
-          {/* Navigation Buttons */}
           <div className="flex justify-between pt-4 border-t">
             <Button
               variant="outline"
@@ -844,7 +1051,7 @@ export default function BookingManagement() {
                 Next
               </Button>
             ) : (
-              <Button onClick={handleEditSubmit} className="bg-success hover:bg-success/90" disabled={isLoading}>
+              <Button onClick={handleEditSubmit} className="bg-success hover:bg-success/90">
                 Update Booking
               </Button>
             )}
@@ -852,6 +1059,308 @@ export default function BookingManagement() {
         </DialogContent>
       </Dialog>
 
+
+
+      {/* ✅ Walk-in Check-in Confirmation Modal */}
+      <AlertDialog open={walkInConfirmOpen} onOpenChange={setWalkInConfirmOpen}>
+        <AlertDialogContent className="z-50">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Check In Walk-in Guest?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {walkInBookingToCheck && (
+                <div className="space-y-2 mt-4">
+                  <p><strong>Guest:</strong> {walkInBookingToCheck.guestName}</p>
+                  <p><strong>Room:</strong> {walkInBookingToCheck.roomTypeId?.roomNumber || 'TBA'}</p>
+                  <p><strong>Check-in:</strong> {new Date(walkInBookingToCheck.checkInDate).toLocaleDateString()}</p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setWalkInBookingToCheck(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmWalkInCheckIn}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Confirm Check-in
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ✅ Online Booking Confirmation Code Modal */}
+      <Dialog open={onlineConfirmOpen} onOpenChange={setOnlineConfirmOpen}>
+        <DialogContent className="z-50">
+          <DialogHeader>
+            <DialogTitle>Enter Confirmation Code</DialogTitle>
+          </DialogHeader>
+          {onlineBookingToCheck && (
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg border border-blue-200">
+                <p className="text-sm"><strong>Guest:</strong> {onlineBookingToCheck.guestName}</p>
+                <p className="text-sm"><strong>Check-in:</strong> {new Date(onlineBookingToCheck.checkInDate).toLocaleDateString()}</p>
+              </div>
+              <div>
+                <Label htmlFor="confirmCode">Confirmation Code</Label>
+                <Input
+                  id="confirmCode"
+                  placeholder="Enter 6-digit code"
+                  value={confirmationCode}
+                  onChange={(e) => setConfirmationCode(e.target.value)}
+                  maxLength={10}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => {
+                  setOnlineConfirmOpen(false);
+                  setOnlineBookingToCheck(null);
+                  setConfirmationCode("");
+                }}>
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  onClick={verifyAndCheckIn}
+                  disabled={isVerifyingCode || !confirmationCode}
+                >
+                  {isVerifyingCode ? "Verifying..." : "Verify & Check In"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ✅ View Booking Details Modal */}
+      <Dialog open={isViewDetailsOpen} onOpenChange={setIsViewDetailsOpen}>
+  <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto z-50">
+    <DialogHeader>
+      <DialogTitle>Complete Booking Details</DialogTitle>
+    </DialogHeader>
+    {viewingBooking && (
+      <div className="space-y-4">
+        {/* Booking Status Bar */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted rounded-lg">
+          <div>
+            <p className="text-xs text-muted-foreground">Status</p>
+            <Badge className={getStatusColor(viewingBooking.bookingStatus)}>
+              {viewingBooking.bookingStatus.charAt(0).toUpperCase() + viewingBooking.bookingStatus.slice(1)}
+            </Badge>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Booking Type</p>
+            <Badge variant={viewingBooking.bookingType === 'walk-in' ? 'secondary' : 'default'}>
+              {viewingBooking.bookingType === 'walk-in' ? '🚶 Walk-in' : '💻 Online'}
+            </Badge>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Payment Status</p>
+            <Badge variant="outline">
+              {viewingBooking.paymentStatus.charAt(0).toUpperCase() + viewingBooking.paymentStatus.slice(1)}
+            </Badge>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Booking ID</p>
+            <p className="font-mono text-sm">{viewingBooking._id.substring(0, 8)}...</p>
+          </div>
+        </div>
+
+        {/* Guest Information Section */}
+        <div className="space-y-3">
+          <h3 className="font-semibold flex items-center gap-2">
+            <Users2 className="h-4 w-4" />
+            Guest Information
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-muted rounded">
+            <div>
+              <p className="text-xs text-muted-foreground">Full Name</p>
+              <p className="font-medium">{viewingBooking.guestName}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Email Address</p>
+              <p className="font-medium text-sm break-all">{viewingBooking.guestEmail}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Phone Number</p>
+              <p className="font-medium">{viewingBooking.guestPhone}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Number of Guests</p>
+              <p className="font-medium">{viewingBooking.numberOfGuests}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Room & Dates Section */}
+        <div className="space-y-3">
+          <h3 className="font-semibold flex items-center gap-2">
+            <BedDouble className="h-4 w-4" />
+            Room & Dates
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-muted rounded">
+            <div>
+              <p className="text-xs text-muted-foreground">Room Number</p>
+              <p className="font-medium text-lg">{viewingBooking.roomTypeId?.roomNumber || 'TBA'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Room Type</p>
+              <p className="font-medium">{viewingBooking.roomTypeId?.name || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Check-in Date</p>
+              <p className="font-medium">{new Date(viewingBooking.checkInDate).toLocaleDateString()}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Check-out Date</p>
+              <p className="font-medium">{new Date(viewingBooking.checkOutDate).toLocaleDateString()}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Payment & Pricing Section */}
+        <div className="space-y-3">
+          <h3 className="font-semibold flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Payment & Pricing
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3 bg-muted rounded">
+            <div>
+              <p className="text-xs text-muted-foreground">Total Amount</p>
+              <p className="font-bold text-primary text-lg">₦{viewingBooking.totalAmount?.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Amount Paid</p>
+              <p className="font-medium">₦{(viewingBooking.amountPaid || 0).toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Outstanding</p>
+              <p className="font-medium">
+                ₦{(viewingBooking.totalAmount - (viewingBooking.amountPaid || 0)).toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Address Information (After Check-in) */}
+        {viewingBooking.guestDetails && (viewingBooking.guestDetails.address || viewingBooking.guestDetails.city || viewingBooking.guestDetails.state) && (
+          <div className="space-y-3">
+            <h3 className="font-semibold flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              Address Information
+            </h3>
+            <div className="p-3 bg-muted rounded space-y-2 text-sm">
+              {viewingBooking.guestDetails.address && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Street Address:</span>
+                  <span className="font-medium text-right">{viewingBooking.guestDetails.address}</span>
+                </div>
+              )}
+              {viewingBooking.guestDetails.city && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">City:</span>
+                  <span className="font-medium">{viewingBooking.guestDetails.city}</span>
+                </div>
+              )}
+              {viewingBooking.guestDetails.state && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">State:</span>
+                  <span className="font-medium">{viewingBooking.guestDetails.state}</span>
+                </div>
+              )}
+              {viewingBooking.guestDetails.arrivingFrom && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Arriving From:</span>
+                  <span className="font-medium">{viewingBooking.guestDetails.arrivingFrom}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Emergency Contact (After Check-in) */}
+        {viewingBooking.guestDetails && (viewingBooking.guestDetails.nextOfKinName || viewingBooking.guestDetails.nextOfKinPhone) && (
+          <div className="space-y-3">
+            <h3 className="font-semibold flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Emergency Contact
+            </h3>
+            <div className="p-3 bg-muted rounded space-y-2 text-sm">
+              {viewingBooking.guestDetails.nextOfKinName && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Name:</span>
+                  <span className="font-medium">{viewingBooking.guestDetails.nextOfKinName}</span>
+                </div>
+              )}
+              {viewingBooking.guestDetails.nextOfKinPhone && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Phone:</span>
+                  <span className="font-medium">{viewingBooking.guestDetails.nextOfKinPhone}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Room Preferences (After Check-in) */}
+        {viewingBooking.preferences && (viewingBooking.preferences.extraBedding || viewingBooking.preferences.specialRequests) && (
+          <div className="space-y-3">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Star className="h-4 w-4" />
+              Room Preferences
+            </h3>
+            <div className="p-3 bg-muted rounded space-y-2 text-sm">
+              {viewingBooking.preferences.extraBedding && (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-success" />
+                  <span>Extra Bedding Requested</span>
+                </div>
+              )}
+              {viewingBooking.preferences.specialRequests && (
+                <div>
+                  <p className="text-muted-foreground mb-1">Special Requests:</p>
+                  <p className="font-medium italic">{viewingBooking.preferences.specialRequests}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Special Requests (Alternate location) */}
+        {viewingBooking.specialRequests && (
+          <div className="p-3 bg-yellow-50 rounded border border-yellow-200">
+            <p className="text-sm font-semibold text-yellow-900 mb-1">Special Requests</p>
+            <p className="text-sm text-yellow-800">{viewingBooking.specialRequests}</p>
+          </div>
+        )}
+
+        {/* Confirmation Code (Online Bookings) */}
+        {viewingBooking.bookingType === 'online' && viewingBooking.confirmationCode && (
+          <div className="p-3 bg-blue-50 rounded border border-blue-200">
+            <p className="text-sm font-semibold text-blue-900 mb-1">Confirmation Code</p>
+            <p className="font-mono text-lg text-blue-900">{viewingBooking.confirmationCode}</p>
+          </div>
+        )}
+
+        {/* Timestamps */}
+        <div className="p-3 bg-muted rounded text-xs text-muted-foreground space-y-1">
+          <div>Created: {new Date(viewingBooking.createdAt).toLocaleString()}</div>
+          {viewingBooking.updatedAt && (
+            <div>Last Updated: {new Date(viewingBooking.updatedAt).toLocaleString()}</div>
+          )}
+        </div>
+
+        {/* Close Button */}
+        <Button className="w-full" onClick={() => setIsViewDetailsOpen(false)}>
+          Close Details
+        </Button>
+      </div>
+    )}
+  </DialogContent>
+</Dialog>
+
+      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardContent className="p-4">
@@ -885,6 +1394,7 @@ export default function BookingManagement() {
         </Card>
       </div>
 
+      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
@@ -895,6 +1405,7 @@ export default function BookingManagement() {
         />
       </div>
 
+      {/* Bookings Grid */}
       <Tabs defaultValue="all" className="space-y-4">
         <TabsList>
           <TabsTrigger value="all">All ({filteredBookings.length})</TabsTrigger>
@@ -966,8 +1477,9 @@ export default function BookingManagement() {
         </TabsContent>
       </Tabs>
 
+      {/* Cancel Booking Dialog */}
       <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="z-50">
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Booking</AlertDialogTitle>
             <AlertDialogDescription>
@@ -989,4 +1501,5 @@ export default function BookingManagement() {
       </AlertDialog>
     </div>
   );
+  
 }

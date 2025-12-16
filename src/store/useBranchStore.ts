@@ -28,6 +28,11 @@ interface BranchState {
   createBranch: (newBranchData: Omit<Branch, '_id'>) => Promise<boolean>;
   updateBranch: (id: string, updatedData: Partial<Branch>) => Promise<boolean>;
   deleteBranch: (id: string) => Promise<boolean>;
+  // ✅ NEW: Calculate counts based on related data
+  calculateStaffCount: (hotelId: string, staffList: any[]) => number;
+  calculateRoomCount: (hotelId: string, roomList: any[]) => number;
+  // ✅ NEW: Enrich branches with calculated counts
+  enrichBranchesWithCounts: (branches: Branch[], staffList: any[], roomList: any[]) => Branch[];
 }
 
 // Helper to get API URL and Auth Token
@@ -40,15 +45,57 @@ const getApiConfig = () => {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`, // Assuming Bearer token auth
     },
-    
   };
 };
 
-export const useBranchStore = create<BranchState>((set) => ({
+export const useBranchStore = create<BranchState>((set, get) => ({
   branches: [],
   currentBranch: null,
   isLoading: false,
   error: null,
+
+  // ✅ NEW: Calculate staff count for a branch based on hotelId
+  calculateStaffCount: (hotelId: string, staffList: any[]) => {
+    if (!Array.isArray(staffList)) return 0;
+    return staffList.filter((staff) => {
+      // Check if staff has hotelId and it matches the branch _id
+      if (staff.hotelId) {
+        // hotelId could be an object with _id or just a string
+        const staffHotelId = typeof staff.hotelId === 'object' 
+          ? staff.hotelId._id 
+          : staff.hotelId;
+        return staffHotelId === hotelId;
+      }
+      return false;
+    }).length;
+  },
+
+  // ✅ NEW: Calculate room count for a branch based on hotelId
+  calculateRoomCount: (hotelId: string, roomList: any[]) => {
+    if (!Array.isArray(roomList)) return 0;
+    return roomList.filter((room) => {
+      // Check if room has hotelId and it matches the branch _id
+      if (room.hotelId) {
+        // hotelId could be an object with _id or just a string
+        const roomHotelId = typeof room.hotelId === 'object' 
+          ? room.hotelId._id 
+          : room.hotelId;
+        return roomHotelId === hotelId;
+      }
+      return false;
+    }).length;
+  },
+
+  // ✅ NEW: Enrich branches with calculated counts
+  enrichBranchesWithCounts: (branches: Branch[], staffList: any[], roomList: any[]) => {
+    const { calculateStaffCount, calculateRoomCount } = get();
+    
+    return branches.map((branch) => ({
+      ...branch,
+      staffCount: calculateStaffCount(branch._id, staffList),
+      roomCount: calculateRoomCount(branch._id, roomList),
+    }));
+  },
 
   // --- FETCH ALL BRANCHES (for Admin) ---
   fetchBranches: async () => {

@@ -153,7 +153,7 @@ const AssignedTaskCard: React.FC<AssignedTaskCardProps> = ({ task, showHotelName
           
           <div className="flex items-center gap-2 text-sm">
             <User className="h-4 w-4 text-muted-foreground" />
-            <span>{task.assignedCleaner.firstName} {task.assignedCleaner.lastName}</span>
+            <span>{task.assignedCleaner?.firstName} {task.assignedCleaner?.lastName}</span>
           </div>
 
           {task.estimatedDuration && (

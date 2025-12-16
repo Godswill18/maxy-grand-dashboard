@@ -6,7 +6,10 @@ import { useAuthStore } from './useAuthStore';
 // Define the shape of your room data based on your backend model
 interface Room {
   _id: string;
-  hotelId: string;
+   hotelId?: {
+    _id: string;
+    name: string;
+  }
   name: string;
   roomNumber: string;
   description: string;
@@ -15,6 +18,7 @@ interface Room {
   capacity: number;
   images: string[];
   isAvailable: boolean;
+  
   createdAt: string;
   updatedAt: string;
   status: 'available' | 'occupied' | 'maintenance' | 'reserved' | 'cleaning';
@@ -49,6 +53,9 @@ interface RoomState {
   // --- 👇 NEW FUNCTIONS ADDED ---
   addImages: (id: string, formData: FormData) => Promise<{ success: boolean }>;
   deleteImage: (id: string, imagePath: string) => Promise<{ success: boolean }>;
+
+  calculateRoomCountByHotelId: (hotelId: string) => number;
+getRoomsByHotelId: (hotelId: string) => Room[];
 }
 
 // Helper function to get the auth token (if you have one)
@@ -59,7 +66,7 @@ const getToken = () => {
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
-export const useRoomStore = create<RoomState>((set) => ({
+export const useRoomStore = create<RoomState>((set, get) => ({
   rooms: [],
   currentRoom: null,
   isLoading: false,
@@ -304,5 +311,35 @@ export const useRoomStore = create<RoomState>((set) => ({
       return { success: false };
     }
   },
+
+  calculateRoomCountByHotelId: (hotelId: string) => {
+  const { rooms } = get();
+  if (!Array.isArray(rooms) || !hotelId) return 0;
+  
+  return rooms.filter((room) => {
+    if (!room.hotelId) return false;
+    
+    const roomHotelId = typeof room.hotelId === 'object' 
+      ? room.hotelId._id 
+      : room.hotelId;
+    
+    return roomHotelId === hotelId;
+  }).length;
+},
+
+getRoomsByHotelId: (hotelId: string) => {
+  const { rooms } = get();
+  if (!Array.isArray(rooms) || !hotelId) return [];
+  
+  return rooms.filter((room) => {
+    if (!room.hotelId) return false;
+    
+    const roomHotelId = typeof room.hotelId === 'object' 
+      ? room.hotelId._id 
+      : room.hotelId;
+    
+    return roomHotelId === hotelId;
+  });
+},
 
 }));

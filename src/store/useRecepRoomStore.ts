@@ -32,7 +32,7 @@ interface CurrentBooking {
 export interface ReceptionistRoom {
   _id: string;
   roomNumber: string;
-  status: "available" | "occupied" | "cleaning" | "maintenance" | "reserved"; // Add "cleaning"
+  status: "available" | "occupied" | "cleaning" | "maintenance" | "reserved";
   hotelId: string;
   roomTypeId: RoomType; // This is now a populated object
   currentBookingId: CurrentBooking | null; // Can be null if available
@@ -48,6 +48,7 @@ interface RoomState {
   error: string | null;
   fetchRooms: () => Promise<void>;
   checkIn: (bookingId: string, confirmationCode: string) => Promise<{ success: boolean }>;
+  updateRoomStatus: (roomId: string, newStatus: string) => Promise<void>;
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
@@ -116,6 +117,37 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       return { success: false };
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  /**
+   * Updates the status of a room
+   */
+  updateRoomStatus: async (roomId: string, newStatus: string) => {
+    try {
+      const response = await fetch(`${VITE_API_URL}/api/receptionist/rooms/${roomId}/status`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update room status');
+      }
+
+      toast.success(`Room status updated to ${newStatus}`);
+      
+      // Refresh the room list
+      await get().fetchRooms();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update room status';
+      toast.error(message);
+      throw error;
     }
   },
 }));

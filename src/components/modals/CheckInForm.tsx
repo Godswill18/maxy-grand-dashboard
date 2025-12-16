@@ -10,11 +10,33 @@ import { Alert, AlertDescription } from "../ui/alert";
 import { Textarea } from "../ui/textarea";
 import { Checkbox } from "../ui/checkbox";
 
+// ✅ COMPLETE INTERFACE - All fields needed
+export interface CheckInFormData {
+  // Step 1: Verification
+  confirmationCode: string;
+  email: string;
+  
+  // Step 2: Registration
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+  address: string;
+  city: string;
+  state: string;
+  arrivingFrom?: string;
+  nextOfKinName?: string;
+  nextOfKinPhone?: string;
+  specialRequests?: string;
+  extraBedding?: boolean;
+  password?: string;
+  userId?: string;
+}
+
 interface CheckInFormProps {
   bookingId: string;
   guestName: string;
   bookingType: 'online' | 'walk-in';
-  onConfirm: (email: string, confirmationCode: string) => Promise<void>;
+  onConfirm: (formData: CheckInFormData) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -28,25 +50,26 @@ export default function CheckInForm({
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState<'verify' | 'register'>(bookingType === 'online' ? 'verify' : 'register');
   
-  // Step 1: Verification fields
-  const [email, setEmail] = useState("");
-  const [confirmationCode, setConfirmationCode] = useState("");
-  
-  // Step 2: Registration fields
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phoneNumber: "",
-    address: "",
-    city: "",
-    state: "",
-    arrivingFrom: "",
-    nextOfKinName: "",
-    nextOfKinPhone: "",
+  // ✅ SINGLE FORM STATE - All data in one place
+  const [formData, setFormData] = useState<CheckInFormData>({
+    confirmationCode: '',
+    email: '',
+    firstName: '',
+    lastName: '',
+    phoneNumber: '',
+    address: '',
+    city: '',
+    state: '',
+    arrivingFrom: '',
+    nextOfKinName: '',
+    nextOfKinPhone: '',
+    specialRequests: '',
     extraBedding: false,
-    specialRequests: "",
+    password: '',
+    userId: '',
   });
+
+  const [verificationError, setVerificationError] = useState('');
 
   const requiresConfirmationCode = bookingType === 'online';
 
@@ -59,26 +82,33 @@ export default function CheckInForm({
     return phone.length >= 10;
   };
 
-  // Handle Step 1: Verify confirmation code
+  // ✅ STEP 1: Verify confirmation code (ONLINE ONLY)
   const handleVerification = async () => {
-    if (!email || !validateEmail(email)) {
-      return toast.error("Please enter a valid email address");
+    if (!formData.email || !validateEmail(formData.email)) {
+      setVerificationError('Please enter a valid email address');
+      return;
     }
 
-    if (requiresConfirmationCode && !confirmationCode) {
-      return toast.error("Confirmation code is required");
+    if (requiresConfirmationCode && !formData.confirmationCode) {
+      setVerificationError('Confirmation code is required');
+      return;
     }
 
     setIsLoading(true);
+    setVerificationError('');
     try {
-      // Verify the confirmation code via API
+      console.log('📤 Verifying confirmation code...', { 
+        email: formData.email, 
+        confirmationCode: formData.confirmationCode 
+      });
+      
       const response = await fetch(
         `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/bookings/verify-code/${bookingId}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ confirmationCode }),
+          body: JSON.stringify({ confirmationCode: formData.confirmationCode }),
         }
       );
 
@@ -88,37 +118,38 @@ export default function CheckInForm({
         throw new Error(result.error || 'Invalid confirmation code');
       }
 
-      // Code verified, move to registration step
-      toast.success("Verification successful! Please complete guest details.");
+      console.log('✅ Verification successful!');
+      toast.success('Verification successful! Please complete guest details.');
       
-      // Pre-fill email in registration form
-      setFormData(prev => ({ ...prev, email }));
-      
-      // Split guest name if available
+      // ✅ Pre-fill registration form
       const nameParts = guestName.split(' ');
-      if (nameParts.length >= 2) {
-        setFormData(prev => ({
-          ...prev,
-          firstName: nameParts[0],
-          lastName: nameParts.slice(1).join(' ')
-        }));
-      } else {
-        setFormData(prev => ({ ...prev, firstName: guestName }));
-      }
+      setFormData(prev => ({
+        ...prev,
+        firstName: nameParts.length >= 2 ? nameParts[0] : guestName,
+        lastName: nameParts.length >= 2 ? nameParts.slice(1).join(' ') : "",
+        // ✅ IMPORTANT: Keep email and confirmationCode
+        email: formData.email,
+        confirmationCode: formData.confirmationCode,
+      }));
       
       setStep('register');
     } catch (error: any) {
+      console.error('❌ Verification error:', error);
+      setVerificationError(error.message || "Verification failed");
       toast.error(error.message || "Verification failed");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle Step 2: Complete registration
+  // ✅ STEP 2: Complete registration (BOTH ONLINE & WALK-IN)
   const handleRegistration = async () => {
-    // Validate required fields
-    if (!formData.firstName || !formData.lastName) {
-      return toast.error("First name and last name are required");
+    // ✅ VALIDATE ALL REQUIRED FIELDS
+    if (!formData.firstName?.trim()) {
+      return toast.error("First name is required");
+    }
+    if (!formData.lastName?.trim()) {
+      return toast.error("Last name is required");
     }
     if (!formData.email || !validateEmail(formData.email)) {
       return toast.error("Please enter a valid email address");
@@ -126,43 +157,61 @@ export default function CheckInForm({
     if (!formData.phoneNumber || !validatePhone(formData.phoneNumber)) {
       return toast.error("Please enter a valid phone number (at least 10 digits)");
     }
-    if (!formData.address || !formData.city || !formData.state) {
-      return toast.error("Address, city, and state are required");
+    if (!formData.address?.trim()) {
+      return toast.error("Street address is required");
+    }
+    if (!formData.city?.trim()) {
+      return toast.error("City is required");
+    }
+    if (!formData.state?.trim()) {
+      return toast.error("State is required");
+    }
+
+    // ✅ For online bookings, confirmation code must be present
+    if (bookingType === 'online' && !formData.confirmationCode) {
+      return toast.error("Confirmation code is missing. Please verify again.");
     }
 
     setIsLoading(true);
     try {
-      // Call the full check-in with registration
-      await onConfirm(formData.email, confirmationCode);
-      toast.success("Guest checked in successfully!");
+      console.log('📋 SUBMITTING COMPLETE FORM DATA:', {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber,
+        hasConfirmationCode: !!formData.confirmationCode,
+        hasAddress: !!formData.address,
+      });
+
+      // ✅ Call onConfirm with COMPLETE form data
+      await onConfirm(formData);
+
+      // Success is handled by parent component
     } catch (error: any) {
-      toast.error(error.message || "Check-in failed");
-    } finally {
-      setIsLoading(false);
+      console.error('❌ Check-in error:', error);
+      // Don't set isLoading here - let parent handle it
+      throw error;
     }
   };
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: keyof CheckInFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Render Step 1: Verification (for online bookings)
+  // ====== RENDER STEP 1: VERIFICATION (ONLINE ONLY) ======
   if (step === 'verify' && requiresConfirmationCode) {
     return (
-      // Added max-h-[80vh] and overflow-y-auto for scrolling
       <div className="space-y-6 p-1 max-h-[80vh] overflow-y-auto px-2 md:px-4">
-        {/* Header */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-semibold">Verify Booking</h3>
-            <Badge variant="default">Online Booking</Badge>
+            <Badge variant="default">Online Booking - Step 1 of 2</Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            Step 1 of 2: Verify guest identity
+            Verify guest identity using confirmation code
           </p>
         </div>
 
-        {/* Guest Information */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Guest Information</CardTitle>
@@ -179,13 +228,11 @@ export default function CheckInForm({
           </CardContent>
         </Card>
 
-        {/* Verification Form */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Verification Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Email Field */}
             <div className="space-y-2">
               <Label htmlFor="email" className="flex items-center gap-2">
                 <Mail className="h-4 w-4" />
@@ -195,13 +242,15 @@ export default function CheckInForm({
                 id="email"
                 type="email"
                 placeholder="guest@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={formData.email}
+                onChange={(e) => {
+                  handleInputChange('email', e.target.value);
+                  setVerificationError('');
+                }}
                 disabled={isLoading}
               />
             </div>
 
-            {/* Confirmation Code Field */}
             <div className="space-y-2">
               <Label htmlFor="confirmationCode" className="flex items-center gap-2">
                 <Key className="h-4 w-4" />
@@ -210,16 +259,27 @@ export default function CheckInForm({
               <Input
                 id="confirmationCode"
                 type="text"
-                placeholder="Enter 6-digit code"
-                value={confirmationCode}
-                onChange={(e) => setConfirmationCode(e.target.value.toUpperCase())}
+                placeholder="Enter code"
+                value={formData.confirmationCode}
+                onChange={(e) => {
+                  handleInputChange('confirmationCode', e.target.value.toUpperCase());
+                  setVerificationError('');
+                }}
                 disabled={isLoading}
-                maxLength={6}
+                maxLength={10}
               />
               <p className="text-xs text-muted-foreground">
                 The confirmation code was sent to the guest's email when booking
               </p>
             </div>
+
+            {verificationError && (
+              <Alert className="bg-red-50 border-red-200">
+                <AlertDescription className="text-sm text-red-800">
+                  ❌ {verificationError}
+                </AlertDescription>
+              </Alert>
+            )}
 
             <Alert className="bg-blue-50 border-blue-200">
               <AlertDescription className="text-sm text-blue-800">
@@ -230,7 +290,6 @@ export default function CheckInForm({
           </CardContent>
         </Card>
 
-        {/* Action Buttons */}
         <div className="flex gap-3 pt-2 pb-2">
           <Button 
             variant="outline" 
@@ -245,9 +304,9 @@ export default function CheckInForm({
             onClick={handleVerification} 
             disabled={
               isLoading || 
-              !email || 
-              !validateEmail(email) ||
-              !confirmationCode
+              !formData.email || 
+              !validateEmail(formData.email) ||
+              !formData.confirmationCode
             }
           >
             {isLoading ? (
@@ -267,11 +326,9 @@ export default function CheckInForm({
     );
   }
 
-  // Render Step 2: Registration Form (for both online and walk-in)
+  // ====== RENDER STEP 2: REGISTRATION (BOTH ONLINE & WALK-IN) ======
   return (
-    // Added max-h-[80vh] and overflow-y-auto for scrolling on this step too
     <div className="space-y-6 p-1 max-h-[80vh] overflow-y-auto px-2 md:px-4">
-      {/* Header */}
       <div className="space-y-2 sticky top-0 bg-background z-10 pb-4 pt-2 border-b">
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-semibold">Complete Registration</h3>
@@ -392,7 +449,7 @@ export default function CheckInForm({
             <Label htmlFor="arrivingFrom">Arriving From (Optional)</Label>
             <Input
               id="arrivingFrom"
-              value={formData.arrivingFrom}
+              value={formData.arrivingFrom || ''}
               onChange={(e) => handleInputChange('arrivingFrom', e.target.value)}
               disabled={isLoading}
               placeholder="City or Country"
@@ -414,7 +471,7 @@ export default function CheckInForm({
             <Label htmlFor="nextOfKinName">Next of Kin Name</Label>
             <Input
               id="nextOfKinName"
-              value={formData.nextOfKinName}
+              value={formData.nextOfKinName || ''}
               onChange={(e) => handleInputChange('nextOfKinName', e.target.value)}
               disabled={isLoading}
               placeholder="Emergency contact name"
@@ -426,7 +483,7 @@ export default function CheckInForm({
             <Input
               id="nextOfKinPhone"
               type="tel"
-              value={formData.nextOfKinPhone}
+              value={formData.nextOfKinPhone || ''}
               onChange={(e) => handleInputChange('nextOfKinPhone', e.target.value)}
               disabled={isLoading}
               placeholder="+234 xxx xxx xxxx"
@@ -444,7 +501,7 @@ export default function CheckInForm({
           <div className="flex items-center space-x-2">
             <Checkbox
               id="extraBedding"
-              checked={formData.extraBedding}
+              checked={formData.extraBedding || false}
               onCheckedChange={(checked) => handleInputChange('extraBedding', checked)}
               disabled={isLoading}
             />
@@ -457,7 +514,7 @@ export default function CheckInForm({
             <Label htmlFor="specialRequests">Special Requests (Optional)</Label>
             <Textarea
               id="specialRequests"
-              value={formData.specialRequests}
+              value={formData.specialRequests || ''}
               onChange={(e) => handleInputChange('specialRequests', e.target.value)}
               disabled={isLoading}
               placeholder="Any special requirements or requests..."
@@ -482,14 +539,14 @@ export default function CheckInForm({
           onClick={handleRegistration} 
           disabled={
             isLoading || 
-            !formData.firstName || 
-            !formData.lastName || 
+            !formData.firstName?.trim() || 
+            !formData.lastName?.trim() || 
             !formData.email || 
             !validateEmail(formData.email) ||
             !formData.phoneNumber ||
-            !formData.address ||
-            !formData.city ||
-            !formData.state
+            !formData.address?.trim() ||
+            !formData.city?.trim() ||
+            !formData.state?.trim()
           }
         >
           {isLoading ? (

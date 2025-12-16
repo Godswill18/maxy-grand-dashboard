@@ -78,7 +78,7 @@ export default function CleaningTasks() {
             
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Sparkles className="h-4 w-4" />
-              <span>Requested by: {task.requestedBy.firstName} {task.requestedBy.lastName}</span>
+              <span>Requested by: {task.requestedBy?.firstName} {task.requestedBy?.lastName}</span>
             </div>
 
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

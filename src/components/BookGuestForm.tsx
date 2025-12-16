@@ -7,8 +7,8 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2, Search, CheckCircle, XCircle, Plus, Minus, Calendar as CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useCheckInStore } from "@/store/useCheckInStore";
-import { useBookingStore } from "@/store/useBookingStore"; // NEW: Import booking store
-import { useAuthStore } from "@/store/useAuthStore"; // NEW: Import auth store
+import { useBookingStore } from "@/store/useBookingStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
@@ -19,6 +19,7 @@ import { format } from "date-fns";
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
+// ✅ FIXED: Separate function to prevent background state pollution
 const fetchUserByEmail = async (email: string) => {
   try {
     const response = await fetch(`${VITE_API_URL}/api/users/find-by-email?email=${email}`, {
@@ -35,26 +36,35 @@ const fetchUserByEmail = async (email: string) => {
   }
 };
 
-const fetchAvailableRooms = async (checkInDate: Date, checkOutDate: Date) => {
-  try {
-    const response = await fetch(`${VITE_API_URL}/api/receptionist/rooms/available-range`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        checkInDate: checkInDate.toISOString(),
-        checkOutDate: checkOutDate.toISOString(),
-      }),
-    });
+// ✅ FIXED: Properly structured API call
+// const fetchAvailableRooms = async (checkInDate: Date, checkOutDate: Date, hotelId: string) => {
+//   try {
+//     const response = await fetch(`${VITE_API_URL}/api/bookings/check-availability`, {
+//       method: 'POST',
+//       headers: { 
+//         'Content-Type': 'application/json',
+//         'Authorization': `Bearer ${sessionStorage.getItem('token')}`,
+//       },
+//       credentials: 'include',
+//       body: JSON.stringify({
+//         checkInDate: checkInDate.toISOString(),
+//         checkOutDate: checkOutDate.toISOString(),
+//         hotelId: hotelId,
+//       }),
+//     });
     
-    if (!response.ok) throw new Error("Failed to fetch available rooms");
-    const data = await response.json();
-    return data.data || [];
-  } catch (error) {
-    toast.error((error as Error).message || "Could not fetch available rooms");
-    return [];
-  }
-};
+//     if (!response.ok) {
+//       const errorData = await response.json();
+//       throw new Error(errorData.error || "Failed to fetch available rooms");
+//     }
+//     const data = await response.json();
+//     return data.data || [];
+//   } catch (error) {
+//     console.error('Room fetch error:', error);
+//     toast.error((error as Error).message || "Could not fetch available rooms");
+//     return [];
+//   }
+// };
 
 interface BookGuestFormProps {
   guestName?: string;
@@ -75,11 +85,13 @@ export default function BookGuestForm({
   onConfirm, 
   onCancel 
 }: BookGuestFormProps) {
-  const { createGuestAccountAndCheckIn, verifyConfirmationCode } = useCheckInStore();
-  const { createBooking } = useBookingStore(); // NEW: Get createBooking from store
-  const { user } = useAuthStore(); // NEW: Get user for hotelId
+  const { createGuestAccountAndCheckIn } = useCheckInStore();
+  const { createBooking } = useBookingStore();
+  const { user } = useAuthStore();
+  
   const [currentTab, setCurrentTab] = useState<"guest" | "booking">("guest");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSearchingRooms, setIsSearchingRooms] = useState(false);
   
   // Guest Form State
   const [isNewGuest, setIsNewGuest] = useState(true);
@@ -87,13 +99,14 @@ export default function BookGuestForm({
   const [isVerifying, setIsVerifying] = useState(false);
   const [emailStatus, setEmailStatus] = useState<'idle' | 'loading' | 'verified' | 'notfound'>('idle');
   
-  // Booking Form State
+  // Booking Form State - ✅ ISOLATED
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
+  const [bookedRooms, setBookedRooms] = useState<any[]>([]);
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
-  const [loadingRooms, setLoadingRooms] = useState(false);
   const [checkInDate, setCheckInDate] = useState<Date>(new Date());
-  const [checkOutDate, setCheckOutDate] = useState<Date>(new Date(Date.now() + 86400000)); // Tomorrow
+  const [checkOutDate, setCheckOutDate] = useState<Date>(new Date(Date.now() + 86400000));
 
+  // Guest Data
   const [guestData, setGuestData] = useState({
     firstName: "",
     lastName: "",
@@ -103,6 +116,7 @@ export default function BookGuestForm({
     userId: "",
   });
 
+  // Booking Data
   const [bookingData, setBookingData] = useState({
     numberOfGuests: 2,
     specialRequests: "",
@@ -115,6 +129,7 @@ export default function BookGuestForm({
     extraBedding: false,
   });
 
+  // ✅ Initialize guest name
   useEffect(() => {
     if (guestName) {
       const parts = guestName.split(" ");
@@ -126,6 +141,7 @@ export default function BookGuestForm({
     }
   }, [guestName]);
 
+  // ✅ Verify email on mount only if provided
   useEffect(() => {
     if (initialEmail) {
       setIsNewGuest(false);
@@ -176,6 +192,7 @@ export default function BookGuestForm({
     setIsVerifying(false);
   };
 
+  // ✅ FIXED: Separate state for room searching with proper loading
   const handleSearchRooms = async () => {
     if (!checkInDate || !checkOutDate) {
       return toast.error("Please select check-in and check-out dates");
@@ -185,15 +202,54 @@ export default function BookGuestForm({
       return toast.error("Check-out date must be after check-in date");
     }
 
-    setLoadingRooms(true);
-    const rooms = await fetchAvailableRooms(checkInDate, checkOutDate);
-    setAvailableRooms(rooms);
-    setLoadingRooms(false);
+    if (!user?.hotelId) {
+      return toast.error("Hotel information not found");
+    }
 
-    if (rooms.length === 0) {
-      toast.warning("No rooms available for selected dates");
-    } else {
-      toast.success(`Found ${rooms.length} available room(s)`);
+    setIsSearchingRooms(true);
+    try {
+      const response = await fetch(`${VITE_API_URL}/api/receptionist/rooms/available-range`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionStorage.getItem('token')}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          checkInDate: checkInDate.toISOString(),
+          checkOutDate: checkOutDate.toISOString(),
+          hotelId: user.hotelId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch rooms");
+      }
+
+      const data = await response.json();
+      
+      // ✅ FIXED: Separate available and booked rooms
+      const available = data.data?.filter((room: any) => room.status === 'AVAILABLE') || [];
+      const booked = data.data?.filter((room: any) => room.status === 'BOOKED') || [];
+      
+      setAvailableRooms(available);
+      setBookedRooms(booked);
+      setSelectedRooms([]); // Reset selection
+
+      if (available.length === 0 && booked.length === 0) {
+        toast.warning("No rooms found for selected dates");
+      } else if (available.length > 0) {
+        toast.success(`Found ${available.length} available room(s)`);
+      } else if (booked.length > 0) {
+        toast.info(`${booked.length} room(s) are booked for these dates`);
+      }
+    } catch (error) {
+      console.error('Error searching rooms:', error);
+      toast.error("Failed to search rooms");
+      setAvailableRooms([]);
+      setBookedRooms([]);
+    } finally {
+      setIsSearchingRooms(false);
     }
   };
 
@@ -215,7 +271,6 @@ export default function BookGuestForm({
 
   const handleNext = () => {
     if (currentTab === "guest") {
-      // Validate guest data
       if (isNewGuest && !isUserFound) {
         const { email, firstName, lastName, phoneNumber, password } = guestData;
         if (!email || !firstName || !lastName || !phoneNumber || !password) {
@@ -232,33 +287,35 @@ export default function BookGuestForm({
     }
   };
 
-  const handleSubmit = async () => {
-    // Validate booking data
-    if (selectedRooms.length === 0) {
-      return toast.error("Please select at least one room");
-    }
 
-    if (bookingData.numberOfGuests < 1) {
-      return toast.error("Number of guests must be at least 1");
-    }
+const handleSubmit = async () => {
+  if (selectedRooms.length === 0) {
+    return toast.error("Please select at least one room");
+  }
 
-    if (!user?.hotelId) {
-      return toast.error("Hotel information not found. Please log in again.");
-    }
+  if (bookingData.numberOfGuests < 1) {
+    return toast.error("Number of guests must be at least 1");
+  }
 
-    setIsLoading(true);
-    try {
-      let finalUserId = guestData.userId;
+  if (!user?.hotelId) {
+    return toast.error("Hotel information not found. Please log in again.");
+  }
+
+  setIsLoading(true);
+  try {
+    let finalUserId = guestData.userId; // ✅ Start with verified guest's userId
+    
+    // ✅ FIXED: If new guest and not found in system, create them first
+    if (isNewGuest && !isUserFound) {
+      const { firstName, lastName, email, phoneNumber, password } = guestData;
       
-      // Create account if new guest and not found
-      if (isNewGuest && !isUserFound) {
-        const { firstName, lastName, email, phoneNumber, password } = guestData;
-        
-        if (!firstName || !lastName || !email || !phoneNumber || !password) {
-          setIsLoading(false);
-          return toast.error("Please fill in all required guest fields");
-        }
+      if (!firstName || !lastName || !email || !phoneNumber || !password) {
+        setIsLoading(false);
+        return toast.error("Please fill in all required guest fields");
+      }
 
+      // Call the function to create guest account
+      try {
         finalUserId = await createGuestAccountAndCheckIn({
           firstName,
           lastName,
@@ -266,90 +323,107 @@ export default function BookGuestForm({
           phoneNumber,
           password,
         });
+        console.log('✅ New guest created with userId:', finalUserId);
+      } catch (createError) {
+        setIsLoading(false);
+        console.error('Error creating guest account:', createError);
+        return toast.error('Failed to create guest account');
       }
-
-      // Calculate totals
-      const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
-      const totalAmount = calculateTotalAmount();
-      
-      // Get primary room details
-      const primaryRoom = availableRooms.find(r => r._id === selectedRooms[0]);
-      
-      // Prepare booking payload matching your backend schema
-      const bookingPayload = {
-        hotelId: user.hotelId,
-        roomId: selectedRooms[0], // Primary room ID
-        guestId: finalUserId || null, // Link to user account if exists
-        guestName: `${guestData.firstName} ${guestData.lastName}`,
-        guestEmail: guestData.email,
-        guestPhone: guestData.phoneNumber,
-        checkInDate: checkInDate.toISOString(),
-        checkOutDate: checkOutDate.toISOString(),
-        bookingType: bookingType,
-        totalAmount: totalAmount,
-        amountPaid: 0, // Initial payment
-        paymentStatus: 'pending',
-        bookingStatus: 'confirmed',
-        numberOfGuests: bookingData.numberOfGuests,
-        specialRequests: bookingData.specialRequests,
-        
-        // Guest details for check-in
-        guestDetails: {
-          address: bookingData.address,
-          city: bookingData.city,
-          state: bookingData.state,
-          arrivingFrom: bookingData.arrivingFrom,
-          nextOfKinName: bookingData.nextOfKinName,
-          nextOfKinPhone: bookingData.nextOfKinPhone,
-        },
-        
-        // Preferences
-        preferences: {
-          extraBedding: bookingData.extraBedding,
-          specialRequests: bookingData.specialRequests,
-        }
-      };
-
-      // Create the booking using the store
-      await createBooking(bookingPayload);
-      
-      // If multiple rooms selected, create additional bookings
-      if (selectedRooms.length > 1) {
-        for (let i = 1; i < selectedRooms.length; i++) {
-          const additionalRoom = availableRooms.find(r => r._id === selectedRooms[i]);
-          const additionalNights = nights;
-          const additionalAmount = (additionalRoom?.roomTypeId?.price || 0) * additionalNights;
-          
-          const additionalBookingPayload = {
-            ...bookingPayload,
-            roomId: selectedRooms[i],
-            totalAmount: additionalAmount,
-            guestName: `${guestData.firstName} ${guestData.lastName} (Additional Room ${i})`,
-          };
-          
-          await createBooking(additionalBookingPayload);
-        }
-      }
-
-      toast.success(`Booking created successfully! ${selectedRooms.length} room(s) booked.`);
-      
-      // Call the onConfirm callback to close dialog and refresh
-      if (onConfirm) {
-        await onConfirm(bookingPayload);
-      }
-      
-    } catch (error: any) {
-      console.error("Booking error:", error);
-      toast.error(error.message || "Failed to create booking");
-    } finally {
-      setIsLoading(false);
+    } else if (isUserFound) {
+      // ✅ FIXED: Use the verified guest's userId
+      finalUserId = guestData.userId;
+      console.log('✅ Using verified guest userId:', finalUserId);
     }
-  };
+
+    // ✅ Validate that we have a userId (either from verified guest or newly created)
+    if (!finalUserId) {
+      setIsLoading(false);
+      return toast.error("No guest user ID available. Please try again.");
+    }
+
+    const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+    const totalAmount = calculateTotalAmount();
+    
+    const primaryRoom = availableRooms.find(r => r._id === selectedRooms[0]);
+    
+    // ✅ Build booking payload with userId/guestId
+    const bookingPayload = {
+      hotelId: user.hotelId,
+      roomTypeId: primaryRoom?._id,
+      guestId: finalUserId, // ✅ Pass the verified or newly created user's ID
+      guestName: `${guestData.firstName} ${guestData.lastName}`,
+      guestEmail: guestData.email,
+      guestPhone: guestData.phoneNumber,
+      checkInDate: checkInDate.toISOString(),
+      checkOutDate: checkOutDate.toISOString(),
+      bookingType: bookingType,
+      totalAmount: totalAmount,
+      amountPaid: 0,
+      paymentStatus: 'pending',
+      bookingStatus: 'confirmed',
+      numberOfGuests: bookingData.numberOfGuests,
+      specialRequests: bookingData.specialRequests,
+      
+      guestDetails: {
+        address: bookingData.address,
+        city: bookingData.city,
+        state: bookingData.state,
+        arrivingFrom: bookingData.arrivingFrom,
+        nextOfKinName: bookingData.nextOfKinName,
+        nextOfKinPhone: bookingData.nextOfKinPhone,
+      },
+      
+      preferences: {
+        extraBedding: bookingData.extraBedding,
+        specialRequests: bookingData.specialRequests,
+      }
+    };
+
+    console.log('📤 Sending booking payload:', {
+      guestId: bookingPayload.guestId,
+      guestName: bookingPayload.guestName,
+      roomTypeId: bookingPayload.roomTypeId,
+    });
+
+    // ✅ Create the booking
+    await createBooking(bookingPayload);
+    
+    // ✅ Handle multiple rooms if selected
+    if (selectedRooms.length > 1) {
+      for (let i = 1; i < selectedRooms.length; i++) {
+        const additionalRoom = availableRooms.find(r => r._id === selectedRooms[i]);
+        const additionalNights = nights;
+        const additionalAmount = (additionalRoom?.roomTypeId?.price || 0) * additionalNights;
+        
+        const additionalBookingPayload = {
+          ...bookingPayload,
+          roomTypeId: additionalRoom?._id,
+          totalAmount: additionalAmount,
+          guestName: `${guestData.firstName} ${guestData.lastName} (Additional Room ${i})`,
+        };
+        
+        await createBooking(additionalBookingPayload);
+      }
+    }
+
+    toast.success(`Booking created successfully! ${selectedRooms.length} room(s) booked.`);
+    
+    if (onConfirm) {
+      await onConfirm(bookingPayload);
+    }
+    
+  } catch (error: any) {
+    console.error("❌ Booking error:", error);
+    toast.error(error.message || "Failed to create booking");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="space-y-4 max-h-[75vh] overflow-y-auto p-1">
-      {/* Header with Booking Type Badge */}
-      <div className="flex items-center justify-between mb-4 sticky top-0 bg-background z-10 pb-2 border-b">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 sticky top-0 bg-background z-20 pb-2 border-b">
         <h3 className="text-lg font-semibold">New Booking</h3>
         <Badge variant={bookingType === 'online' ? 'default' : 'secondary'}>
           {bookingType === 'online' ? 'Online Booking' : 'Walk-in'}
@@ -366,7 +440,6 @@ export default function BookGuestForm({
 
         {/* =============== GUEST TAB =============== */}
         <TabsContent value="guest" className="space-y-4">
-          {/* Toggle: New Guest or Existing Guest */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -385,11 +458,10 @@ export default function BookGuestForm({
             </CardHeader>
           </Card>
 
-          {/* Existing Guest Lookup */}
           {!isNewGuest && (
-            <Card className="bg-blue-50 border-blue-200">
+            <Card>
               <CardContent className="pt-4 space-y-3">
-                <Label className="text-black">Search Existing Guest by Email</Label>
+                <Label>Search Existing Guest by Email</Label>
                 <div className="flex gap-2">
                   <Input
                     name="email"
@@ -429,11 +501,11 @@ export default function BookGuestForm({
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
                         <span className="text-muted-foreground">Name:</span>
-                        <p className="font-medium text-black">{guestData.firstName} {guestData.lastName}</p>
+                        <p className="font-medium">{guestData.firstName} {guestData.lastName}</p>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Phone:</span>
-                        <p className="font-medium text-black">{guestData.phoneNumber}</p>
+                        <p className="font-medium">{guestData.phoneNumber}</p>
                       </div>
                     </div>
                   </div>
@@ -442,7 +514,6 @@ export default function BookGuestForm({
             </Card>
           )}
 
-          {/* New Guest Account Creation */}
           {isNewGuest && (
             <Card>
               <CardHeader>
@@ -485,7 +556,6 @@ export default function BookGuestForm({
             </Card>
           )}
 
-          {/* Additional Guest Details */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Additional Details (Optional)</CardTitle>
@@ -554,7 +624,7 @@ export default function BookGuestForm({
                         {format(checkInDate, "PPP")}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
+                    <PopoverContent className="w-auto p-0 z-50">
                       <Calendar
                         mode="single"
                         selected={checkInDate}
@@ -574,7 +644,7 @@ export default function BookGuestForm({
                         {format(checkOutDate, "PPP")}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
+                    <PopoverContent className="w-auto p-0 z-50">
                       <Calendar
                         mode="single"
                         selected={checkOutDate}
@@ -586,18 +656,18 @@ export default function BookGuestForm({
                 </div>
               </div>
 
-              <Button onClick={handleSearchRooms} disabled={loadingRooms} className="w-full">
-                {loadingRooms ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+              <Button onClick={handleSearchRooms} disabled={isSearchingRooms} className="w-full">
+                {isSearchingRooms ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                 Search Available Rooms
               </Button>
             </CardContent>
           </Card>
 
-          {/* Room Selection */}
+          {/* ✅ FIXED: Display both available and booked rooms */}
           {availableRooms.length > 0 && (
-            <Card>
+            <Card className="border-green-200 bg-green-50/30">
               <CardHeader>
-                <CardTitle className="text-base">Select Room(s)</CardTitle>
+                <CardTitle className="text-base text-green-700">✅ Available Rooms</CardTitle>
                 <p className="text-sm text-muted-foreground">
                   {selectedRooms.length} room(s) selected
                 </p>
@@ -608,8 +678,8 @@ export default function BookGuestForm({
                     key={room._id}
                     className={`p-3 border rounded-lg cursor-pointer transition-colors ${
                       selectedRooms.includes(room._id)
-                        ? 'border-primary bg-primary/5'
-                        : 'border-gray-200 hover:border-primary/50'
+                        ? 'border-green-600 bg-green-100'
+                        : 'border-green-200 hover:border-green-400'
                     }`}
                     onClick={() => toggleRoomSelection(room._id)}
                   >
@@ -621,12 +691,53 @@ export default function BookGuestForm({
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-primary">₦{room.roomTypeId?.price.toLocaleString()}</p>
+                        <p className="font-bold text-green-600">₦{room.roomTypeId?.price?.toLocaleString()}</p>
                         <p className="text-xs text-muted-foreground">per night</p>
                       </div>
                     </div>
                     {selectedRooms.includes(room._id) && (
-                      <CheckCircle className="h-5 w-5 text-primary absolute top-3 right-3" />
+                      <CheckCircle className="h-5 w-5 text-green-600 absolute top-3 right-3" />
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ✅ FIXED: Show booked rooms with booking details */}
+          {bookedRooms.length > 0 && (
+            <Card className="border-red-200 bg-red-50/30">
+              <CardHeader>
+                <CardTitle className="text-base text-red-700">❌ Booked Rooms</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {bookedRooms.map((room) => (
+                  <div
+                    key={room._id}
+                    className="p-3 border border-red-200 rounded-lg bg-red-50"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-medium">Room {room.roomNumber}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {room.roomTypeId?.name} - {room.roomTypeId?.capacity} Guests
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-red-600">₦{room.roomTypeId?.price?.toLocaleString()}</p>
+                        <p className="text-xs text-red-600">BOOKED</p>
+                      </div>
+                    </div>
+                    {room.bookingConflict && (
+                      <div className="text-xs bg-white p-2 rounded border border-red-100 mt-2">
+                        <p className="font-semibold text-red-900">Booked by: {room.bookingConflict.guestName}</p>
+                        <p className="text-red-800">
+                          Check-in: {new Date(room.bookingConflict.checkInDate).toLocaleDateString()}
+                        </p>
+                        <p className="text-red-800">
+                          Check-out: {new Date(room.bookingConflict.checkOutDate).toLocaleDateString()}
+                        </p>
+                      </div>
                     )}
                   </div>
                 ))}
