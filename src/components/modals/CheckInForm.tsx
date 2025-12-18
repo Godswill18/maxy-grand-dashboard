@@ -360,7 +360,7 @@ export default function CheckInForm({
                 id="firstName"
                 value={formData.firstName}
                 onChange={(e) => handleInputChange('firstName', e.target.value)}
-                disabled={isLoading}
+                disabled={true}
                 placeholder="John"
               />
             </div>
@@ -370,7 +370,7 @@ export default function CheckInForm({
                 id="lastName"
                 value={formData.lastName}
                 onChange={(e) => handleInputChange('lastName', e.target.value)}
-                disabled={isLoading}
+                disabled={true}
                 placeholder="Doe"
               />
             </div>
@@ -398,6 +398,7 @@ export default function CheckInForm({
               disabled={isLoading}
               placeholder="+234 xxx xxx xxxx"
             />
+            {/* {console.log(formData)} */}
           </div>
         </CardContent>
       </Card>

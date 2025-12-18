@@ -127,6 +127,8 @@ export default function BookGuestForm({
     nextOfKinName: "",
     nextOfKinPhone: "",
     extraBedding: false,
+    amountPaid: 0,
+    
   });
 
   // ✅ Initialize guest name
@@ -301,6 +303,13 @@ const handleSubmit = async () => {
     return toast.error("Hotel information not found. Please log in again.");
   }
 
+    
+const totalAmount = calculateTotalAmount();  
+  if( bookingData.amountPaid > totalAmount)
+    {
+      return toast.error("Amount paid cannot exceed total amount");
+    }
+
   setIsLoading(true);
   try {
     let finalUserId = guestData.userId; // ✅ Start with verified guest's userId
@@ -358,8 +367,9 @@ const handleSubmit = async () => {
       checkOutDate: checkOutDate.toISOString(),
       bookingType: bookingType,
       totalAmount: totalAmount,
-      amountPaid: 0,
-      paymentStatus: 'pending',
+      amountPaid: bookingData.amountPaid,  // ✅ NEW: Include amount paid
+      paymentStatus: bookingData.amountPaid >= totalAmount ? 'paid' : bookingData.amountPaid > 0 ? 'partial' : 'pending',  // ✅ Calculate status
+      // paymentStatus: 'pending',
       bookingStatus: 'confirmed',
       numberOfGuests: bookingData.numberOfGuests,
       specialRequests: bookingData.specialRequests,
@@ -783,38 +793,144 @@ const handleSubmit = async () => {
             </CardContent>
           </Card>
 
+          
+{/* ✅ NEW: Payment Information Card */}
+<Card>
+  <CardHeader>
+    <CardTitle className="text-base">Payment Information</CardTitle>
+  </CardHeader>
+  <CardContent className="space-y-4">
+    <div>
+      <Label>Amount Paid (₦)</Label>
+  <Input
+  type="text"  // Changed!
+  value={bookingData.amountPaid || ''}  // Empty if 0
+  onChange={(e) => {
+    const value = e.target.value.replace(/[^\d.]/g, '');
+    
+    if (value === '') {
+      setBookingData(prev => ({ ...prev, amountPaid: 0 }));
+      return;
+    }
+    
+    const numericValue = parseFloat(value);
+    if (!isNaN(numericValue) && numericValue <= calculateTotalAmount()) {
+      setBookingData(prev => ({ ...prev, amountPaid: numericValue }));
+    }
+  }}
+  placeholder="0.00"
+  className="text-right"
+/>
+      <p className="text-xs text-muted-foreground mt-1">
+        Enter the amount the guest has paid
+      </p>
+    </div>
+
+    {/* <div>
+      <Label>Payment Note (Optional)</Label>
+      <Textarea
+        name="paymentNote"
+        placeholder="e.g., Cash payment, Bank transfer reference, etc."
+        value={bookingData.paymentNote}
+        onChange={handleBookingDataChange}
+        rows={2}
+      />
+    </div> */}
+
+    {/* Payment Status Indicator */}
+    {selectedRooms.length > 0 && (
+      <div className="p-3 rounded-lg border-2 border-dashed">
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Total Amount:</span>
+            <span className="font-bold">₦{calculateTotalAmount().toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Amount Paid:</span>
+            <span className="font-bold text-green-600">₦{bookingData.amountPaid.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between text-sm border-t pt-2">
+            <span className="font-semibold">Outstanding:</span>
+            <span className={`font-bold ${
+              calculateTotalAmount() - bookingData.amountPaid === 0 
+                ? 'text-green-600' 
+                : 'text-orange-600'
+            }`}>
+              ₦{(calculateTotalAmount() - bookingData.amountPaid).toLocaleString()}
+            </span>
+          </div>
+          
+          {/* Payment Status Badge */}
+          <div className="flex items-center justify-between pt-2 border-t">
+            <span className="text-sm text-muted-foreground">Payment Status:</span>
+            <Badge 
+              className={
+                bookingData.amountPaid >= calculateTotalAmount() && calculateTotalAmount() > 0
+                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                  : bookingData.amountPaid > 0
+                  ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }
+            >
+              {bookingData.amountPaid >= calculateTotalAmount() && calculateTotalAmount() > 0
+                ? '✓ Fully Paid'
+                : bookingData.amountPaid > 0
+                ? '⚠ Partial Payment'
+                : '○ Pending Payment'}
+            </Badge>
+          </div>
+        </div>
+      </div>
+    )}
+  </CardContent>
+</Card>
+
           {/* Summary */}
           {selectedRooms.length > 0 && (
-            <Card className="bg-primary/5">
-              <CardHeader>
-                <CardTitle className="text-base">Booking Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Dates:</span>
-                  <span className="font-medium">
-                    {format(checkInDate, "MMM dd")} - {format(checkOutDate, "MMM dd, yyyy")}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Nights:</span>
-                  <span className="font-medium">
-                    {Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Room(s):</span>
-                  <span className="font-medium">{selectedRooms.length}</span>
-                </div>
-                <div className="flex justify-between pt-2 border-t">
-                  <span className="font-semibold">Total Amount:</span>
-                  <span className="text-lg font-bold text-primary">
-                    ₦{calculateTotalAmount().toLocaleString()}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+  <Card className="bg-primary/5">
+    <CardHeader>
+      <CardTitle className="text-base">Booking Summary</CardTitle>
+    </CardHeader>
+    <CardContent className="space-y-2">
+      <div className="flex justify-between text-sm">
+        <span>Dates:</span>
+        <span className="font-medium">
+          {format(checkInDate, "MMM dd")} - {format(checkOutDate, "MMM dd, yyyy")}
+        </span>
+      </div>
+      <div className="flex justify-between text-sm">
+        <span>Nights:</span>
+        <span className="font-medium">
+          {Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))}
+        </span>
+      </div>
+      <div className="flex justify-between text-sm">
+        <span>Room(s):</span>
+        <span className="font-medium">{selectedRooms.length}</span>
+      </div>
+      
+      {/* ✅ NEW: Payment Summary */}
+      <div className="border-t pt-2 space-y-1">
+        <div className="flex justify-between text-sm">
+          <span>Total Amount:</span>
+          <span className="font-bold">₦{calculateTotalAmount().toLocaleString()}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Amount Paid:</span>
+          <span className="font-semibold text-green-600">₦{bookingData.amountPaid.toLocaleString()}</span>
+        </div>
+        <div className="flex justify-between text-sm border-t pt-1">
+          <span className="font-semibold">Outstanding:</span>
+          <span className={`text-lg font-bold ${
+            calculateTotalAmount() - bookingData.amountPaid === 0 ? 'text-green-600' : 'text-orange-600'
+          }`}>
+            ₦{(calculateTotalAmount() - bookingData.amountPaid).toLocaleString()}
+          </span>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+)}
 
           <div className="flex gap-3">
             <Button variant="outline" onClick={handleBack} className="flex-1">

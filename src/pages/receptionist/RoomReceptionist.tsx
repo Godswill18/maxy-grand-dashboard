@@ -11,14 +11,20 @@ import { toast } from "sonner";
 import { useRoomStore as useRecepRoomStore, ReceptionistRoom } from "@/store/useRecepRoomStore";
 import { Skeleton } from "@/components/ui/skeleton";
 
+
 // Countdown Timer Component
 const CheckoutCountdown = ({ checkOutDate }: { checkOutDate: string }) => {
-  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
+  const [timeLeft, setTimeLeft] = useState({ 
+    days: 0, 
+    hours: 0, 
+    minutes: 0, 
+    seconds: 0 
+  });
   const [isOverdue, setIsOverdue] = useState(false);
 
   useEffect(() => {
     const targetDate = new Date(checkOutDate);
-    targetDate.setHours(12, 0, 0, 0); // Checkout at 12:00 PM
+    targetDate.setHours(12, 0, 0, 0); // ✅ Checkout at 12:00 PM
 
     const timer = setInterval(() => {
       const now = new Date().getTime();
@@ -28,16 +34,18 @@ const CheckoutCountdown = ({ checkOutDate }: { checkOutDate: string }) => {
         setIsOverdue(true);
         const overdueDistance = Math.abs(distance);
         setTimeLeft({
-          hours: Math.floor(overdueDistance / (1000 * 60 * 60)),
+          days: Math.floor(overdueDistance / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((overdueDistance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
           minutes: Math.floor((overdueDistance % (1000 * 60 * 60)) / (1000 * 60)),
-          seconds: Math.floor((overdueDistance % (1000 * 60)) / 1000),
+          seconds: Math.floor((overdueDistance % (1000 * 60)) / 1000), // ✅ Include seconds
         });
       } else {
         setIsOverdue(false);
         setTimeLeft({
-          hours: Math.floor(distance / (1000 * 60 * 60)),
+          days: Math.floor(distance / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
           minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
-          seconds: Math.floor((distance % (1000 * 60)) / 1000),
+          seconds: Math.floor((distance % (1000 * 60)) / 1000), // ✅ Include seconds
         });
       }
     }, 1000);
@@ -51,9 +59,13 @@ const CheckoutCountdown = ({ checkOutDate }: { checkOutDate: string }) => {
     <div className={`flex items-center gap-2 text-sm font-bold ${isOverdue ? 'text-red-700' : 'text-green-700'}`}>
       <Clock className="h-5 w-5" />
       {isOverdue ? (
-        <span className="text-base">Overdue: {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
+        <span className="text-base">
+          Overdue: {timeLeft.days}d {pad(timeLeft.hours)}h {pad(timeLeft.minutes)}m {pad(timeLeft.seconds)}s
+        </span>
       ) : (
-        <span className="text-base">Checkout: {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
+        <span className="text-base">
+          Checkout: {timeLeft.days}d {pad(timeLeft.hours)}h {pad(timeLeft.minutes)}m {pad(timeLeft.seconds)}s
+        </span>
       )}
     </div>
   );
@@ -120,8 +132,8 @@ function OccupantDetailsDialog({ room, open, onOpenChange }: OccupantDetailsDial
             <h3 className="text-sm font-semibold text-gray-900 mb-3">Booking Details</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Check-In Date</p>
-                <p className="text-sm font-medium">{checkInDate.toLocaleDateString('en-US', { 
+                <p className="text-xs text-gray-800 text-muted-foreground mb-1">Check-In Date</p>
+                <p className="text-sm text-gray-600 font-medium">{checkInDate.toLocaleDateString('en-US', { 
                   weekday: 'short', 
                   year: 'numeric', 
                   month: 'short', 
@@ -133,8 +145,8 @@ function OccupantDetailsDialog({ room, open, onOpenChange }: OccupantDetailsDial
                 })}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Check-Out Date</p>
-                <p className="text-sm font-medium">{checkOutDate.toLocaleDateString('en-US', { 
+                <p className="text-xs text-gray-600 text-muted-foreground mb-1">Check-Out Date</p>
+                <p className="text-sm text-gray-600 font-medium">{checkOutDate.toLocaleDateString('en-US', { 
                   weekday: 'short', 
                   year: 'numeric', 
                   month: 'short', 
@@ -144,7 +156,7 @@ function OccupantDetailsDialog({ room, open, onOpenChange }: OccupantDetailsDial
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Number of Nights</p>
-                <p className="text-sm font-medium">{nights} {nights === 1 ? 'night' : 'nights'}</p>
+                <p className="text-sm text-gray-600 font-medium">{nights} {nights === 1 ? 'night' : 'nights'}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Booking Status</p>

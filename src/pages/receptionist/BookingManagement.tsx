@@ -502,49 +502,53 @@ export default function BookingManagement() {
   const checkedIn = filteredBookings.filter(b => b.bookingStatus === "checked-in");
   const completed = filteredBookings.filter(b => b.bookingStatus === "checked-out");
 
-  // Countdown timer for checkout
-  const CheckoutCountdownTimer = ({ booking }: { booking: any }) => {
-    const [timeLeft, setTimeLeft] = useState("");
+  // Countdown timer for checkou
 
-    useEffect(() => {
-      const calculateTimeLeft = () => {
-        const checkOutTime = new Date(booking.checkOutDate).getTime();
-        const now = new Date().getTime();
-        const difference = checkOutTime - now;
+const CheckoutCountdownTimer = ({ booking }: { booking: any }) => {
+  const [timeLeft, setTimeLeft] = useState("");
 
-        if (difference > 0) {
-          const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-          const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
-          const minutes = Math.floor((difference / 1000 / 60) % 60);
-          const seconds = Math.floor((difference / 1000) % 60);
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      // ✅ FIXED: Explicitly set checkout time to 12:00 PM (noon)
+      const checkOutTime = new Date(booking.checkOutDate);
+      checkOutTime.setHours(12, 0, 0, 0); // Set to 12:00:00 PM
+      
+      const now = new Date().getTime();
+      const difference = checkOutTime.getTime() - now;
 
-          if (days > 0) {
-            setTimeLeft(`${days}d ${hours}h`);
-          } else if (hours > 0) {
-            setTimeLeft(`${hours}h ${minutes}m`);
-          } else {
-            setTimeLeft(`${minutes}m ${seconds}s`);
-          }
+      if (difference > 0) {
+        const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+        const minutes = Math.floor((difference / 1000 / 60) % 60);
+        const seconds = Math.floor((difference / 1000) % 60);
+
+        if (days > 0) {
+          setTimeLeft(`${days}d ${hours}h`);
+        } else if (hours > 0) {
+          setTimeLeft(`${hours}h ${minutes}m`);
         } else {
-          setTimeLeft("Checkout Due!");
+          setTimeLeft(`${minutes}m ${seconds}s`);
         }
-      };
+      } else {
+        setTimeLeft("Checkout Due!");
+      }
+    };
 
-      calculateTimeLeft();
-      const timer = setInterval(calculateTimeLeft, 1000);
-      return () => clearInterval(timer);
-    }, [booking.checkOutDate]);
+    calculateTimeLeft();
+    const timer = setInterval(calculateTimeLeft, 1000);
+    return () => clearInterval(timer);
+  }, [booking.checkOutDate]);
 
-    return (
-      <div className="text-center">
-        <div className="text-3xl font-bold text-red-600 animate-pulse flex items-center justify-center gap-2">
-          <LogOut className="h-6 w-6" />
-          {timeLeft}
-        </div>
-        <p className="text-xs text-muted-foreground mt-1">Time until check-out</p>
+  return (
+    <div className="text-center">
+      <div className="text-3xl font-bold text-red-600 animate-pulse flex items-center justify-center gap-2">
+        <LogOut className="h-6 w-6" />
+        {timeLeft}
       </div>
-    );
-  };
+      <p className="text-xs text-muted-foreground mt-1">Time until check-out (12:00 PM)</p>
+    </div>
+  );
+};
 
   const BookingCard = ({ booking }: { booking: any }) => {
     const guestName = booking.guestName || 'Unknown Guest';
@@ -1239,6 +1243,7 @@ export default function BookingManagement() {
               <p className="font-medium">
                 ₦{(viewingBooking.totalAmount - (viewingBooking.amountPaid || 0)).toLocaleString()}
               </p>
+              {/* {console.log(viewingBooking)} */}
             </div>
           </div>
         </div>

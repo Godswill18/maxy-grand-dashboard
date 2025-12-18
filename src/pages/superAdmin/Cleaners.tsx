@@ -298,11 +298,13 @@ export default function Cleaners() {
   const unassignedRooms = useMemo(
     () =>
       cleaningRooms.filter(
-        (room) => !pendingTasks.some((task) => task.roomId._id === room._id) &&
-                  !inProgressTasks.some((task) => task.roomId._id === room._id)
+        (room) => !pendingTasks.some((task) => task.roomId?._id === room?._id) &&
+                  !inProgressTasks.some((task) => task.roomId?._id === room?._id)
       ),
     [cleaningRooms, pendingTasks, inProgressTasks]
   );
+
+  // console.log(pendingTasks)
 
   const filteredCompletedTasks = useMemo(() => {
     return completedTasks.filter((task) => {

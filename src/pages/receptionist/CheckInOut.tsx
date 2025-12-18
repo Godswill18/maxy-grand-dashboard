@@ -15,6 +15,7 @@ import ExtendStayDialog from "@/components/ExtendStayDialog";
 import { toast } from "sonner";
 import CheckInForm from "@/components/modals/CheckInForm";
 
+
 const formatTime = (time: number) => time.toString().padStart(2, '0');
 
 const CheckoutTimer = ({ checkOutIsoDate }: { checkOutIsoDate: string }) => {
@@ -30,7 +31,7 @@ const CheckoutTimer = ({ checkOutIsoDate }: { checkOutIsoDate: string }) => {
     if (!checkOutIsoDate) return;
 
     const targetDate = new Date(checkOutIsoDate);
-    targetDate.setHours(12, 0, 0, 0);
+    targetDate.setHours(12, 0, 0, 0); // ✅ Set to 12:00 PM (noon)
 
     const timer = setInterval(() => {
       const now = new Date().getTime();
@@ -43,7 +44,7 @@ const CheckoutTimer = ({ checkOutIsoDate }: { checkOutIsoDate: string }) => {
           days: Math.floor(overdueDistance / (1000 * 60 * 60 * 24)),
           hours: Math.floor((overdueDistance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
           minutes: Math.floor((overdueDistance % (1000 * 60 * 60)) / (1000 * 60)),
-          seconds: 0,
+          seconds: Math.floor((overdueDistance % (1000 * 60)) / 1000), // ✅ Include seconds
         });
       } else {
         setIsOverdue(false);
@@ -51,7 +52,7 @@ const CheckoutTimer = ({ checkOutIsoDate }: { checkOutIsoDate: string }) => {
           days: Math.floor(distance / (1000 * 60 * 60 * 24)),
           hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
           minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
-          seconds: Math.floor((distance % (1000 * 60)) / 1000),
+          seconds: Math.floor((distance % (1000 * 60)) / 1000), // ✅ Include seconds
         });
       }
     }, 1000);
@@ -63,12 +64,12 @@ const CheckoutTimer = ({ checkOutIsoDate }: { checkOutIsoDate: string }) => {
   const timerColor = isOverdue ? "text-destructive" : "text-success";
 
   return (
-    <div className={`flex items-center gap-2 p-2 rounded-md ${isOverdue ? 'bg-destructive/10' : 'bg-success/10'}`}>
-      <Clock className={`h-4 w-4 ${timerColor}`} />
-      <span className={`text-sm font-medium ${timerColor}`}>
+    <div className={`flex items-center gap-2 p-3 rounded-md border-2 ${isOverdue ? 'bg-destructive/10 border-destructive' : 'bg-success/10 border-success'}`}>
+      <Clock className={`h-5 w-5 ${timerColor}`}/>
+      <span className={`text-base font-bold ${timerColor}`}>
         {isOverdue
-          ? `Checkout Overdue by: ${days}d ${hours}h ${minutes}m`
-          : `Checkout in: ${days}d ${formatTime(hours)}h ${formatTime(minutes)}m ${formatTime(seconds)}s`}
+          ? `Overdue: ${days}d ${formatTime(hours)}h ${formatTime(minutes)}m ${formatTime(seconds)}s`
+          : `Checkout: ${days}d ${formatTime(hours)}h ${formatTime(minutes)}m ${formatTime(seconds)}s`}
       </span>
     </div>
   );
