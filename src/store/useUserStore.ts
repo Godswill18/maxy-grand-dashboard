@@ -1,3 +1,5 @@
+// ✅ ENHANCED: useStaffStore.ts with current user support for notifications
+
 import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
 
@@ -41,6 +43,7 @@ interface StaffState {
   admins: AdminUser[];
   staff: StaffUser[];
   guests: GuestUser[];
+  currentUser: StaffUser | GuestUser | AdminUser | null; // ✅ NEW: Current logged-in user
   socket: Socket | null;
   isLoading: boolean;
   error: string | null;
@@ -49,7 +52,8 @@ interface StaffState {
   fetchGuests: () => Promise<void>;
   updateStaffStatus: (userId: string, isActive: boolean) => Promise<void>;
   updateStaffRole: (userId: string, newRole: string) => Promise<void>;
-  getUserById: (userId: string) => Promise<StaffUser | GuestUser | null>; 
+  getUserById: (userId: string) => Promise<StaffUser | GuestUser | null>;
+  setCurrentUser: (user: StaffUser | GuestUser | AdminUser | null) => void; // ✅ NEW
   initializeSocket: () => void;
   disconnectSocket: () => void;
 }
@@ -61,9 +65,22 @@ export const useStaffStore = create<StaffState>((set, get) => ({
   admins: [],
   staff: [],
   guests: [],
+  currentUser: null, // ✅ NEW
   socket: null,
   isLoading: false,
   error: null,
+
+  // ✅ NEW: Set current user
+  setCurrentUser: (user) => {
+    set({ currentUser: user });
+    
+    // Also save to localStorage for persistence
+    if (user) {
+      localStorage.setItem('currentUser', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('currentUser');
+    }
+  },
 
   fetchAdmins: async () => {
     set({ isLoading: true, error: null });
@@ -125,7 +142,6 @@ export const useStaffStore = create<StaffState>((set, get) => ({
     }
   },
 
-  // ✅ NEW FUNCTION: Fetch user by ID
   getUserById: async (userId: string) => {
     set({ isLoading: true, error: null });
     try {
@@ -179,31 +195,31 @@ export const useStaffStore = create<StaffState>((set, get) => ({
   },
 
   updateStaffRole: async (userId: string, newRole: string) => {
-  try {
-    const response = await fetch(`${VITE_API_URL}/api/users/update-staff-role/${userId}`, {
-      method: "PUT",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ newRole }),
-    });
+    try {
+      const response = await fetch(`${VITE_API_URL}/api/users/update-staff-role/${userId}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newRole }),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Failed to update staff role");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update staff role");
+      }
+
+      const data = await response.json();
+
+      set((state) => ({
+        staff: state.staff.map((s) =>
+          s._id === userId ? { ...s, role: data.data.role } : s
+        ),
+      }));
+    } catch (err: any) {
+      console.error("Error updating staff role:", err.message);
+      set({ error: err.message });
     }
-
-    const data = await response.json();
-
-    set((state) => ({
-      staff: state.staff.map((s) =>
-        s._id === userId ? { ...s, role: data.data.role } : s
-      ),
-    }));
-  } catch (err: any) {
-    console.error("Error updating staff role:", err.message);
-    set({ error: err.message });
-  }
-},
+  },
 
   initializeSocket: () => {
     if (get().socket) return;
@@ -247,3 +263,16 @@ export const useStaffStore = create<StaffState>((set, get) => ({
     set({ socket: null });
   },
 }));
+
+// ✅ Helper function to initialize current user from localStorage on app load
+export const initializeCurrentUser = () => {
+  try {
+    const userStr = localStorage.getItem('currentUser');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      useStaffStore.getState().setCurrentUser(user);
+    }
+  } catch (error) {
+    console.error('Error initializing current user:', error);
+  }
+};

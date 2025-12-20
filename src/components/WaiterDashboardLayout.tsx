@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "./NavLink";
 import { NotificationBell } from "@/components/NotificationBell";
-import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
+// import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
 
 interface WaiterDashboardLayoutProps {
   children: ReactNode;
@@ -34,7 +34,7 @@ export function WaiterDashboardLayout({ children }: WaiterDashboardLayoutProps) 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   
-  useSimulatedNotifications();
+  // useSimulatedNotifications();
 
   const toggleDarkMode = () => {
     const newMode = !isDarkMode;

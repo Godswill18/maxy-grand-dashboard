@@ -10,6 +10,8 @@ import { DashboardLayout } from "./components/DashboardLayout";
 import { useAuthStore } from "./store/useAuthStore";
 // ✅ Import force logout hook
 import { useForceLogout } from "./store/useForceLogout";
+// ✅ Import NotificationProvider
+import { NotificationProvider } from "./contexts/NotificationContext";
 
 // Import the navigation arrays
 import {
@@ -244,125 +246,129 @@ const RoleProtectedRoute = ({ allowedRoles }: { allowedRoles: string[] }) => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner position="top-center" />
-      <BrowserRouter>
-        <Routes>
-          {/* Public-only routes (Login, Signup) */}
-          <Route element={<PublicRoutes />}>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-          </Route>
-
-          {/* Protected routes (all dashboards) */}
-          {/* This parent route provides the main layout (`RoleBasedLayout`) */}
-          {/* ✅ ProtectedRoutes now wraps everything with AuthenticatedLayout */}
-          <Route element={<ProtectedRoutes />}>
-            {/* The root path for all logged-in users. */}
-            {/* RoleBasedRoot handles redirecting to the correct dashboard. */}
-            <Route path="/" element={<RoleBasedRoot />} />
-
-            {/* --- SuperAdmin Routes --- */}
-            {/* These routes are *only* accessible to 'superadmin' */}
-            <Route element={<RoleProtectedRoute allowedRoles={['superadmin']} />}>
-              <Route path="/staffs" element={<Staffs />} />
-              <Route path="/shifts" element={<ShiftScheduler />} />
-              <Route path="/users" element={<Users />} />
-              <Route path="/branches" element={<Branches />} />
-              <Route path="/branches/:id" element={<BranchDetails />} />
-              <Route path="/rooms" element={<Rooms />} />
-              <Route path="/rooms/:id" element={<RoomDetailPage />} />
-              <Route path="/bookings" element={<Bookings />} />
-              <Route path="/cleaners" element={<Cleaners />} />
-              <Route path="/transactions" element={<Transactions />} />
-              <Route path="/requests" element={<Requests />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/reviews" element={<Reviews />} />
-              <Route path="/blog-management" element={<BlogManagement />} />
-              <Route path="/gallery-management" element={<GalleryManagement />} />
-              <Route path="/profile" element={<StaffProfile/>}/>
-              <Route path="/profile/update" element={<ProfileUpdate/>}/>
-              <Route path="/profile/change-password" element={<ChangePassword/>}/>
-              <Route path="/settings" element={<Settings />} />
+      {/* ✅ Wrap with NotificationProvider */}
+      <NotificationProvider>
+        <Toaster />
+        <Sonner position="top-center" />
+        <BrowserRouter>
+          <Routes>
+            {/* Public-only routes (Login, Signup) */}
+            <Route element={<PublicRoutes />}>
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
             </Route>
 
-            {/* --- Waiter Routes --- */}
-            {/* These routes are *only* accessible to 'waiter' */}
-            <Route element={<RoleProtectedRoute allowedRoles={['waiter','headWaiter']} />}>
-              <Route path="/waiter" element={<WaiterDashboard />} />
-              <Route path="/waiter/orders" element={<Orders />} />
-              <Route path="/waiter/orders/:orderId" element={<OrderDetail />} />
-              <Route path="/waiter/tables" element={<Tables />} />
-              <Route path="/waiter/menu" element={<Menu />} />
-              <Route path="/waiter/reservations" element={<Reservations />} />
-              <Route path="/waiter/performance" element={<TipsPerformance />} />
-              <Route path="/waiter/my-shift" element={<MySchedule />} />
-              <Route path="/waiter/profile" element={<StaffProfile/>}/>
-              <Route path="/waiter/profile/update" element={<ProfileUpdate/>}/>
-              <Route path="/waiter/profile/change-password" element={<ChangePassword/>}/>
-              <Route path="/waiter/settings" element={<Settings />} />
+            {/* Protected routes (all dashboards) */}
+            {/* This parent route provides the main layout (`RoleBasedLayout`) */}
+            {/* ✅ ProtectedRoutes now wraps everything with AuthenticatedLayout */}
+            <Route element={<ProtectedRoutes />}>
+              {/* The root path for all logged-in users. */}
+              {/* RoleBasedRoot handles redirecting to the correct dashboard. */}
+              <Route path="/" element={<RoleBasedRoot />} />
+
+              {/* --- SuperAdmin Routes --- */}
+              {/* These routes are *only* accessible to 'superadmin' */}
+              <Route element={<RoleProtectedRoute allowedRoles={['superadmin']} />}>
+                <Route path="/staffs" element={<Staffs />} />
+                <Route path="/shifts" element={<ShiftScheduler />} />
+                <Route path="/users" element={<Users />} />
+                <Route path="/branches" element={<Branches />} />
+                <Route path="/branches/:id" element={<BranchDetails />} />
+                <Route path="/rooms" element={<Rooms />} />
+                <Route path="/rooms/:id" element={<RoomDetailPage />} />
+                <Route path="/bookings" element={<Bookings />} />
+                <Route path="/cleaners" element={<Cleaners />} />
+                <Route path="/transactions" element={<Transactions />} />
+                <Route path="/requests" element={<Requests />} />
+                <Route path="/reports" element={<Reports />} />
+                <Route path="/reviews" element={<Reviews />} />
+                <Route path="/blog-management" element={<BlogManagement />} />
+                <Route path="/gallery-management" element={<GalleryManagement />} />
+                <Route path="/profile" element={<StaffProfile/>}/>
+                <Route path="/profile/update" element={<ProfileUpdate/>}/>
+                <Route path="/profile/change-password" element={<ChangePassword/>}/>
+                <Route path="/settings" element={<Settings />} />
+              </Route>
+
+              {/* --- Waiter Routes --- */}
+              {/* These routes are *only* accessible to 'waiter' */}
+              <Route element={<RoleProtectedRoute allowedRoles={['waiter','headWaiter']} />}>
+                <Route path="/waiter" element={<WaiterDashboard />} />
+                <Route path="/waiter/orders" element={<Orders />} />
+                <Route path="/waiter/orders/:orderId" element={<OrderDetail />} />
+                <Route path="/waiter/tables" element={<Tables />} />
+                <Route path="/waiter/menu" element={<Menu />} />
+                <Route path="/waiter/reservations" element={<Reservations />} />
+                <Route path="/waiter/performance" element={<TipsPerformance />} />
+                <Route path="/waiter/my-shift" element={<MySchedule />} />
+                <Route path="/waiter/profile" element={<StaffProfile/>}/>
+                <Route path="/waiter/profile/update" element={<ProfileUpdate/>}/>
+                <Route path="/waiter/profile/change-password" element={<ChangePassword/>}/>
+                <Route path="/waiter/settings" element={<Settings />} />
+              </Route>
+
+              {/* --- Branch Manager Routes --- */}
+              {/* These routes are *only* accessible to 'admin' (manager) */}
+              <Route element={<RoleProtectedRoute allowedRoles={['admin']} />}>
+                <Route path="/manager" element={<ManagerDashboard />} />
+                <Route path="/manager/staff" element={<StaffManagement />} />
+                <Route path="/manager/shifts" element={<ShiftScheduler />} />
+                <Route path="/manager/analytics" element={<BranchAnalytics />} />
+                <Route path="/manager/requests" element={<ManagerRequests />} />
+                <Route path="/manager/rooms-type" element={<Rooms />} />
+                <Route path="/manager/rooms-type/:id" element={<RoomDetailPage />} />
+                <Route path="/manager/operations" element={<Operations />} />
+                <Route path="/manager/house-keeping" element={<Housekeeping />} />
+                <Route path="/manager/bookings" element={<Bookings />} />
+                <Route path="/manager/orders" element={<Restaurant />} />
+                <Route path="/manager/reviews" element={<Reviews />} />
+                {/* <Route path="/manager/transactions" element={<Transactions />} /> */}
+                <Route path="/manager/rooms" element={<RoomReceptionist />} />
+                <Route path="/manager/profile" element={<StaffProfile/>}/>
+                <Route path="/manager/profile/update" element={<ProfileUpdate/>}/>
+                <Route path="/manager/profile/change-password" element={<ChangePassword/>}/>
+                <Route path="/manager/settings" element={<Settings />} />
+              </Route>
+
+              {/* --- Cleaner Routes --- */}
+              {/* These routes are *only* accessible to 'cleaner' */}
+              <Route element={<RoleProtectedRoute allowedRoles={['cleaner']} />}>
+                <Route path="/cleaner" element={<CleanerDashboard />} />
+                <Route path="/cleaner/tasks" element={<CleaningTasks />} />
+                <Route path="/cleaner/rooms" element={<RoomStatus />} />
+                <Route path="/cleaner/history" element={<TaskHistory />} />
+                <Route path="/cleaner/performance" element={<CleanerPerformance />} />
+                <Route path="/cleaner/my-shift" element={<MySchedule />} />
+                <Route path="/cleaner/profile" element={<StaffProfile/>}/>
+                <Route path="/cleaner/profile/update" element={<ProfileUpdate/>}/>
+                <Route path="/cleaner/profile/change-password" element={<ChangePassword/>}/>
+                <Route path="/cleaner/settings" element={<Settings />} />
+              </Route>
+
+              {/* --- Receptionist Routes --- */}
+              {/* These routes are *only* accessible to 'receptionist' */}
+              <Route element={<RoleProtectedRoute allowedRoles={['receptionist']} />}>
+                <Route path="/receptionist" element={<ReceptionistDashboard />} />
+                <Route path="/receptionist/checkin" element={<CheckInOut />} />
+                <Route path="/receptionist/rooms" element={<RoomReceptionist />} />
+                <Route path="/receptionist/bookings" element={<BookingManagement />} />
+                <Route path="/receptionist/calendar" element={<BookingCalendar />} />
+                <Route path="/receptionist/my-shift" element={<MySchedule />} />
+                <Route path="/receptionist/payments" element={<PaymentProcessing />} />
+                <Route path="/receptionist/profile" element={<StaffProfile/>}/>
+                <Route path="/receptionist/profile/update" element={<ProfileUpdate/>}/>
+                <Route path="/receptionist/profile/change-password" element={<ChangePassword/>}/>
+                <Route path="/receptionist/settings" element={<Settings />} />
+              </Route>
             </Route>
 
-            {/* --- Branch Manager Routes --- */}
-            {/* These routes are *only* accessible to 'admin' (manager) */}
-            <Route element={<RoleProtectedRoute allowedRoles={['admin']} />}>
-              <Route path="/manager" element={<ManagerDashboard />} />
-              <Route path="/manager/staff" element={<StaffManagement />} />
-              <Route path="/manager/shifts" element={<ShiftScheduler />} />
-              <Route path="/manager/analytics" element={<BranchAnalytics />} />
-              <Route path="/manager/requests" element={<ManagerRequests />} />
-              <Route path="/manager/rooms-type" element={<Rooms />} />
-              <Route path="/manager/rooms-type/:id" element={<RoomDetailPage />} />
-              <Route path="/manager/operations" element={<Operations />} />
-              <Route path="/manager/house-keeping" element={<Housekeeping />} />
-              <Route path="/manager/bookings" element={<Bookings />} />
-              <Route path="/manager/orders" element={<Restaurant />} />
-              <Route path="/manager/reviews" element={<Reviews />} />
-              {/* <Route path="/manager/transactions" element={<Transactions />} /> */}
-              <Route path="/manager/rooms" element={<RoomReceptionist />} />
-              <Route path="/manager/profile" element={<StaffProfile/>}/>
-              <Route path="/manager/profile/update" element={<ProfileUpdate/>}/>
-              <Route path="/manager/profile/change-password" element={<ChangePassword/>}/>
-              <Route path="/manager/settings" element={<Settings />} />
-            </Route>
-
-            {/* --- Cleaner Routes --- */}
-            {/* These routes are *only* accessible to 'cleaner' */}
-            <Route element={<RoleProtectedRoute allowedRoles={['cleaner']} />}>
-              <Route path="/cleaner" element={<CleanerDashboard />} />
-              <Route path="/cleaner/tasks" element={<CleaningTasks />} />
-              <Route path="/cleaner/rooms" element={<RoomStatus />} />
-              <Route path="/cleaner/history" element={<TaskHistory />} />
-              <Route path="/cleaner/performance" element={<CleanerPerformance />} />
-              <Route path="/cleaner/my-shift" element={<MySchedule />} />
-              <Route path="/cleaner/profile" element={<StaffProfile/>}/>
-              <Route path="/cleaner/profile/update" element={<ProfileUpdate/>}/>
-              <Route path="/cleaner/profile/change-password" element={<ChangePassword/>}/>
-              <Route path="/cleaner/settings" element={<Settings />} />
-            </Route>
-
-            {/* --- Receptionist Routes --- */}
-            {/* These routes are *only* accessible to 'receptionist' */}
-            <Route element={<RoleProtectedRoute allowedRoles={['receptionist']} />}>
-              <Route path="/receptionist" element={<ReceptionistDashboard />} />
-              <Route path="/receptionist/checkin" element={<CheckInOut />} />
-              <Route path="/receptionist/rooms" element={<RoomReceptionist />} />
-              <Route path="/receptionist/bookings" element={<BookingManagement />} />
-              <Route path="/receptionist/calendar" element={<BookingCalendar />} />
-              <Route path="/receptionist/my-shift" element={<MySchedule />} />
-              <Route path="/receptionist/payments" element={<PaymentProcessing />} />
-              <Route path="/receptionist/profile" element={<StaffProfile/>}/>
-              <Route path="/receptionist/profile/update" element={<ProfileUpdate/>}/>
-              <Route path="/receptionist/profile/change-password" element={<ChangePassword/>}/>
-              <Route path="/receptionist/settings" element={<Settings />} />
-            </Route>
-          </Route>
-
-          {/* Catch-all 404 Route */}
-          {/* This should be outside the protected routes to work correctly */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+            {/* Catch-all 404 Route */}
+            {/* This should be outside the protected routes to work correctly */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </NotificationProvider>
+      {/* ✅ End NotificationProvider */}
     </TooltipProvider>
   </QueryClientProvider>
 );

@@ -3,7 +3,7 @@ import { NavLink } from "./NavLink";
 import { LayoutDashboard, Users, TrendingUp, FileText, Settings, Moon, Sun, Menu, X, ClipboardList } from "lucide-react";
 import { Button } from "./ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
-import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
+// import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
 
 interface BranchManagerDashboardLayoutProps {
   children: React.ReactNode;
@@ -20,7 +20,7 @@ export function BranchManagerDashboardLayout({ children }: BranchManagerDashboar
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
-  useSimulatedNotifications();
+  // useSimulatedNotifications();-
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;

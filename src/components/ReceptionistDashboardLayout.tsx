@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Moon, Sun, Menu, LayoutDashboard, UserCheck, DoorOpen, BedDouble, Calendar, CreditCard } from "lucide-react";
 import { NavLink } from "./NavLink";
 import { NotificationBell } from "@/components/NotificationBell";
-import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
+// import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
 
 const navigation = [
   { name: "Dashboard", href: "/receptionist", icon: LayoutDashboard },
@@ -27,7 +27,7 @@ export function ReceptionistDashboardLayout({ children }: { children: React.Reac
   });
   const location = useLocation();
   
-  useSimulatedNotifications();
+  // useSimulatedNotifications();
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;

@@ -1,8 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Phone, Calendar } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Mail, Phone, Calendar, Search, X } from "lucide-react";
 import { useStaffStore } from "../../store/useUserStore";
+import { Button } from "@/components/ui/button";
 
 export default function Users() {
   const guests = useStaffStore((state) => state.guests);
@@ -10,9 +13,40 @@ export default function Users() {
   const error = useStaffStore((state) => state.error);
   const fetchGuests = useStaffStore((state: any) => state.fetchGuests);
 
+  // ✅ Search and filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+
   useEffect(() => {
     if (!guests.length) fetchGuests();
   }, []);
+
+  // ✅ Filter guests based on search and status
+  const filteredGuests = guests.filter((guest) => {
+    // Search filter
+    const matchesSearch = 
+      guest.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      guest.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      guest.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      guest.phoneNumber.includes(searchQuery);
+
+    // Status filter
+    const matchesStatus = 
+      statusFilter === "all" ||
+      (statusFilter === "active" && guest.isActive) ||
+      (statusFilter === "inactive" && !guest.isActive);
+
+    return matchesSearch && matchesStatus;
+  });
+
+  // ✅ Clear all filters
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+  };
+
+  // ✅ Check if filters are active
+  const hasActiveFilters = searchQuery !== "" || statusFilter !== "all";
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -22,6 +56,82 @@ export default function Users() {
           <p className="text-muted-foreground">View and manage registered guests</p>
         </div>
       </div>
+
+      {/* ✅ Search and Filter Section */}
+      <Card className="border-primary/20">
+        <CardContent className="p-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, email, or phone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Status Filter */}
+            <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active Only</SelectItem>
+                <SelectItem value="inactive">Inactive Only</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Clear Filters Button */}
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleClearFilters}
+                title="Clear filters"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          {/* ✅ Active Filters Display */}
+          {hasActiveFilters && (
+            <div className="flex items-center gap-2 mt-4">
+              <span className="text-sm text-muted-foreground">Active filters:</span>
+              {searchQuery && (
+                <Badge variant="secondary" className="gap-1">
+                  Search: "{searchQuery}"
+                  <X
+                    className="h-3 w-3 cursor-pointer hover:text-destructive"
+                    onClick={() => setSearchQuery("")}
+                  />
+                </Badge>
+              )}
+              {statusFilter !== "all" && (
+                <Badge variant="secondary" className="gap-1">
+                  Status: {statusFilter}
+                  <X
+                    className="h-3 w-3 cursor-pointer hover:text-destructive"
+                    onClick={() => setStatusFilter("all")}
+                  />
+                </Badge>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ✅ Results Count */}
+      {!isLoading && !error && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Showing {filteredGuests.length} of {guests.length} guest{guests.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      )}
 
       {/* --- LOADING SKELETON --- */}
       {isLoading && (
@@ -64,17 +174,30 @@ export default function Users() {
         </div>
       )}
 
-      {/* --- EMPTY STATE --- */}
+      {/* --- EMPTY STATE (No guests at all) --- */}
       {!isLoading && !error && guests.length === 0 && (
         <div className="text-center py-12">
           <p className="text-muted-foreground">No guests found.</p>
         </div>
       )}
 
+      {/* ✅ NO RESULTS STATE (Guests exist but filter returned nothing) */}
+      {!isLoading && !error && guests.length > 0 && filteredGuests.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground text-lg mb-2">No guests match your filters</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            Try adjusting your search or filter criteria
+          </p>
+          <Button variant="outline" onClick={handleClearFilters}>
+            Clear All Filters
+          </Button>
+        </div>
+      )}
+
       {/* --- DATA DISPLAY --- */}
-      {!isLoading && !error && (guests || []).length > 0 && (
+      {!isLoading && !error && filteredGuests.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {(guests || []).map((user, index) => (
+          {filteredGuests.map((user, index) => (
             <Card
               key={user._id}
               className="hover:shadow-lg transition-all animate-in fade-in slide-in-from-bottom"

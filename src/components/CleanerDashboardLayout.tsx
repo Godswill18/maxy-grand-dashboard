@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Moon, Sun, Menu, Sparkles, ClipboardList, History, TrendingUp, LayoutDashboard } from "lucide-react";
 import { NavLink } from "./NavLink";
 import { NotificationBell } from "@/components/NotificationBell";
-import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
+// import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
 
 const navigation = [
   { name: "Dashboard", href: "/cleaner", icon: LayoutDashboard },
@@ -27,7 +27,7 @@ export function CleanerDashboardLayout({ children }: { children: React.ReactNode
   });
   const location = useLocation();
   
-  useSimulatedNotifications();
+  // useSimulatedNotifications();
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 // We don't need useToast here for logout anymore, but maybe for other things
 // import { useToast } from "@/hooks/use-toast"; 
-import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
+// import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { NavItem } from "@/config/navigation";
@@ -37,7 +37,7 @@ export function DashboardLayout({
   const [isSidebarOpen, setIsSidebarOpen] =useState(false);
 
   // Hook for notifications (used by Header's NotificationBell)
-  useSimulatedNotifications();
+  // useSimulatedNotifications();
 
   // Logout handler (passed to Sidebar)
   const handleLogout = async () => {
@@ -58,7 +58,7 @@ export function DashboardLayout({
 
    // ✅ NEW: Get the actual role key from the auth store
   // This is used by Sidebar to determine which profile route to navigate to
-  const userRoleKey = user?.role || "guest";
+  const userRoleKey = user?.role;
 
   return (
     <div className="min-h-screen bg-background flex w-full">
