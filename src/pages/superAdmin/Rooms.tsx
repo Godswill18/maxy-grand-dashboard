@@ -86,14 +86,21 @@ export default function Rooms() {
     new Map(branches.map(branch => [branch._id, branch.name]))
   , [branches]);
 
-  const filteredRooms = useMemo(() => {
-    if (!selectedBranchId) {
-      return rooms;
-    }
-    return rooms.filter(room => room.hotelId === selectedBranchId);
-  }, [rooms, selectedBranchId]);
+ const filteredRooms = useMemo(() => {
+  if (!selectedBranchId) return rooms;
 
-  // console.log(rooms)
+  return rooms.filter((room) => {
+    if (!room.hotelId) return false;
+
+    const roomHotelId =
+      typeof room.hotelId === "object"
+        ? room.hotelId._id
+        : room.hotelId;
+
+    return roomHotelId === selectedBranchId;
+  });
+}, [rooms, selectedBranchId]);
+
 
   // --- Calculate Statistics ---
   const stats = useMemo(() => {
@@ -283,7 +290,7 @@ export default function Rooms() {
                         </div>
                       </div>
 
-                      <Link to={isSuperAdmin ? `/rooms-type/${room._id}` : `/manager/rooms-type/${room._id}`}>
+                      <Link to={isSuperAdmin ? `/rooms/${room._id}` : `/manager/rooms-type/${room._id}`}>
                         <Button variant="outline" className="w-full">View Details</Button>
                       </Link>
                     </CardContent>

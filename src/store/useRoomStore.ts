@@ -141,9 +141,22 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       // 4. Handle different response structures based on endpoint
       // /get-all-rooms usually returns { data: [...] }
       // /by-hotel usually returns { rooms: [...] } based on your previous code
-      const data = response.data.data || response.data.rooms || [];
+      const resData = response.data;
 
-      set({ rooms: data, isLoading: false });
+        let rooms: any[] = [];
+
+        if (Array.isArray(resData)) {
+          rooms = resData;
+        } else if (Array.isArray(resData.data)) {
+          rooms = resData.data;
+        } else if (Array.isArray(resData.rooms)) {
+          rooms = resData.rooms;
+        } else if (Array.isArray(resData.data?.rooms)) {
+          rooms = resData.data.rooms;
+        }
+
+        set({ rooms, isLoading: false });
+
 
     } catch (err) {
       const error = err as AxiosError;

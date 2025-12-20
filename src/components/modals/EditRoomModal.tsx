@@ -58,45 +58,56 @@ export function EditRoomModal({ isOpen, onClose, room }: EditRoomModalProps) {
       description: "",
       amenities: "",
       price: 0,
-      capacity: 1,
+      capacity: 2,
       isAvailable: true,
       hotelId: "",
     },
   });
 
   // When the modal opens or the room data changes, reset the form
-  useEffect(() => {
-    if (room) {
-      form.reset({
-        ...room,
-        // Handle if amenities is an array (convert to string for form)
-        amenities: Array.isArray(room.amenities)
-          ? room.amenities.join(", ")
-          : room.amenities,
-      });
-    }
-  }, [room, form, isOpen]);
+useEffect(() => {
+  if (room && isOpen) {
+    form.reset({
+      name: room.name ?? "",
+      roomNumber: room.roomNumber ?? "",
+      description: room.description ?? "",
+      amenities: Array.isArray(room.amenities)
+        ? room.amenities.join(", ")
+        : room.amenities ?? "",
+      price: room.price ?? 0,
+      capacity: room.capacity ?? 1,
+      isAvailable: room.isAvailable ?? true,
+      hotelId:
+        typeof room.hotelId === "object"
+          ? room.hotelId._id
+          : room.hotelId,
+    });
+  }
+}, [room?._id, isOpen]);
+
 
   // Handle the text-only update
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!room) return;
+ async function onSubmit(values: z.infer<typeof formSchema>) {
+  if (!room) return;
 
-    // Convert amenities string back to array if needed by your schema,
-    // or just send the string if your backend handles it.
-    const dataToUpdate: any = {
-      ...values,
-      // amenities: values.amenities.split(',').map(s => s.trim()), // Example
-    };
+  const dataToUpdate: any = {
+    ...values
+  };
 
-    const result = await updateRoom(room._id, dataToUpdate);
+  const result = await updateRoom(room._id, dataToUpdate);
 
-    if (result.success) {
-      toast.success("Room details updated successfully!");
-      onClose();
-    } else {
-      toast.error("Failed to update room details.");
-    }
+  if (result.success) {
+    toast.success("Room details updated successfully!");
+
+    // 🔴 FORCE a fresh fetch so state is complete
+    await useRoomStore.getState().fetchRoomById(room._id);
+
+    onClose();
+  } else {
+    toast.error("Failed to update room details.");
   }
+}
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

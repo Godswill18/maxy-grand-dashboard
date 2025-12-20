@@ -33,6 +33,7 @@ import {
 import { formatMoney } from '@/components/utils/formatMoney';
 import { EditRoomModal } from '@/components/modals/EditRoomModal';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuthStore } from '@/store/useAuthStore';
 
 // A placeholder for the edit modal
 // const EditRoomModal = ({ isOpen, onClose, room }: { isOpen: boolean, onClose: () => void, room: any }) => {
@@ -52,6 +53,8 @@ export default function RoomDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const isSuperAdmin = user?.role === 'superadmin';
 
   const { currentRoom, isLoading, error, fetchRoomById, updateRoom, deleteRoom, addImages, deleteImage } = useRoomStore();
 
@@ -124,16 +127,22 @@ useEffect(() => {
 
 
 
-  const handleDelete = async () => {
-    if (!id) return;
-    const res = await deleteRoom(id);
-    if (res && (res as any).success) {
-      toast.success('Room deleted');
-      navigate('/rooms');
-    } else {
-      toast.error('Failed to delete room');
-    }
-  };
+const handleDelete = async () => {
+  if (!id) return;
+
+  const res = await deleteRoom(id);
+
+  if (res?.success) {
+    toast.success("Room deleted");
+
+    navigate(isSuperAdmin ? "/rooms" : "/manager/rooms", {
+      replace: true,
+    });
+  } else {
+    toast.error("Failed to delete room");
+  }
+};
+
 
   // --- 👇 NEW: Handler for ADDING images ---
   const handleAddImages = async () => {
@@ -211,7 +220,8 @@ useEffect(() => {
 
   {/* 2. Parent Link (The "Back to Rooms" part) */}
   <Link 
-    to="/manager/rooms" 
+    to={(isSuperAdmin ? "/rooms" : "/manager/rooms")}
+
     className="hover:text-foreground transition-colors"
   >
     Rooms
@@ -309,7 +319,7 @@ useEffect(() => {
           </div>
         </div>
         
-        <div className="bg-muted/50 p-6 rounded-lg">
+        {/* <div className="bg-muted/50 p-6 rounded-lg">
           <h3 className="text-2xl font-semibold mb-4">At a Glance</h3>
           <ul className="space-y-3">
             <li className="flex items-center gap-3">
@@ -325,7 +335,7 @@ useEffect(() => {
               <span>55" Smart TV (example)</span>
             </li>
           </ul>
-        </div>
+        </div> */}
       </div>
 
       {/* --- 👇 NEW: Image Management Card --- */}

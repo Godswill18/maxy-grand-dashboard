@@ -33,8 +33,8 @@ export function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
     address: '',
     phoneNumber: '',
     manager: '',
-    roomCount: 0,
-    staffCount: 0,
+    // roomCount: 0,
+    // staffCount: 0,
     isActive: true,
   });
 
@@ -49,8 +49,8 @@ export function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
         address: branch.address,
         phoneNumber: branch.phoneNumber,
         manager: branch.manager || '',
-        roomCount: branch.roomCount || 0,
-        staffCount: branch.staffCount || 0,
+        // roomCount: branch.roomCount || 0,
+        // staffCount: branch.staffCount || 0,
         isActive: branch.isActive,
       });
     } else {
@@ -61,8 +61,8 @@ export function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
         address: '',
         phoneNumber: '',
         manager: '',
-        roomCount: 0,
-        staffCount: 0,
+        // roomCount: 0,
+        // staffCount: 0,
         isActive: true,
       });
     }
@@ -80,11 +80,11 @@ export function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
     const { name, value, type, checked } = e.target;
 
     // For numeric fields stored as numbers in state, strip non-digits and store as number
-    if (name === 'roomCount' || name === 'staffCount') {
-      const digitsOnly = value.replace(/\D/g, '');
-      setFormData((prev) => ({ ...prev, [name]: digitsOnly === '' ? 0 : Number(digitsOnly) }));
-      return;
-    }
+    // if (name === 'roomCount' || name === 'staffCount') {
+    //   const digitsOnly = value.replace(/\D/g, '');
+    //   setFormData((prev) => ({ ...prev, [name]: digitsOnly === '' ? 0 : Number(digitsOnly) }));
+    //   return;
+    // }
 
     setFormData((prev) => ({
       ...prev,
@@ -162,7 +162,7 @@ export function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
+          {/* <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="roomCount" className="text-right">Rooms</Label>
             <Input
               id="roomCount"
@@ -174,8 +174,8 @@ export function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
               onChange={handleChange}
               className="col-span-3"
             />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
+          </div> */}
+          {/* <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="staffCount" className="text-right">Staff</Label>
             <Input
               id="staffCount"
@@ -187,7 +187,7 @@ export function BranchModal({ isOpen, onClose, branch }: BranchModalProps) {
               onChange={handleChange}
               className="col-span-3"
             />
-          </div>
+          </div> */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="isActive" className="text-right">Active</Label>
             <Switch id="isActive" checked={formData.isActive} onCheckedChange={handleSwitchChange} />
