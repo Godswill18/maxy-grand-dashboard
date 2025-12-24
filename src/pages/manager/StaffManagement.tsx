@@ -31,7 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
-type StaffRole = 'receptionist' | 'cleaner' | 'waiter' | 'admin';
+type StaffRole = 'receptionist' | 'cleaner' | 'waiter' | 'headWaiter' | 'admin';
 
 // Define interface for staff member
 interface StaffMember {
@@ -51,6 +51,7 @@ const roleColors: Record<string, string> = {
   Receptionist: "bg-secondary text-secondary-foreground",
   Cleaner: "bg-info text-info-foreground",
   Waiter: "bg-warning text-warning-foreground",
+  HeadWaiter: "bg-8  text-warning-foreground",
   Admin: "bg-primary text-primary-foreground",
 };
 
@@ -58,6 +59,7 @@ const roleIcons: Record<string, any> = {
   receptionist: UserCheck,
   cleaner: UserCheck,
   waiter: UserCheck,
+  headWaiter: UserCheck,
   admin: Shield,
 };
 
@@ -344,6 +346,7 @@ export default function StaffManagement() {
                     <SelectItem value="receptionist">Receptionist</SelectItem>
                     <SelectItem value="cleaner">Housekeeper</SelectItem>
                     <SelectItem value="waiter">Waiter</SelectItem>
+                    <SelectItem value="headWaiter">HeadWaiter</SelectItem>
                     <SelectItem value="admin">Branch Manager</SelectItem>
                   </SelectContent>
                 </Select>
@@ -481,7 +484,8 @@ export default function StaffManagement() {
                     <SelectContent>
                       <SelectItem value="receptionist">Receptionist</SelectItem>
                       <SelectItem value="cleaner">Housekeeper</SelectItem>
-                      <SelectItem value="waiter">Waiter</SelectItem>
+                      <SelectItem value="waiter">Waiter</SelectItem>     
+                      <SelectItem value="headWaiter">HeadWaiter</SelectItem>
                       <SelectItem value="admin">Manager</SelectItem>
                     </SelectContent>
                   </Select>

@@ -260,6 +260,7 @@ export default function BranchAnalytics() {
                                                 dataKey="value"
                                                 
                                             >
+                                                {/* {console.log(roomTypeRevenue)} */}
                                                 {roomTypeRevenue.map((entry, index) => (
                                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                                 ))}

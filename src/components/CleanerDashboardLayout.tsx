@@ -66,7 +66,7 @@ export function CleanerDashboardLayout({ children }: { children: React.ReactNode
             <div className="flex items-center gap-2 justify-between">
               <span className="text-sm text-muted-foreground">Dark Mode</span>
               <div className="flex items-center gap-1">
-                <NotificationBell />
+                {/* <NotificationBell /> */}
                 <Button variant="ghost" size="icon" onClick={toggleDarkMode}>
                   {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>

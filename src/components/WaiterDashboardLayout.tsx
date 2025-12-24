@@ -110,7 +110,7 @@ export function WaiterDashboardLayout({ children }: WaiterDashboardLayoutProps) 
           <h1 className="text-lg font-semibold">Waiter Portal</h1>
           
           <div className="flex items-center gap-2">
-            <NotificationBell />
+            {/* <NotificationBell /> */}
             <Button variant="ghost" size="icon" onClick={toggleDarkMode}>
               {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>

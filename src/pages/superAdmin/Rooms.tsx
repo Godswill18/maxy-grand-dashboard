@@ -1,9 +1,13 @@
-// src/components/Rooms.tsx
+// ✅ UPDATED: Rooms.tsx with filters, search, and 'occupied-needs-cleaning' status
+
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, BedDouble, CheckCircle, Sparkles, DoorOpen } from "lucide-react"; // Added icons
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MapPin, BedDouble, CheckCircle, Sparkles, DoorOpen, AlertCircle, Search, Filter, X, SlidersHorizontal } from "lucide-react";
 import { useRoomStore } from "../../store/useRoomStore";
 import { CreateRoomModal } from "@/components/CreateRoomModal";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,16 +16,27 @@ import { useBranchStore } from "../../store/useBranchStore";
 import { useAuthStore } from "../../store/useAuthStore";
 
 const statusColors: Record<string, string> = {
-  available: "bg-success text-success-foreground", // Lowercase to match backend usually
+  available: "bg-success text-success-foreground",
   occupied: "bg-destructive text-destructive-foreground",
+  'occupied-needs-cleaning': "bg-orange-500 text-white",
   booked: "bg-warning text-warning-foreground",
   cleaning: "bg-info text-info-foreground",
   maintenance: "bg-muted text-muted-foreground",
+  'out-of-service': "bg-gray-500 text-white",
+};
+
+const statusLabels: Record<string, string> = {
+  available: "Available",
+  occupied: "Occupied",
+  'occupied-needs-cleaning': "Needs Cleaning",
+  booked: "Booked",
+  cleaning: "Cleaning",
+  maintenance: "Maintenance",
+  'out-of-service': "Out of Service",
 };
 
 const VITE_BACKEND_IMAGE_URL = 'http://localhost:5000';
 
-// --- Skeleton for Stat Cards ---
 const StatCardSkeleton = () => (
   <Card>
     <CardContent className="p-6 flex items-center justify-between">
@@ -56,11 +71,9 @@ const RoomCardSkeleton = () => (
 
 const getSafeHotelName = (hotelData: any) => {
   if (!hotelData) return "Unknown Branch";
-  // If it's an object with a name property
   if (typeof hotelData === 'object' && hotelData.name) {
     return hotelData.name;
   }
-  // If it's just a string ID
   if (typeof hotelData === 'string') {
     return hotelData; 
   }
@@ -74,6 +87,14 @@ export default function Rooms() {
   const isSuperAdmin = user?.role === 'superadmin';
 
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  
+  // ✅ NEW: Filter & Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [priceRange, setPriceRange] = useState<"all" | "low" | "medium" | "high">("all");
+  const [sortBy, setSortBy] = useState<"roomNumber" | "price">("roomNumber");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     fetchRoomsAdmin();
@@ -86,31 +107,93 @@ export default function Rooms() {
     new Map(branches.map(branch => [branch._id, branch.name]))
   , [branches]);
 
- const filteredRooms = useMemo(() => {
-  if (!selectedBranchId) return rooms;
+  // ✅ NEW: Advanced Filtering Logic
+  const filteredAndSortedRooms = useMemo(() => {
+    let filtered = [...rooms];
 
-  return rooms.filter((room) => {
-    if (!room.hotelId) return false;
+    // 1. Branch filter (existing)
+    if (selectedBranchId) {
+      filtered = filtered.filter((room) => {
+        if (!room.hotelId) return false;
+        const roomHotelId = typeof room.hotelId === "object" ? room.hotelId._id : room.hotelId;
+        return roomHotelId === selectedBranchId;
+      });
+    }
 
-    const roomHotelId =
-      typeof room.hotelId === "object"
-        ? room.hotelId._id
-        : room.hotelId;
+    // 2. Search filter (room number or name)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(room => 
+        room.roomNumber.toLowerCase().includes(query) ||
+        room.name.toLowerCase().includes(query)
+      );
+    }
 
-    return roomHotelId === selectedBranchId;
-  });
-}, [rooms, selectedBranchId]);
+    // 3. Status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(room => room.status === statusFilter);
+    }
 
+    // 4. Price range filter
+    if (priceRange !== "all") {
+      filtered = filtered.filter(room => {
+        const price = room.price || 0;
+        switch (priceRange) {
+          case "low": return price < 50000;
+          case "medium": return price >= 50000 && price < 100000;
+          case "high": return price >= 100000;
+          default: return true;
+        }
+      });
+    }
 
-  // --- Calculate Statistics ---
+    // 5. Sorting
+    filtered.sort((a, b) => {
+      if (sortBy === "roomNumber") {
+        const aNum = parseInt(a.roomNumber) || 0;
+        const bNum = parseInt(b.roomNumber) || 0;
+        return sortOrder === "asc" ? aNum - bNum : bNum - aNum;
+      } else {
+        // Sort by price
+        const aPrice = a.price || 0;
+        const bPrice = b.price || 0;
+        return sortOrder === "asc" ? aPrice - bPrice : bPrice - aPrice;
+      }
+    });
+
+    return filtered;
+  }, [rooms, selectedBranchId, searchQuery, statusFilter, priceRange, sortBy, sortOrder]);
+
+  // ✅ NEW: Clear all filters
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setPriceRange("all");
+    setSortBy("roomNumber");
+    setSortOrder("asc");
+    setSelectedBranchId(null);
+  };
+
+  // ✅ NEW: Check if any filters are active
+  const hasActiveFilters = 
+    searchQuery !== "" || 
+    statusFilter !== "all" || 
+    priceRange !== "all" || 
+    sortBy !== "roomNumber" || 
+    sortOrder !== "asc" ||
+    selectedBranchId !== null;
+
+  // ✅ UPDATED: Calculate statistics from filtered rooms
   const stats = useMemo(() => {
     return {
-      total: filteredRooms.length,
-      // available: filteredRooms.filter(r => r.status === 'available' || r.isAvailable).length, // Handle different backend schemas
-      // cleaning: filteredRooms.filter(r => r.status === 'cleaning').length,
-      // occupied: filteredRooms.filter(r => r.status === 'occupied' ).length,
+      total: filteredAndSortedRooms.length,
+      available: filteredAndSortedRooms.filter(r => r.status === 'available').length,
+      occupied: filteredAndSortedRooms.filter(r => r.status === 'occupied').length,
+      needsCleaning: filteredAndSortedRooms.filter(r => r.status === 'occupied-needs-cleaning').length,
+      cleaning: filteredAndSortedRooms.filter(r => r.status === 'cleaning').length,
+      maintenance: filteredAndSortedRooms.filter(r => r.status === 'maintenance').length,
     };
-  }, [filteredRooms]);
+  }, [filteredAndSortedRooms]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -122,7 +205,128 @@ export default function Rooms() {
         <Button onClick={openModal}>Add New Room</Button>
       </div>
 
-      {/* --- Statistics Cards --- */}
+      {/* ✅ NEW: SEARCH & FILTER BAR */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-4">
+            {/* Search and Filter Toggle */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by room number or name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+                className="shrink-0"
+              >
+                <SlidersHorizontal className="h-4 w-4 mr-2" />
+                Filters
+                {hasActiveFilters && (
+                  <span className="ml-2 h-2 w-2 rounded-full bg-primary" />
+                )}
+              </Button>
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={clearFilters}
+                  className="shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            {/* Filter Controls */}
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t">
+                {/* Status Filter */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Status</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="available">Available</SelectItem>
+                      <SelectItem value="occupied">Occupied</SelectItem>
+                      <SelectItem value="occupied-needs-cleaning">Needs Cleaning</SelectItem>
+                      <SelectItem value="cleaning">Cleaning</SelectItem>
+                      <SelectItem value="maintenance">Maintenance</SelectItem>
+                      <SelectItem value="out-of-service">Out of Service</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Price Range Filter */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Price Range</Label>
+                  <Select value={priceRange} onValueChange={(value) => setPriceRange(value as typeof priceRange)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Prices" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Prices</SelectItem>
+                      <SelectItem value="low">Under ₦50,000</SelectItem>
+                      <SelectItem value="medium">₦50,000 - ₦100,000</SelectItem>
+                      <SelectItem value="high">Above ₦100,000</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Sort By */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Sort By</Label>
+                  <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Room Number" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="roomNumber">Room Number</SelectItem>
+                      <SelectItem value="price">Price</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Sort Order */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Order</Label>
+                  <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as typeof sortOrder)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Ascending" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="asc">Ascending</SelectItem>
+                      <SelectItem value="desc">Descending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ✅ NEW: Show result count */}
+      {hasActiveFilters && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>
+            Showing {filteredAndSortedRooms.length} of {rooms.length} rooms
+          </span>
+          <Button variant="link" onClick={clearFilters} className="h-auto p-0">
+            Clear all filters
+          </Button>
+        </div>
+      )}
+
+      {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {isLoading ? (
           <>
@@ -144,7 +348,8 @@ export default function Rooms() {
                 </div>
               </CardContent>
             </Card>
-            {/* <Card>
+            
+            <Card>
               <CardContent className="p-6 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Available</p>
@@ -155,17 +360,20 @@ export default function Rooms() {
                 </div>
               </CardContent>
             </Card>
+            
             <Card>
               <CardContent className="p-6 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Cleaning</p>
-                  <h2 className="text-3xl font-bold text-info">{stats.cleaning}</h2>
+                  <p className="text-sm font-medium text-muted-foreground">Needs Cleaning</p>
+                  <h2 className="text-3xl font-bold text-orange-500">{stats.needsCleaning}</h2>
+                  <p className="text-xs text-muted-foreground mt-1">Guest Occupied</p>
                 </div>
-                <div className="p-3 bg-info/10 rounded-full">
-                  <Sparkles className="h-6 w-6 text-info" />
+                <div className="p-3 bg-orange-100 rounded-full">
+                  <AlertCircle className="h-6 w-6 text-orange-500" />
                 </div>
               </CardContent>
             </Card>
+            
             <Card>
               <CardContent className="p-6 flex items-center justify-between">
                 <div>
@@ -176,12 +384,12 @@ export default function Rooms() {
                   <BedDouble className="h-6 w-6 text-destructive" />
                 </div>
               </CardContent>
-            </Card> */}
+            </Card>
           </>
         )}
       </div>
 
-      {/* --- Filter Bar --- */}
+      {/* Branch Filter Bar (for SuperAdmin) */}
       {isSuperAdmin && !isBranchesLoading && branches.length > 0 && (
         <div className="flex flex-wrap gap-2 pt-2">
           <Button
@@ -218,31 +426,40 @@ export default function Rooms() {
 
       {!isLoading && !error && (
         <>
-          {filteredRooms.length === 0 ? (
-            <div className="text-center text-muted-foreground py-16">
-              <h3 className="text-xl font-semibold">No Rooms Found</h3>
-              <p>No rooms match the selected criteria.</p>
-            </div>
+          {filteredAndSortedRooms.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <DoorOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No rooms found</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {hasActiveFilters 
+                    ? "Try adjusting your filters to see more results"
+                    : "No rooms available at the moment"
+                  }
+                </p>
+                {hasActiveFilters && (
+                  <Button variant="outline" onClick={clearFilters}>
+                    Clear Filters
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {(filteredRooms || []).map((room, index) => {
-                // Normalize status casing for the badge color lookup
-                const rawStatus = room.status || (room.isAvailable ? "available" : "inactive");
-                const status = rawStatus.toLowerCase(); // Ensure it matches keys in statusColors
-                const displayStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1); // Capitalize for display
+              {filteredAndSortedRooms.map((room, index) => {
+                const rawStatus = room.status || 'available';
+                const status = rawStatus.toLowerCase();
+                const displayStatus = statusLabels[status] || rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1);
 
-               const getBranchName = () => {
-                  // 1. Try looking it up in the branches map (if room.hotelId is just an ID string)
+                const getBranchName = () => {
                   const mappedName = typeof room.hotelId === 'string' ? branchNameMap.get(room.hotelId) : null;
                   
                   if (mappedName) return mappedName;
 
-                  // 2. If room.hotelId is an object (populated), use its .name property
                   if (room.hotelId && typeof room.hotelId === 'object' && (room.hotelId as any).name) {
                     return (room.hotelId as any).name;
                   }
 
-                  // 3. Fallbacks
                   return isSuperAdmin ? "Unknown Branch" : "My Branch";
                 };
                 
@@ -274,7 +491,10 @@ export default function Rooms() {
                             {room.name}
                           </p>
                         </div>
-                        <Badge className={statusColors[status] || "bg-secondary"}>
+                        <Badge className={`${statusColors[status] || "bg-secondary"} flex items-center gap-1`}>
+                          {status === 'occupied-needs-cleaning' && (
+                            <AlertCircle className="h-3 w-3" />
+                          )}
                           {displayStatus}
                         </Badge>
                       </div>

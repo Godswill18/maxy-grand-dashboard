@@ -247,7 +247,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       {/* ✅ Wrap with NotificationProvider */}
-      <NotificationProvider>
+      {/* <NotificationProvider> */}
         <Toaster />
         <Sonner position="top-center" />
         <BrowserRouter>
@@ -287,7 +287,7 @@ const App = () => (
                 <Route path="/profile" element={<StaffProfile/>}/>
                 <Route path="/profile/update" element={<ProfileUpdate/>}/>
                 <Route path="/profile/change-password" element={<ChangePassword/>}/>
-                <Route path="/settings" element={<Settings />} />
+                {/* <Route path="/settings" element={<Settings />} /> */}
               </Route>
 
               {/* --- Waiter Routes --- */}
@@ -304,7 +304,7 @@ const App = () => (
                 <Route path="/waiter/profile" element={<StaffProfile/>}/>
                 <Route path="/waiter/profile/update" element={<ProfileUpdate/>}/>
                 <Route path="/waiter/profile/change-password" element={<ChangePassword/>}/>
-                <Route path="/waiter/settings" element={<Settings />} />
+                {/* <Route path="/waiter/settings" element={<Settings />} /> */}
               </Route>
 
               {/* --- Branch Manager Routes --- */}
@@ -319,7 +319,8 @@ const App = () => (
                 <Route path="/manager/rooms-type/:id" element={<RoomDetailPage />} />
                 <Route path="/manager/operations" element={<Operations />} />
                 <Route path="/manager/house-keeping" element={<Housekeeping />} />
-                <Route path="/manager/bookings" element={<Bookings />} />
+                <Route path="/manager/bookings" element={<BookingManagement />} />
+                <Route path="/manager/booking-calendar" element={<Bookings />} />
                 <Route path="/manager/orders" element={<Restaurant />} />
                 <Route path="/manager/reviews" element={<Reviews />} />
                 {/* <Route path="/manager/transactions" element={<Transactions />} /> */}
@@ -327,7 +328,7 @@ const App = () => (
                 <Route path="/manager/profile" element={<StaffProfile/>}/>
                 <Route path="/manager/profile/update" element={<ProfileUpdate/>}/>
                 <Route path="/manager/profile/change-password" element={<ChangePassword/>}/>
-                <Route path="/manager/settings" element={<Settings />} />
+                {/* <Route path="/manager/settings" element={<Settings />} /> */}
               </Route>
 
               {/* --- Cleaner Routes --- */}
@@ -342,7 +343,7 @@ const App = () => (
                 <Route path="/cleaner/profile" element={<StaffProfile/>}/>
                 <Route path="/cleaner/profile/update" element={<ProfileUpdate/>}/>
                 <Route path="/cleaner/profile/change-password" element={<ChangePassword/>}/>
-                <Route path="/cleaner/settings" element={<Settings />} />
+                {/* <Route path="/cleaner/settings" element={<Settings />} /> */}
               </Route>
 
               {/* --- Receptionist Routes --- */}
@@ -358,7 +359,7 @@ const App = () => (
                 <Route path="/receptionist/profile" element={<StaffProfile/>}/>
                 <Route path="/receptionist/profile/update" element={<ProfileUpdate/>}/>
                 <Route path="/receptionist/profile/change-password" element={<ChangePassword/>}/>
-                <Route path="/receptionist/settings" element={<Settings />} />
+                {/* <Route path="/receptionist/settings" element={<Settings />} /> */}
               </Route>
             </Route>
 
@@ -367,7 +368,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-      </NotificationProvider>
+      {/* </NotificationProvider> */}
       {/* ✅ End NotificationProvider */}
     </TooltipProvider>
   </QueryClientProvider>

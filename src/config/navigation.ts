@@ -55,7 +55,7 @@ export const superAdminNav: NavItem[] = [
   { name: "Reviews", href: "/reviews", icon: Star },
   {name: "Blog Management", href: "/blog-management", icon: Space},
   { name: "Gallery Management", href: "/gallery-management", icon: ImagesIcon},
-  { name: "Settings", href: "/settings", icon: Settings },
+  // { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 // 2. Waiter Navigation
@@ -67,7 +67,7 @@ export const waiterNav: NavItem[] = [
   // { name: "Reservations", href: "/waiter/reservations", icon: CalendarDays },
   { name: "My Shift", href: "/waiter/my-shift", icon: CalendarDays },
   { name: "Tips & Performance", href: "/waiter/performance", icon: TrendingUp },
-  { name: "Settings", href: "/waiter/settings", icon: Settings },
+  // { name: "Settings", href: "/waiter/settings", icon: Settings },
 ];
 
 // 3. Branch Manager Navigation
@@ -81,12 +81,13 @@ export const managerNav: NavItem[] = [
   { name: "Room Type", href: "/manager/rooms-type", icon: Bed },
   { name: "Rooms", href: "/manager/rooms", icon: BedDouble },
   { name: "Bookings", href: "/manager/bookings", icon: Calendar },
+  { name: "Booking Calendar", href: "/manager/booking-calendar", icon: Calendar1Icon },
   // { name: "Transactions", href: "/manager/transactions", icon: CreditCard },
   { name: "Housekeeping", href: "/manager/house-keeping", icon: Sparkles },
   { name: "Orders", href: "/manager/orders", icon: UtensilsCrossed },
   { name: "Operations", href: "/manager/operations", icon: ClipboardList },
   { name: "Reviews", href: "/manager/reviews", icon: Star },
-  { name: "Settings", href: "/manager/settings", icon: Settings },
+  // { name: "Settings", href: "/manager/settings", icon: Settings },
 ];
 
 // 4. Cleaner Navigation
@@ -97,7 +98,7 @@ export const cleanerNav: NavItem[] = [
   { name: "Room Status", href: "/cleaner/rooms", icon: Sparkles },
   { name: "Task History", href: "/cleaner/history", icon: History },
   { name: "Performance", href: "/cleaner/performance", icon: TrendingUp },
-  { name: "Settings", href: "/cleaner/settings", icon: Settings },
+  // { name: "Settings", href: "/cleaner/settings", icon: Settings },
 ];
 
 // 5. Receptionist Navigation

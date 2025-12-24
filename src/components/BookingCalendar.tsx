@@ -24,7 +24,7 @@ export default function BookingCalendar({ bookings }: BookingCalendarProps) {
     () =>
       bookings.map((b) => ({
         id: b._id,
-        title: `${b.guestName} Hotel: (${b.hotelId?.name || "N/A"})`,
+        title: `Guest: ${b.guestName}, Hotel: (${b.hotelId?.name || "N/A"})`,
         start: new Date(b.checkInDate),
         end: new Date(b.checkOutDate),
         resource: b,

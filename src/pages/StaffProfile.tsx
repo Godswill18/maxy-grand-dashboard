@@ -151,11 +151,18 @@ export const StaffProfile = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Full Name */}
+              {/* ✅ UPDATED: Split first name and last name */}
               <div>
-                <label className="text-sm font-medium ">Full Name</label>
+                <label className="text-sm font-medium">First Name</label>
                 <p className="text-lg font-semibold text-gray-400 mt-1">
-                  {user.firstName} {user.lastName}
+                  {user.firstName}
+                </p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Last Name</label>
+                <p className="text-lg font-semibold text-gray-400 mt-1">
+                  {user.lastName}
                 </p>
               </div>
 

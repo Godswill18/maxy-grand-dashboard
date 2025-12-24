@@ -4,12 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import axios from 'axios';
-import { getProfileRoute, getProfileUpdateRoute, getSettingsRoute } from '@/components/utils/GetprofileRoute';
+import { getProfileRoute } from '@/components/utils/GetprofileRoute';
 import { useAuthStore } from '@/store/useAuthStore';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
 interface FormData {
+  firstName: string;
+  lastName: string;
   accountNumber: string;
   bankName: string;
 }
@@ -23,6 +25,8 @@ export const ProfileUpdate = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [formData, setFormData] = useState<FormData>({
+    firstName: '',
+    lastName: '',
     accountNumber: '',
     bankName: '',
   });
@@ -30,10 +34,7 @@ export const ProfileUpdate = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [toast, setToast] = useState<Toast | null>(null);
 
-    // ✅ Get role-based routes
   const profileRoute = getProfileRoute(user?.role || '');
-  const profileUpdateRoute = getProfileUpdateRoute(user?.role || '');
-  const settingsRoute = getSettingsRoute(user?.role || '');
 
   // Fetch current profile data
   useEffect(() => {
@@ -43,6 +44,8 @@ export const ProfileUpdate = () => {
           withCredentials: true,
         });
         setFormData({
+          firstName: response.data.firstName || '',
+          lastName: response.data.lastName || '',
           accountNumber: response.data.accountNumber || '',
           bankName: response.data.bankName || '',
         });
@@ -74,8 +77,13 @@ export const ProfileUpdate = () => {
     e.preventDefault();
 
     // Validation
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      showToast('error', 'First name and last name are required');
+      return;
+    }
+
     if (!formData.accountNumber.trim() || !formData.bankName.trim()) {
-      showToast('error', 'Please fill in all fields');
+      showToast('error', 'Please fill in all banking fields');
       return;
     }
 
@@ -89,6 +97,8 @@ export const ProfileUpdate = () => {
       await axios.put(
         `${API_URL}/api/users/update-profile`,
         {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
           accountNumber: formData.accountNumber.trim(),
           bankName: formData.bankName.trim(),
         },
@@ -131,9 +141,9 @@ export const ProfileUpdate = () => {
             <ArrowLeft size={18} className="mr-2" />
             Back to Profile
           </Button>
-          <h1 className="text-3xl font-bold">Update Banking Information</h1>
+          <h1 className="text-3xl font-bold">Update Profile</h1>
           <p className=" mt-2">
-            Update your bank account details for payroll and salary transfers
+            Update your personal information and banking details
           </p>
         </div>
 
@@ -180,10 +190,51 @@ export const ProfileUpdate = () => {
         {/* Form Card */}
         <Card>
           <CardHeader>
-            <CardTitle>Banking Details</CardTitle>
+            <CardTitle>Personal & Banking Details</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* ✅ NEW: First Name */}
+              <div>
+                <label htmlFor="firstName" className="block text-sm font-medium text-gray-300 mb-2">
+                  First Name <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="firstName"
+                  type="text"
+                  name="firstName"
+                  value={formData.firstName}
+                  onChange={handleChange}
+                  placeholder="e.g., John"
+                  disabled={loading}
+                  className="w-full px-4 py-2 border text-gray-950 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition disabled:bg-gray-100"
+                  required
+                />
+              </div>
+
+              {/* ✅ NEW: Last Name */}
+              <div>
+                <label htmlFor="lastName" className="block text-sm font-medium text-gray-300 mb-2">
+                  Last Name <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="lastName"
+                  type="text"
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  placeholder="e.g., Doe"
+                  disabled={loading}
+                  className="w-full px-4 py-2 border text-gray-950 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition disabled:bg-gray-100"
+                  required
+                />
+              </div>
+
+              {/* Divider */}
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-semibold mb-4">Banking Information</h3>
+              </div>
+
               {/* Account Number */}
               <div>
                 <label htmlFor="accountNumber" className="block text-sm font-medium text-gray-300 mb-2">
@@ -229,7 +280,7 @@ export const ProfileUpdate = () => {
               {/* Info Box */}
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  <strong>🔒 Security Note:</strong> Your banking information is encrypted and stored securely. It will only be used for payroll processing.
+                  <strong>🔒 Security Note:</strong> Your information is encrypted and stored securely. Banking details will only be used for payroll processing.
                 </p>
               </div>
 
@@ -257,7 +308,7 @@ export const ProfileUpdate = () => {
                   ) : (
                     <>
                       <CheckCircle size={16} className="mr-2" />
-                      Update Information
+                      Update Profile
                     </>
                   )}
                 </Button>
@@ -270,6 +321,7 @@ export const ProfileUpdate = () => {
         <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
           <h3 className="font-semibold text-gray-900 mb-2">Why do we need this information?</h3>
           <ul className="text-sm text-gray-600 space-y-1">
+            <li>✓ Accurate personnel records</li>
             <li>✓ Direct salary transfers to your account</li>
             <li>✓ Faster and more secure payments</li>
             <li>✓ Automatic payroll processing</li>

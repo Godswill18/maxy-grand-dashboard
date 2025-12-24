@@ -21,7 +21,7 @@ interface Room {
   
   createdAt: string;
   updatedAt: string;
-  status: 'available' | 'occupied' | 'maintenance' | 'reserved' | 'cleaning';
+  status: 'available' | 'occupied' |'occupied-needs-cleaning' | 'maintenance' | 'reserved' | 'cleaning';
   roomTypeId: {
     _id: string;
     name: string;

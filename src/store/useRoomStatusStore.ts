@@ -127,14 +127,14 @@ export const useRoomStatusStore = create<RoomStatusState>((set, get) => ({
     }
   },
 
-  // Cleaner accepts a cleaning request (assigns themselves)
+  // ✅ FIXED: Cleaner accepts a cleaning request (assigns themselves but doesn't start yet)
   acceptCleaningRequest: async (requestId: string) => {
     try {
       const { token, user } = useAuthStore.getState();
       
-      // Start the task (this assigns the cleaner and marks it as in-progress)
-      await axios.patch(
-        `${VITE_API_URL}/api/cleaning/${requestId}/start`,
+      // ✅ FIXED: Call /accept endpoint to assign cleaner (status stays 'pending')
+      const response = await axios.patch(
+        `${VITE_API_URL}/api/cleaning/${requestId}/accept`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -142,28 +142,33 @@ export const useRoomStatusStore = create<RoomStatusState>((set, get) => ({
         }
       );
 
-      // Update local state
+      console.log('✅ Request accepted:', response.data);
+
+      // Update local state - status stays 'pending', only assignedCleaner changes
       set((state) => ({
         cleaningRequests: state.cleaningRequests.map((req) =>
           req._id === requestId
             ? { 
                 ...req, 
-                status: 'in-progress',
+                status: 'pending', // ✅ Status stays 'pending' after accept
                 assignedCleaner: user ? {
                   _id: user._id,
                   firstName: user.firstName || '',
                   lastName: user.lastName || ''
-                } : undefined,
-                startTime: new Date().toISOString()
+                } : undefined
               }
             : req
         ),
       }));
 
-      // Refresh requests to get updated data
-      await get().fetchCleaningRequests();
+      // Refresh requests and rooms to get updated data from server
+      await Promise.all([
+        get().fetchCleaningRequests(),
+        get().fetchAllRooms()
+      ]);
     } catch (error: any) {
-      console.error('Failed to accept cleaning request:', error);
+      console.error('❌ Failed to accept cleaning request:', error);
+      console.error('❌ Error details:', error.response?.data);
       throw error;
     }
   },

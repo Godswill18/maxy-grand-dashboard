@@ -5,15 +5,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, DollarSign, Clock, CheckCircle, XCircle, Plus, Loader2, Edit, Eye } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FileText, DollarSign, Clock, CheckCircle, XCircle, Plus, Loader2, Edit, Eye, Search, Filter, X } from "lucide-react";
 import { useRequestStore, useRequestActions, FinancialRequest, RequestStatus } from "@/store/useRequestStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
-import { Skeleton } from "@/components/ui/skeleton"; // Import Skeleton
+import { Skeleton } from "@/components/ui/skeleton";
 
-// FIX: Use status from the store's RequestStatus type
-// Also improve typing for icons (Lucide icons are React components)
 type LucideIcon = React.ComponentType<{ className?: string }>;
 const statusConfig: Record<RequestStatus, { color: string; icon: LucideIcon }> = {
   pending: { color: "bg-warning text-warning-foreground", icon: Clock },
@@ -22,7 +21,6 @@ const statusConfig: Record<RequestStatus, { color: string; icon: LucideIcon }> =
 };
 
 // --- SKELETON COMPONENTS ---
-
 const RequestCardSkeleton = () => (
     <Card className="animate-pulse">
         <CardContent className="p-6">
@@ -57,8 +55,6 @@ const ViewRequestSkeleton = () => (
         </div>
     </div>
 );
-// -----------------------------
-
 
 export default function ManagerRequests() {
   const { requests, isLoading } = useRequestStore();
@@ -79,11 +75,16 @@ export default function ManagerRequests() {
     description: "",
   });
 
-  const isAdmin = user?.role === 'admin';
-  // const isSuperAdmin = user?.role === 'superadmin';
-  const canCreate = isAdmin; // Since isSuperAdmin is commented out
-  const loggedInUserId = user?._id; // Assuming user.id is the user's Mongoose ID
+  // ✅ NEW: Filter & Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<RequestStatus | "all">("all");
+  const [sortBy, setSortBy] = useState<"date" | "amount">("date");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [showFilters, setShowFilters] = useState(false);
 
+  const isAdmin = user?.role === 'admin';
+  const canCreate = isAdmin;
+  const loggedInUserId = user?._id;
 
   // --- Data Fetching ---
   useEffect(() => {
@@ -92,13 +93,54 @@ export default function ManagerRequests() {
     }
   }, [user?.role, fetchAllRequests, isAdmin]);
 
+  // ✅ NEW: Filter and Search Logic
+  const filteredAndSortedRequests = useMemo(() => {
+    let filtered = [...requests];
+
+    // 1. Search filter (title, description, raised by name)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(request => 
+        request.title.toLowerCase().includes(query) ||
+        request.description.toLowerCase().includes(query) ||
+        `${request.raisedBy?.firstName} ${request.raisedBy?.lastName}`.toLowerCase().includes(query)
+      );
+    }
+
+    // 2. Status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(request => request.status === statusFilter);
+    }
+
+    // 3. Sorting
+    filtered.sort((a, b) => {
+      if (sortBy === "date") {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+      } else {
+        // Sort by amount
+        return sortOrder === "desc" ? b.amount - a.amount : a.amount - b.amount;
+      }
+    });
+
+    return filtered;
+  }, [requests, searchQuery, statusFilter, sortBy, sortOrder]);
+
+  // ✅ NEW: Clear all filters
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setSortBy("date");
+    setSortOrder("desc");
+  };
+
+  // ✅ NEW: Check if any filters are active
+  const hasActiveFilters = searchQuery !== "" || statusFilter !== "all" || sortBy !== "date" || sortOrder !== "desc";
 
   // --- Handlers ---
-
-  // Handle input change for ALL forms (Create and Edit)
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value, type } = e.target;
-    // Use the appropriate state setter based on which modal is open
     if (isCreateDialogOpen) {
         setFormData(prev => ({ 
             ...prev, 
@@ -112,7 +154,6 @@ export default function ManagerRequests() {
     }
   };
 
-  // 1. New Request Submission
   const handleCreateRequest = async () => {
     if (!formData.title || !formData.description || formData.amount <= 0) {
       toast.error("Please fill in the title, description, and a valid amount.");
@@ -135,7 +176,6 @@ export default function ManagerRequests() {
     }
   };
 
-  // 2. Edit Request Submission
   const handleEditRequest = async () => {
       if (!currentRequest) return;
       
@@ -161,10 +201,6 @@ export default function ManagerRequests() {
       }
   };
 
-
-  // --- UI Control Helpers ---
-
-  // Sets the request to view/edit, then opens the corresponding modal
   const openRequestModal = (request: FinancialRequest, type: 'view' | 'edit') => {
     setCurrentRequest(request);
     if (type === 'edit') {
@@ -174,16 +210,13 @@ export default function ManagerRequests() {
     }
   };
   
-  // Calculate stats using live data
-  const totalPending = requests.filter(r => r.status === "pending").length;
-  const totalApproved = requests.filter(r => r.status === "approved").length;
-  const pendingAmount = requests.filter(r => r.status === "pending").reduce((sum, r) => sum + r.amount, 0);
-
+  // ✅ UPDATED: Calculate stats from filtered results
+  const totalPending = filteredAndSortedRequests.filter(r => r.status === "pending").length;
+  const totalApproved = filteredAndSortedRequests.filter(r => r.status === "approved").length;
+  const pendingAmount = filteredAndSortedRequests.filter(r => r.status === "pending").reduce((sum, r) => sum + r.amount, 0);
 
   // --- Render ---
-
   if (isLoading) {
-    // 3. FIX: Implement skeleton while loading
     return (
         <div className="space-y-6">
             <h1 className="text-3xl font-bold text-foreground">Requests Management</h1>
@@ -244,10 +277,111 @@ export default function ManagerRequests() {
         )}
       </div>
 
+      {/* ✅ NEW: SEARCH & FILTER BAR */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-4">
+            {/* Search and Filter Toggle */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by title, description, or submitter name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+                className="shrink-0"
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                Filters
+                {hasActiveFilters && (
+                  <span className="ml-2 h-2 w-2 rounded-full bg-primary" />
+                )}
+              </Button>
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={clearFilters}
+                  className="shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            {/* Filter Controls */}
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+                {/* Status Filter */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Status</Label>
+                  <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as RequestStatus | "all")}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Sort By */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Sort By</Label>
+                  <Select value={sortBy} onValueChange={(value) => setSortBy(value as "date" | "amount")}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Date" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">Date</SelectItem>
+                      <SelectItem value="amount">Amount</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Sort Order */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Order</Label>
+                  <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as "asc" | "desc")}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Descending" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="desc">Newest First</SelectItem>
+                      <SelectItem value="asc">Oldest First</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ✅ UPDATED: Show result count */}
+      {hasActiveFilters && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>
+            Showing {filteredAndSortedRequests.length} of {requests.length} requests
+          </span>
+          <Button variant="link" onClick={clearFilters} className="h-auto p-0">
+            Clear all filters
+          </Button>
+        </div>
+      )}
+
       {/* -------------------- STATS -------------------- */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Stats cards remain the same, using calculated values */}
-        <Card><CardContent className="p-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Total Requests</p><p className="text-2xl font-bold text-foreground">{requests.length}</p></div><FileText className="h-8 w-8 text-primary" /></div></CardContent></Card>
+        <Card><CardContent className="p-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Total Requests</p><p className="text-2xl font-bold text-foreground">{filteredAndSortedRequests.length}</p></div><FileText className="h-8 w-8 text-primary" /></div></CardContent></Card>
         <Card><CardContent className="p-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold text-foreground">{totalPending}</p></div><Clock className="h-8 w-8 text-warning" /></div></CardContent></Card>
         <Card><CardContent className="p-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Approved</p><p className="text-2xl font-bold text-foreground">{totalApproved}</p></div><CheckCircle className="h-8 w-8 text-success" /></div></CardContent></Card>
         <Card><CardContent className="p-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Pending Amount</p><p className="text-2xl font-bold text-foreground">₦{pendingAmount.toLocaleString()}</p></div><DollarSign className="h-8 w-8 text-info" /></div></CardContent></Card>
@@ -255,65 +389,65 @@ export default function ManagerRequests() {
 
       {/* -------------------- REQUESTS LIST -------------------- */}
       <div className="grid grid-cols-1 gap-4">
-        {requests.map((request, index) => (
-          <Card key={request._id} className="hover:shadow-lg transition-all animate-in fade-in slide-in-from-left" style={{ animationDelay: `${index * 50}ms` }}>
-            <CardContent className="p-6">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="flex-1 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-semibold text-lg text-foreground">{request?.title || 'Untitled Request'}</h3>
-                      <span className="text-sm text-muted-foreground">Submited by: {request.raisedBy?.firstName} {request.raisedBy?.lastName}</span>
-                      <p className="text-sm text-muted-foreground">Date: {new Date(request.createdAt).toLocaleDateString()}</p>
-                    </div>
-                    <Badge className={statusConfig[request.status].color}>
-                      {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                    </Badge>
-                  </div>
-
-                  <p className="text-sm text-muted-foreground">{request.description}</p>
-                  
-                  {/* {isSuperAdmin && typeof request.hotelId !== 'string' && (
-                     <div className="flex items-center gap-2 text-xs text-info-foreground">
-                        <span className="font-medium">Hotel:</span> {request.hotelId.name}
-                     </div>
-                  )} */}
-
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-semibold text-foreground">₦{request.amount.toLocaleString()}</span>
-                  </div>
-                </div>
-
-                {/* 4. FIX: Action Buttons - View & Edit */}
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => openRequestModal(request, 'view')}>
-                    <Eye className="h-4 w-4 mr-2" /> View Details
-                  </Button>
-                  
-                  {/* Admin can only edit if it's pending and they are the creator */}
-                  {isAdmin && request.status === "pending" && request.raisedBy._id === loggedInUserId && (
-                    <Button variant="outline" size="sm" onClick={() => openRequestModal(request, 'edit')}>
-                      <Edit className="h-4 w-4 mr-2" /> Edit
-                    </Button>
-                  )}
-                  
-                  {/* SuperAdmin actions (uncommented for completeness) */}
-                  {/* {isSuperAdmin && request.status === "pending" && (
-                     <>
-                       <Button variant="success" size="sm" onClick={() => updateRequestStatus(request._id, 'approved')}>
-                         Approve
-                       </Button>
-                       <Button variant="destructive" size="sm" onClick={() => updateRequestStatus(request._id, 'rejected')}>
-                         Reject
-                       </Button>
-                     </>
-                  )} */}
-                </div>
-              </div>
+        {filteredAndSortedRequests.length === 0 ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No requests found</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                {hasActiveFilters 
+                  ? "Try adjusting your filters to see more results"
+                  : "Create your first request to get started"
+                }
+              </p>
+              {hasActiveFilters && (
+                <Button variant="outline" onClick={clearFilters}>
+                  Clear Filters
+                </Button>
+              )}
             </CardContent>
           </Card>
-        ))}
+        ) : (
+          filteredAndSortedRequests.map((request, index) => (
+            <Card key={request._id} className="hover:shadow-lg transition-all animate-in fade-in slide-in-from-left" style={{ animationDelay: `${index * 50}ms` }}>
+              <CardContent className="p-6">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-semibold text-lg text-foreground">{request?.title || 'Untitled Request'}</h3>
+                        <span className="text-sm text-muted-foreground">Submitted by: {request.raisedBy?.firstName} {request.raisedBy?.lastName}</span>
+                        <p className="text-sm text-muted-foreground">Date: {new Date(request.createdAt).toLocaleDateString()}</p>
+                      </div>
+                      <Badge className={statusConfig[request.status].color}>
+                        {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                      </Badge>
+                    </div>
+
+                    <p className="text-sm text-muted-foreground line-clamp-2">{request.description}</p>
+
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-semibold text-foreground">₦{request.amount.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => openRequestModal(request, 'view')}>
+                      <Eye className="h-4 w-4 mr-2" /> View Details
+                    </Button>
+                    
+                    {isAdmin && request.status === "pending" && request.raisedBy._id === loggedInUserId && (
+                      <Button variant="outline" size="sm" onClick={() => openRequestModal(request, 'edit')}>
+                        <Edit className="h-4 w-4 mr-2" /> Edit
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
       
       {/* -------------------- VIEW REQUEST MODAL -------------------- */}
@@ -324,7 +458,6 @@ export default function ManagerRequests() {
           </DialogHeader>
           {currentRequest ? (
             <>
-              {/* Extract icon component to fix dynamic rendering */}
               {(() => {
                 const statusEntry = statusConfig[currentRequest.status];
                 const Icon = statusEntry.icon;
@@ -355,7 +488,6 @@ export default function ManagerRequests() {
                         </p>
                     </div>
                     
-                    {/* Approval/Rejection details */}
                     {currentRequest.approvedBy && typeof currentRequest.approvedBy !== 'string' && (
                         <p className="text-xs text-success-foreground pt-2">
                             Reviewed by: {currentRequest.approvedBy.firstName} {currentRequest.approvedBy.lastName}
@@ -366,7 +498,6 @@ export default function ManagerRequests() {
               })()}
             </>
           ) : (
-            // 5. FIX: Use view skeleton if currentRequest is unexpectedly null
             <ViewRequestSkeleton />
           )}
         </DialogContent>

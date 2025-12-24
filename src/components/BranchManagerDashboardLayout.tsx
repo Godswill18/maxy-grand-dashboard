@@ -118,7 +118,7 @@ export function BranchManagerDashboardLayout({ children }: BranchManagerDashboar
               </Button>
 
               <div className="flex items-center gap-2 ml-auto">
-                <NotificationBell />
+                {/* <NotificationBell /> */}
                 <Button
                   variant="ghost"
                   size="icon"

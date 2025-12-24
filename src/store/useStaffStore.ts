@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useAuthStore } from './useAuthStore'; 
 
 // Define the shape of staff data based on the backend response
-type StaffRole = 'receptionist' | 'cleaner' | 'waiter' | 'admin' | 'guest' | 'superadmin'; 
+type StaffRole = 'receptionist' | 'cleaner' | 'waiter' | 'headWaiter' | 'admin' | 'guest' | 'superadmin'; 
 
 interface Staff {
   _id: string;
