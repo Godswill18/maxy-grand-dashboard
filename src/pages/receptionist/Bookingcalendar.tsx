@@ -58,13 +58,13 @@ const hotelBookings = bookings.filter(booking => {
     guestName: booking.guestName,
     guestEmail: booking.guestEmail,
     guestPhone: booking.guestPhone,
-    roomNumber: booking.roomId?.roomNumber || 'N/A',
+    roomNumber: booking.roomTypeId?.roomNumber || 'N/A',
     checkInDate: new Date(booking.checkInDate),
     checkOutDate: new Date(booking.checkOutDate),
     status: booking.bookingStatus,
     totalAmount: booking.totalAmount,
-    guests: booking.guests || 1,
-    specialRequests: booking.specialRequests,
+    guests: booking.guests || booking.numberOfGuests || 1,
+    specialRequests: booking.preferences?.specialRequests || booking.specialRequests,
   }));
 
   // Status colors matching the theme

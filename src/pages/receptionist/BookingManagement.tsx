@@ -78,6 +78,10 @@ export default function BookingManagement() {
   // ✅ Early check-in error modal
   const [earlyCheckInErrorOpen, setEarlyCheckInErrorOpen] = useState(false);
   const [earlyCheckInMessage, setEarlyCheckInMessage] = useState("");
+
+  // ✅ Check-out confirmation
+  const [checkOutConfirmOpen, setCheckOutConfirmOpen] = useState(false);
+  const [bookingToCheckOut, setBookingToCheckOut] = useState<any>(null);
   
   
   const [editFormData, setEditFormData] = useState<EditBookingFormData>({
@@ -478,6 +482,38 @@ export default function BookingManagement() {
     }
   };
 
+  // ✅ Handle check-out
+  const handleCheckOut = (booking: any) => {
+    setBookingToCheckOut(booking);
+    setCheckOutConfirmOpen(true);
+  };
+
+  const confirmCheckOut = async () => {
+    if (!bookingToCheckOut) return;
+
+    try {
+      const response = await fetch(
+        `${VITE_API_URL}/api/receptionist/${bookingToCheckOut._id}/check-out`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Check-out failed");
+
+      toast.success(`${bookingToCheckOut.guestName} checked out successfully!`);
+      setCheckOutConfirmOpen(false);
+      setBookingToCheckOut(null);
+      await fetchBookings();
+    } catch (error: any) {
+      console.error('Check-out error:', error);
+      toast.error(error.message || "Check-out failed");
+    }
+  };
+
   // Filter bookings by hotelId
   const hotelBookings = bookings.filter(booking => {
     if (!user?.hotelId) return false;
@@ -688,8 +724,16 @@ const CheckoutCountdownTimer = ({ booking }: { booking: any }) => {
 
             {bookingStatus === "checked-in" && (
               <>
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
+                  className="flex-1 bg-orange-600 hover:bg-orange-700"
+                  onClick={() => handleCheckOut(booking)}
+                >
+                  <LogOut className="h-4 w-4 mr-1" />
+                  Check Out
+                </Button>
+                <Button
+                  size="sm"
                   variant="outline"
                   className="flex-1"
                   onClick={() => handleEdit(booking)}
@@ -1124,7 +1168,7 @@ const CheckoutCountdownTimer = ({ booking }: { booking: any }) => {
                 }}>
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   className="flex-1 bg-blue-600 hover:bg-blue-700"
                   onClick={verifyAndCheckIn}
                   disabled={isVerifyingCode || !confirmationCode}
@@ -1136,6 +1180,36 @@ const CheckoutCountdownTimer = ({ booking }: { booking: any }) => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ✅ Check-out Confirmation Modal */}
+      <AlertDialog open={checkOutConfirmOpen} onOpenChange={setCheckOutConfirmOpen}>
+        <AlertDialogContent className="z-50">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Check Out Guest?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {bookingToCheckOut && (
+                <div className="space-y-2 mt-4">
+                  <p><strong>Guest:</strong> {bookingToCheckOut.guestName}</p>
+                  <p><strong>Room:</strong> {bookingToCheckOut.roomTypeId?.roomNumber || 'N/A'}</p>
+                  <p><strong>Check-out Date:</strong> {new Date(bookingToCheckOut.checkOutDate).toLocaleDateString()}</p>
+                  <p className="mt-4 text-sm">This will mark the booking as completed and make the room available for new bookings.</p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setBookingToCheckOut(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCheckOut}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              Confirm Check-out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ✅ View Booking Details Modal */}
       <Dialog open={isViewDetailsOpen} onOpenChange={setIsViewDetailsOpen}>

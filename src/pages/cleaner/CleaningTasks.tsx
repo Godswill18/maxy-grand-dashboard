@@ -1,16 +1,20 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, Clock, CheckCircle, MapPin, AlertCircle, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Sparkles, Clock, CheckCircle, MapPin, AlertCircle, Loader2, Calendar, X } from "lucide-react";
 import { toast } from "sonner";
 import { useHousekeeperStore, CleaningTask } from "@/store/useHousekeeperStore";
 import { formatDistanceToNow } from "date-fns";
 
 export default function CleaningTasks() {
   const { tasks, isLoading, error, fetchMyTasks, startTask, completeTask } = useHousekeeperStore();
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
 
   useEffect(() => {
     fetchMyTasks();
@@ -32,6 +36,38 @@ export default function CleaningTasks() {
     } catch (error) {
       toast.error("Failed to complete task");
     }
+  };
+
+  // Filter tasks by date range
+  const filterTasksByDate = (taskList: CleaningTask[]) => {
+    if (!startDate && !endDate) return taskList;
+
+    return taskList.filter(task => {
+      const taskDate = new Date(task.createdAt);
+      taskDate.setHours(0, 0, 0, 0);
+
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        return taskDate >= start && taskDate <= end;
+      } else if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        return taskDate >= start;
+      } else if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        return taskDate <= end;
+      }
+      return true;
+    });
+  };
+
+  const handleClearFilters = () => {
+    setStartDate("");
+    setEndDate("");
   };
 
   const getPriorityColor = (priority: string = "Medium") => {
@@ -152,10 +188,11 @@ export default function CleaningTasks() {
     );
   };
 
-  // Fixed: Filter using 'in-progress' with hyphen
-  const pendingTasks = tasks.filter(t => t.status === "pending");
-  const inProgressTasks = tasks.filter(t => t.status === "in-progress");
-  const completedTasks = tasks.filter(t => t.status === "completed");
+  // Fixed: Filter using 'in-progress' with hyphen, then apply date filter
+  const filteredTasks = filterTasksByDate(tasks);
+  const pendingTasks = filterTasksByDate(tasks.filter(t => t.status === "pending"));
+  const inProgressTasks = filterTasksByDate(tasks.filter(t => t.status === "in-progress"));
+  const completedTasks = filterTasksByDate(tasks.filter(t => t.status === "completed"));
 
   if (isLoading) {
     return (
@@ -220,6 +257,57 @@ export default function CleaningTasks() {
         <p className="text-muted-foreground">Manage your assigned cleaning requests</p>
       </div>
 
+      {/* Date Filter */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Filter by Date
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4 items-end">
+            <div className="flex-1">
+              <Label htmlFor="startDate">Start Date</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                max={endDate || undefined}
+              />
+            </div>
+            <div className="flex-1">
+              <Label htmlFor="endDate">End Date</Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                min={startDate || undefined}
+              />
+            </div>
+            {(startDate || endDate) && (
+              <Button
+                variant="outline"
+                onClick={handleClearFilters}
+                className="gap-2"
+              >
+                <X className="h-4 w-4" />
+                Clear Filters
+              </Button>
+            )}
+          </div>
+          {(startDate || endDate) && (
+            <p className="text-sm text-muted-foreground mt-3">
+              Showing tasks {startDate && `from ${new Date(startDate).toLocaleDateString()}`}
+              {startDate && endDate && " "}
+              {endDate && `to ${new Date(endDate).toLocaleDateString()}`}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -244,30 +332,34 @@ export default function CleaningTasks() {
 
       <Tabs defaultValue="all" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="all">All Tasks ({tasks.length})</TabsTrigger>
+          <TabsTrigger value="all">All Tasks ({filteredTasks.length})</TabsTrigger>
           <TabsTrigger value="pending">Pending ({pendingTasks.length})</TabsTrigger>
           <TabsTrigger value="progress">In Progress ({inProgressTasks.length})</TabsTrigger>
           <TabsTrigger value="completed">Completed ({completedTasks.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="all" className="space-y-4">
-          {tasks.length === 0 ? (
+          {filteredTasks.length === 0 ? (
             <div className="flex flex-1 items-center justify-center h-[50vh]">
               <Card className="w-full max-w-md border-dashed bg-muted/30">
                 <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                   <div className="rounded-full bg-muted p-4 mb-4">
                     <CheckCircle className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <h3 className="font-semibold text-lg">All Caught Up!</h3>
+                  <h3 className="font-semibold text-lg">
+                    {(startDate || endDate) ? "No Tasks Found" : "All Caught Up!"}
+                  </h3>
                   <p className="text-muted-foreground mt-2">
-                    No cleaning tasks assigned to you.
+                    {(startDate || endDate)
+                      ? "No cleaning tasks found for the selected date range."
+                      : "No cleaning tasks assigned to you."}
                   </p>
                 </CardContent>
               </Card>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {tasks.map(renderTaskCard)}
+              {filteredTasks.map(renderTaskCard)}
             </div>
           )}
         </TabsContent>

@@ -26,7 +26,23 @@ interface Booking {
   };
   createdAt: string;
   guests?: number;
+  numberOfGuests?: number;
   specialRequests?: string;
+  bookingType?: 'online' | 'walk-in';
+  guestDetails?: {
+    address?: string;
+    city?: string;
+    state?: string;
+    arrivingFrom?: string;
+    nextOfKinName?: string;
+    nextOfKinPhone?: string;
+  };
+  preferences?: {
+    extraBedding?: boolean;
+    specialRequests?: string;
+  };
+  amountPaid?: number;
+  confirmationCode?: string;
 }
 
 interface Hotel {
