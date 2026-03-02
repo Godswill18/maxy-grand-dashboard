@@ -19,7 +19,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   error: string | null;
-  login: (credentials: {email: string; password: string;}) => Promise<{ success: boolean; message: string; code?: string }>;
+  login: (credentials: {email: string; password: string;}) => Promise<{ success: boolean; message: string; code?: string; retryAfter?: number }>;
   signup: (userData: any) => Promise<void>;
   getMe: () => Promise<User>;
   logout: () => Promise<void>;
@@ -48,7 +48,19 @@ export const useAuthStore = create<AuthState>()(
           });
 
           const data = await response.json();
-          
+
+          // Handle lockout (failed-attempt guard) or general rate limit
+          if (response.status === 429) {
+            const msg = data.message || 'Too many attempts. Please try again later.';
+            set({ error: msg, user: null, isAuthenticated: false, token: null });
+            return {
+              success:    false,
+              message:    msg,
+              code:       data.error,        // 'LOGIN_LOCKED' or 'RATE_LIMIT_EXCEEDED'
+              retryAfter: data.retryAfter,   // seconds — drives countdown timer
+            };
+          }
+
           if (response.ok && data.success) {
             set({
               user: data.data as User,
