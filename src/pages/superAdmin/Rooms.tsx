@@ -37,7 +37,7 @@ const statusLabels: Record<string, string> = {
   'out-of-service': "Out of Service",
 };
 
-const VITE_BACKEND_IMAGE_URL = 'http://localhost:5000';
+const VITE_BACKEND_IMAGE_URL = (import.meta as any).env?.VITE_BACKEND_IMAGE_URL ?? 'http://localhost:5000';
 
 const StatCardSkeleton = () => (
   <Card>

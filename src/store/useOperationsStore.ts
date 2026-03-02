@@ -66,7 +66,7 @@ interface BookingSummary { // New: For guest info in rooms
     checkOutDate: string;
 }
 // --- 2. Configuration ---
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const SOCKET_URL = API_BASE_URL;
 const socket = io(SOCKET_URL, {
     autoConnect: false,

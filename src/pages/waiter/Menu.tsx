@@ -209,7 +209,7 @@ export default function Menu() {
     (item) => item.category === selectedCategory
   );
 
-  const VITE_BACKEND_IMAGE_URL = 'http://localhost:5000';
+  const VITE_BACKEND_IMAGE_URL = (import.meta as any).env?.VITE_BACKEND_IMAGE_URL ?? 'http://localhost:5000';
 
   return (
     <div className="space-y-6 p-6">
