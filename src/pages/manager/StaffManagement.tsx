@@ -42,7 +42,10 @@ interface StaffMember {
   phoneNumber: string;
   role: StaffRole;
   isActive: boolean;
-  hotelId?: string;
+  hotelId?: string | {
+    _id: string;
+    name: string;
+  };
   createdAt?: string;
   updatedAt?: string;
 }
@@ -413,11 +416,15 @@ export default function StaffManagement() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {staff.map((staffMember, index) => {
           const RoleIcon = roleIcons[staffMember.role] || UserCheck;
-          
+          const isCurrentUser = user?._id === staffMember._id;
+          const hotelName = typeof staffMember.hotelId === 'object' && staffMember.hotelId?.name
+            ? staffMember.hotelId.name
+            : 'Downtown Branch';
+
           return (
-            <Card 
-              key={staffMember._id} 
-              className="hover:shadow-lg transition-all animate-in fade-in slide-in-from-bottom" 
+            <Card
+              key={staffMember._id}
+              className="hover:shadow-lg transition-all animate-in fade-in slide-in-from-bottom"
               style={{ animationDelay: `${index * 50}ms` }}
             >
               <CardContent className="p-6">
@@ -427,6 +434,7 @@ export default function StaffManagement() {
                       <RoleIcon className="h-5 w-5 text-muted-foreground" />
                       <h3 className="font-semibold text-lg text-foreground">
                         {staffMember.firstName} {staffMember.lastName}
+                        {isCurrentUser && <span className="text-sm text-muted-foreground ml-2">(You)</span>}
                       </h3>
                     </div>
                     <div className="flex gap-2 mt-2">
@@ -438,15 +446,17 @@ export default function StaffManagement() {
                       </Badge>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <Switch 
-                      checked={staffMember.isActive} 
-                      onCheckedChange={() => handleStatusToggleClick(staffMember)}
-                    />
-                    <span className="text-xs text-muted-foreground">
-                      {staffMember.isActive ? "Active" : "Inactive"}
-                    </span>
-                  </div>
+                  {!isCurrentUser && (
+                    <div className="flex flex-col items-end gap-2">
+                      <Switch
+                        checked={staffMember.isActive}
+                        onCheckedChange={() => handleStatusToggleClick(staffMember)}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {staffMember.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2 mb-4">
@@ -460,7 +470,7 @@ export default function StaffManagement() {
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <MapPin className="h-4 w-4 flex-shrink-0" />
-                    <span>{staffMember.hotelId || hotelId ? 'Your Hotel' : 'Downtown Branch'}</span>
+                    <span>{hotelName}</span>
                   </div>
                 </div>
 
@@ -552,7 +562,9 @@ export default function StaffManagement() {
                     <div className="flex-1">
                       <p className="text-xs text-muted-foreground">Location</p>
                       <p className="text-sm font-medium">
-                        {selectedStaff.hotelId || hotelId ? 'Your Hotel' : 'Downtown Branch'}
+                        {typeof selectedStaff.hotelId === 'object' && selectedStaff.hotelId?.name
+                          ? selectedStaff.hotelId.name
+                          : 'Downtown Branch'}
                       </p>
                     </div>
                   </div>
@@ -563,10 +575,10 @@ export default function StaffManagement() {
               <div className="space-y-3">
                 <h4 className="font-semibold text-sm text-muted-foreground uppercase">Account Information</h4>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="p-3 border rounded-lg">
+                  {/* <div className="p-3 border rounded-lg">
                     <p className="text-xs text-muted-foreground">Staff ID</p>
                     <p className="text-sm font-mono truncate">{selectedStaff._id}</p>
-                  </div>
+                  </div> */}
                   <div className="p-3 border rounded-lg">
                     <p className="text-xs text-muted-foreground">Status</p>
                     <p className="text-sm font-medium">

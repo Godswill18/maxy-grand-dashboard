@@ -53,6 +53,7 @@ interface RoomState {
   // --- 👇 NEW FUNCTIONS ADDED ---
   addImages: (id: string, formData: FormData) => Promise<{ success: boolean }>;
   deleteImage: (id: string, imagePath: string) => Promise<{ success: boolean }>;
+  toggleRoomAvailability: (id: string, isAvailable: boolean) => Promise<{ success: boolean }>;
 
   calculateRoomCountByHotelId: (hotelId: string) => number;
 getRoomsByHotelId: (hotelId: string) => Room[];
@@ -321,6 +322,37 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     } catch (err) {
       const error = err as AxiosError;
       set({ error: error.message, isLoading: false });
+      return { success: false };
+    }
+  },
+
+  // --- TOGGLE ROOM AVAILABILITY ---
+  toggleRoomAvailability: async (id: string, isAvailable: boolean) => {
+    try {
+      const token = getToken();
+      const response = await axios.patch(
+        `${VITE_API_URL}/api/rooms/toggle-availability/${id}`,
+        { isAvailable },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          withCredentials: true,
+        }
+      );
+
+      const updated = response.data.data;
+      // Update state with the new room data
+      set((state) => ({
+        rooms: state.rooms.map((r) => (r._id === id ? updated : r)),
+        currentRoom: state.currentRoom?._id === id ? updated : state.currentRoom,
+      }));
+
+      return { success: true };
+    } catch (err) {
+      const error = err as AxiosError;
+      set({ error: error.message });
       return { success: false };
     }
   },

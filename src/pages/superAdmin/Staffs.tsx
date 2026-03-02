@@ -40,6 +40,7 @@ import {
   User,
   Shield,
   Clock,
+  CreditCard,
 } from "lucide-react";
 import { useStaffStore, StaffUser } from "@/store/useUserStore";
 import { toast } from "sonner";
@@ -463,6 +464,28 @@ export default function Staffs() {
                 </div>
               </div>
 
+              {/* Bank Account Details */}
+              <div>
+                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  Bank Account Details
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Bank Name</p>
+                    <p className="font-medium">
+                      {detailsDialog.staffMember.bankName || "Not provided"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Account Number</p>
+                    <p className="font-medium font-mono">
+                      {detailsDialog.staffMember.accountNumber || "Not provided"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Employment Information */}
               <div>
                 <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
@@ -522,12 +545,12 @@ export default function Staffs() {
                       {detailsDialog.staffMember.hotelId?.name || "No branch assigned"}
                     </p>
                   </div>
-                  <div>
+                  {/* <div>
                     <p className="text-sm text-muted-foreground">Branch ID</p>
                     <p className="font-mono text-sm">
                       {detailsDialog.staffMember.hotelId?._id || "N/A"}
                     </p>
-                  </div>
+                  </div> */}
                 </div>
               </div>
 
@@ -538,10 +561,10 @@ export default function Staffs() {
                   Account Information
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
+                  {/* <div>
                     <p className="text-sm text-muted-foreground">User ID</p>
                     <p className="font-mono text-sm">{detailsDialog.staffMember._id}</p>
-                  </div>
+                  </div> */}
                   <div>
                     <p className="text-sm text-muted-foreground">Account Created</p>
                     <p className="font-medium">

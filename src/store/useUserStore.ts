@@ -16,6 +16,8 @@ export interface StaffUser {
     _id: string;
     name: string;
   } | null;
+  bankName?: string;
+  accountNumber?: string;
   createdAt: string;
   updatedAt: string;
 }

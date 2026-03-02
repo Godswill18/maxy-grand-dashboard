@@ -11,9 +11,11 @@ import { MapPin, BedDouble, CheckCircle, Sparkles, DoorOpen, AlertCircle, Search
 import { useRoomStore } from "../../store/useRoomStore";
 import { CreateRoomModal } from "@/components/CreateRoomModal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Link } from "react-router-dom";
 import { useBranchStore } from "../../store/useBranchStore";
 import { useAuthStore } from "../../store/useAuthStore";
+import { toast } from "sonner";
 
 const statusColors: Record<string, string> = {
   available: "bg-success text-success-foreground",
@@ -81,12 +83,25 @@ const getSafeHotelName = (hotelData: any) => {
 };
 
 export default function Rooms() {
-  const { rooms, isLoading, error, fetchRoomsAdmin, openModal } = useRoomStore();
+  const { rooms, isLoading, error, fetchRoomsAdmin, openModal, toggleRoomAvailability } = useRoomStore();
   const { branches, fetchBranches, isLoading: isBranchesLoading } = useBranchStore();
   const { user } = useAuthStore();
   const isSuperAdmin = user?.role === 'superadmin';
 
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+
+  // Handle room availability toggle
+  const handleAvailabilityToggle = async (roomId: string, currentAvailability: boolean) => {
+    const newAvailability = !currentAvailability;
+    const result = await toggleRoomAvailability(roomId, newAvailability);
+
+    if (result.success) {
+      toast.success(`Room ${newAvailability ? 'enabled' : 'disabled'} for guest bookings`);
+      fetchRoomsAdmin(); // Refresh the room list
+    } else {
+      toast.error('Failed to update room availability');
+    }
+  };
   
   // ✅ NEW: Filter & Search State
   const [searchQuery, setSearchQuery] = useState("");
@@ -506,7 +521,21 @@ export default function Rooms() {
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <MapPin className="h-4 w-4" />
-                          <span>{getBranchName()}</span> 
+                          <span>{getBranchName()}</span>
+                        </div>
+
+                        {/* Availability Toggle */}
+                        <div className="flex items-center justify-between pt-2 border-t">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">Available for Booking</span>
+                            <span className="text-xs text-muted-foreground">
+                              {room.isAvailable ? 'Visible to guests' : 'Hidden from guests'}
+                            </span>
+                          </div>
+                          <Switch
+                            checked={room.isAvailable}
+                            onCheckedChange={() => handleAvailabilityToggle(room._id, room.isAvailable)}
+                          />
                         </div>
                       </div>
 
