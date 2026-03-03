@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, BedDouble, CheckCircle, Sparkles, DoorOpen, AlertCircle, Search, Filter, X, SlidersHorizontal } from "lucide-react";
 import { useRoomStore } from "../../store/useRoomStore";
+import { useCategoryStore } from "../../store/useCategoryStore";
 import { CreateRoomModal } from "@/components/CreateRoomModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -85,10 +86,12 @@ const getSafeHotelName = (hotelData: any) => {
 export default function Rooms() {
   const { rooms, isLoading, error, fetchRoomsAdmin, openModal, toggleRoomAvailability } = useRoomStore();
   const { branches, fetchBranches, isLoading: isBranchesLoading } = useBranchStore();
+  const { categories, fetchCategories } = useCategoryStore();
   const { user } = useAuthStore();
   const isSuperAdmin = user?.role === 'superadmin';
 
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   // Handle room availability toggle
   const handleAvailabilityToggle = async (roomId: string, currentAvailability: boolean) => {
@@ -113,10 +116,11 @@ export default function Rooms() {
 
   useEffect(() => {
     fetchRoomsAdmin();
+    fetchCategories();
     if (isSuperAdmin) {
       fetchBranches();
     }
-  }, [fetchRoomsAdmin, fetchBranches, isSuperAdmin]);
+  }, [fetchRoomsAdmin, fetchBranches, fetchCategories, isSuperAdmin]);
 
   const branchNameMap = useMemo(() =>
     new Map(branches.map(branch => [branch._id, branch.name]))
@@ -132,6 +136,16 @@ export default function Rooms() {
         if (!room.hotelId) return false;
         const roomHotelId = typeof room.hotelId === "object" ? room.hotelId._id : room.hotelId;
         return roomHotelId === selectedBranchId;
+      });
+    }
+
+    // 1b. Category filter
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter((room) => {
+        const roomCatId = typeof (room as any).categoryId === "object"
+          ? (room as any).categoryId?._id
+          : (room as any).categoryId;
+        return roomCatId === categoryFilter;
       });
     }
 
@@ -187,16 +201,18 @@ export default function Rooms() {
     setSortBy("roomNumber");
     setSortOrder("asc");
     setSelectedBranchId(null);
+    setCategoryFilter("all");
   };
 
   // ✅ NEW: Check if any filters are active
-  const hasActiveFilters = 
-    searchQuery !== "" || 
-    statusFilter !== "all" || 
-    priceRange !== "all" || 
-    sortBy !== "roomNumber" || 
+  const hasActiveFilters =
+    searchQuery !== "" ||
+    statusFilter !== "all" ||
+    priceRange !== "all" ||
+    sortBy !== "roomNumber" ||
     sortOrder !== "asc" ||
-    selectedBranchId !== null;
+    selectedBranchId !== null ||
+    categoryFilter !== "all";
 
   // ✅ UPDATED: Calculate statistics from filtered rooms
   const stats = useMemo(() => {
@@ -260,7 +276,7 @@ export default function Rooms() {
 
             {/* Filter Controls */}
             {showFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t">
+              <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-4 border-t">
                 {/* Status Filter */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Status</Label>
@@ -320,6 +336,24 @@ export default function Rooms() {
                     <SelectContent>
                       <SelectItem value="asc">Ascending</SelectItem>
                       <SelectItem value="desc">Descending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Category Filter */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Category</Label>
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Categories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat._id} value={cat._id}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

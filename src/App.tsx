@@ -70,6 +70,7 @@ import ShiftScheduler from "./pages/superAdmin/ShiftScheduler";
 import MySchedule from "./pages/Myschedule";
 import GalleryManagement from "./pages/superAdmin/GalleryManagement";
 import BlogManagement from "./pages/superAdmin/Blogmanagement";
+import CategoryManagement from "./pages/superAdmin/CategoryManagement";
 import StaffProfile from "./pages/StaffProfile";
 import ProfileUpdate from "./pages/Profileupdate";
 import ChangePassword from "./pages/Changepassword";
@@ -284,6 +285,7 @@ const App = () => (
                 <Route path="/reviews" element={<Reviews />} />
                 <Route path="/blog-management" element={<BlogManagement />} />
                 <Route path="/gallery-management" element={<GalleryManagement />} />
+                <Route path="/room-categories" element={<CategoryManagement />} />
                 <Route path="/profile" element={<StaffProfile/>}/>
                 <Route path="/profile/update" element={<ProfileUpdate/>}/>
                 <Route path="/profile/change-password" element={<ChangePassword/>}/>

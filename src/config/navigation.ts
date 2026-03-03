@@ -11,6 +11,7 @@ import {
   FileText,
   BarChart3,
   Star,
+  Tag,
   // Waiter
   Home,
   ClipboardList,
@@ -53,6 +54,7 @@ export const superAdminNav: NavItem[] = [
   { name: "Requests", href: "/requests", icon: FileText },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Reviews", href: "/reviews", icon: Star },
+  { name: "Room Categories", href: "/room-categories", icon: Tag },
   {name: "Blog Management", href: "/blog-management", icon: Space},
   { name: "Gallery Management", href: "/gallery-management", icon: ImagesIcon},
   // { name: "Settings", href: "/settings", icon: Settings },

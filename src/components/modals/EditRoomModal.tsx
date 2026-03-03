@@ -4,6 +4,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRoomStore} from "@/store/useRoomStore"; // Adjust path as needed
+import { useCategoryStore } from "@/store/useCategoryStore";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -43,12 +45,17 @@ const formSchema = z.object({
   price: z.coerce.number().min(1, "Price must be at least 1"),
   capacity: z.coerce.number().min(1, "Capacity must be at least 1"),
   isAvailable: z.boolean().default(true),
-  hotelId: z.string().min(1, "Hotel ID is required"), // Added hotelId
+  hotelId: z.string().min(1, "Hotel ID is required"),
+  categoryId: z.string().optional(),
 });
 
 export function EditRoomModal({ isOpen, onClose, room }: EditRoomModalProps) {
-  // Get update action and loading state from the store
   const { updateRoom, isLoading } = useRoomStore();
+  const { categories, fetchCategories } = useCategoryStore();
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -61,6 +68,7 @@ export function EditRoomModal({ isOpen, onClose, room }: EditRoomModalProps) {
       capacity: 2,
       isAvailable: true,
       hotelId: "",
+      categoryId: "",
     },
   });
 
@@ -81,6 +89,10 @@ useEffect(() => {
         typeof room.hotelId === "object"
           ? room.hotelId._id
           : room.hotelId,
+      categoryId:
+        typeof room.categoryId === "object"
+          ? room.categoryId?._id ?? ""
+          : room.categoryId ?? "",
     });
   }
 }, [room?._id, isOpen]);
@@ -208,6 +220,32 @@ useEffect(() => {
                   </FormItem>
                 )}
               />
+
+            {/* Category */}
+            <FormField
+              control={form.control}
+              name="categoryId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.filter(c => c.isActive).map((cat) => (
+                          <SelectItem key={cat._id} value={cat._id}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>

@@ -5,6 +5,7 @@ import * as z from "zod";
 import { useRoomStore } from "@/store/useRoomStore";
 import { useBranchStore } from "@/store/useBranchStore";
 import { useAuthStore } from "@/store/useAuthStore"; // 1. Import Auth Store
+import { useCategoryStore } from "@/store/useCategoryStore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +40,7 @@ const formSchema = z.object({
   amenities: z.string().min(1, "Amenities are required (comma-separated)"),
   price: z.coerce.number().min(1, "Price must be at least 1"),
   capacity: z.coerce.number().min(1, "Capacity must be at least 1"),
+  categoryId: z.string().optional(),
   isAvailable: z.boolean().default(true),
   images: z.instanceof(FileList).refine(files => files.length > 0, "At least one image is required"),
 });
@@ -47,7 +49,8 @@ export function CreateRoomModal() {
   const { isModalOpen, closeModal, createRoom, isLoading, error } = useRoomStore();
   const { branches, fetchBranches, isLoading: isBranchesLoading } = useBranchStore();
   const { user } = useAuthStore(); // 2. Get user context
-  
+  const { categories, fetchCategories } = useCategoryStore();
+
   const [fileInputKey, setFileInputKey] = useState(Date.now().toString());
 
   // Check roles
@@ -57,22 +60,24 @@ export function CreateRoomModal() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      hotelId: "", 
+      hotelId: "",
       name: "",
       roomNumber: "",
       description: "",
       amenities: "",
       price: 0,
       capacity: 1,
+      categoryId: "",
       isAvailable: true,
       images: undefined,
     },
   });
 
-  // Fetch branches on mount
+  // Fetch branches and categories on mount
   useEffect(() => {
     fetchBranches();
-  }, [fetchBranches]);
+    fetchCategories();
+  }, [fetchBranches, fetchCategories]);
 
   // 3. Automatically set the hotelId if user is Admin
   useEffect(() => {
@@ -92,6 +97,7 @@ export function CreateRoomModal() {
     formData.append("price", values.price.toString());
     formData.append("capacity", values.capacity.toString());
     formData.append("isAvailable", values.isAvailable.toString());
+    if (values.categoryId) formData.append("categoryId", values.categoryId);
 
     if (values.images) {
       for (let i = 0; i < values.images.length; i++) {
@@ -195,6 +201,32 @@ export function CreateRoomModal() {
                             {isBranchesLoading ? "Loading..." : "No branches available"}
                           </SelectItem>
                         )}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Category Dropdown */}
+            <FormField
+              control={form.control}
+              name="categoryId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.filter(c => c.isActive).map((cat) => (
+                          <SelectItem key={cat._id} value={cat._id}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </FormControl>
