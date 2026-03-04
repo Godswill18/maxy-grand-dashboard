@@ -32,15 +32,24 @@ export default function BookingCalendar({ bookings }: BookingCalendarProps) {
     [bookings]
   );
 
-  const handleSelectSlot = (slotInfo: any) => {
-    const clickedDate = slotInfo.start;
+  const showBookingsForDate = (date: Date) => {
     const found = bookings.filter(
       (b) =>
-        new Date(b.checkInDate) <= clickedDate &&
-        new Date(b.checkOutDate) >= clickedDate
+        new Date(b.checkInDate) <= date &&
+        new Date(b.checkOutDate) >= date
     );
-    setSelectedDate(clickedDate);
+    setSelectedDate(date);
     setSelectedBookings(found);
+  };
+
+  // Fires immediately on single click/tap of an event — no delay
+  const handleSelectEvent = (event: any) => {
+    showBookingsForDate(event.start);
+  };
+
+  // Fires on slot click (kept for clicking empty date cells)
+  const handleSelectSlot = (slotInfo: any) => {
+    showBookingsForDate(slotInfo.start);
   };
 
   return (
@@ -54,6 +63,8 @@ export default function BookingCalendar({ bookings }: BookingCalendarProps) {
           endAccessor="end"
           style={{ height: 600 }}
           selectable
+          longPressThreshold={10}
+          onSelectEvent={handleSelectEvent}
           onSelectSlot={handleSelectSlot}
           views={["month"]}
         />

@@ -1,58 +1,72 @@
 import { create } from 'zustand';
 import axios from 'axios';
-import { shallow } from 'zustand/shallow';
 
-// --- 1. Define Types ---
+// --- Types ---
+
 interface HotelStub {
   _id: string;
   name: string;
 }
 
+interface BookingStub {
+  confirmationCode?: string;
+  checkInDate?: string;
+  checkOutDate?: string;
+}
+
 export interface Review {
   _id: string;
   hotelId: HotelStub;
+  bookingId?: BookingStub;
   guestName: string;
   rating: number;
   comment: string;
-  createdAt: string; // This is an ISO date string
+  title?: string | null;
+  serviceRating?: number | null;
+  cleanlinessRating?: number | null;
+  wouldRecommend?: boolean | null;
+  createdAt: string;
 }
 
 interface ReviewState {
   reviews: Review[];
-  hotels: HotelStub[]; // For the filter
-  selectedHotelId: string; // 'all' or a hotel _id
+  hotels: HotelStub[];
+  selectedHotelId: string;    // 'all' or a hotel _id
+  ratingFilter: number | null; // null = all ratings
+  startDate: string;           // ISO date string or ''
+  endDate: string;
   isLoading: boolean;
   error: string | null;
 }
 
 interface ReviewActions {
   fetchHotels: () => Promise<void>;
-  fetchReviews: () => Promise<void>;
-  setHotelFilter: (hotelId: string) => void;
+  fetchReviews: (role?: string) => Promise<void>;
+  setHotelFilter: (hotelId: string, role?: string) => void;
+  setRatingFilter: (rating: number | null, role?: string) => void;
+  setDateRange: (start: string, end: string, role?: string) => void;
 }
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
-// TODO: You MUST send an auth token (e.g., from a user/auth store)
-const getAuthHeaders = () => {
-return { Authorization: `Bearer ${sessionStorage.getItem('token')}` };
-};
+const getAuthHeaders = () => ({
+  Authorization: `Bearer ${sessionStorage.getItem('token')}`,
+});
 
-// --- 2. Create the Store ---
+// --- Store ---
+
 export const useReviewStore = create<ReviewState & { actions: ReviewActions }>(
   (set, get) => ({
-    // --- Initial State ---
     reviews: [],
     hotels: [],
     selectedHotelId: 'all',
+    ratingFilter: null,
+    startDate: '',
+    endDate: '',
     isLoading: false,
     error: null,
 
-    // --- Actions ---
     actions: {
-      /**
-       * Fetches the list of hotels for the filter toggle
-       */
       fetchHotels: async () => {
         try {
           const response = await axios.get<HotelStub[]>(
@@ -62,61 +76,76 @@ export const useReviewStore = create<ReviewState & { actions: ReviewActions }>(
           set({ hotels: response.data });
         } catch (err: any) {
           console.error('Failed to fetch hotels:', err);
-          // Don't set a main error, as reviews might still load
         }
       },
 
       /**
-       * Fetches reviews based on the currently selected hotel filter
+       * Fetches reviews.
+       * - Branch manager (role='admin') → GET /api/reviews/branch (server-enforced hotel filter)
+       * - Superadmin                   → GET /api/reviews (with optional hotelId param)
        */
-      fetchReviews: async () => {
+      fetchReviews: async (role?: string) => {
         set({ isLoading: true, error: null });
-        const { selectedHotelId } = get();
+        const { selectedHotelId, ratingFilter, startDate, endDate } = get();
 
-        let url = `${VITE_API_URL}/api/reviews/`;
-        if (selectedHotelId !== 'all') {
-          url += `?hotelId=${selectedHotelId}`;
+        const params = new URLSearchParams();
+
+        if (role !== 'admin' && selectedHotelId && selectedHotelId !== 'all') {
+          params.set('hotelId', selectedHotelId);
         }
+        if (ratingFilter !== null) params.set('rating', String(ratingFilter));
+        if (startDate) params.set('startDate', startDate);
+        if (endDate)   params.set('endDate', endDate);
+
+        const endpoint = role === 'admin' ? '/api/reviews/branch' : '/api/reviews/';
+        const query = params.toString() ? `?${params.toString()}` : '';
+        const url = `${VITE_API_URL}${endpoint}${query}`;
 
         try {
-          const response = await axios.get<Review[]>(url, {
-            headers: getAuthHeaders(), withCredentials: true,
+          const response = await axios.get<{ success: boolean; data: Review[] }>(url, {
+            headers: getAuthHeaders(),
+            withCredentials: true,
           });
-          set({ reviews: response.data, isLoading: false });
+          // Handle both old array response and new {success, data} shape
+          const data = Array.isArray(response.data)
+            ? response.data
+            : response.data.data ?? [];
+          set({ reviews: data, isLoading: false });
         } catch (err: any) {
           const error = err.response?.data?.message || err.message;
           set({ isLoading: false, error });
         }
       },
 
-      /**
-       * Sets the hotel filter and triggers a refetch of reviews
-       */
-      setHotelFilter: (hotelId: string) => {
-        set({ selectedHotelId: hotelId, isLoading: true });
-        get().actions.fetchReviews(); // Refetch reviews for the new filter
+      setHotelFilter: (hotelId: string, role?: string) => {
+        set({ selectedHotelId: hotelId });
+        get().actions.fetchReviews(role);
+      },
+
+      setRatingFilter: (rating: number | null, role?: string) => {
+        set({ ratingFilter: rating });
+        get().actions.fetchReviews(role);
+      },
+
+      setDateRange: (start: string, end: string, role?: string) => {
+        set({ startDate: start, endDate: end });
+        get().actions.fetchReviews(role);
       },
     },
   })
 );
 
-// --- Custom Hooks for easier access ---
+// --- Custom Hooks ---
+
 export const useReviewState = () => ({
-      reviews: useReviewStore((state) => state.reviews),
-      hotels: useReviewStore((state) => state.hotels),
-      selectedHotelId: useReviewStore((state) => state.selectedHotelId),
-      isLoading: useReviewStore((state) => state.isLoading),
-      error: useReviewStore((state) => state.error),
-    });
+  reviews:        useReviewStore((s) => s.reviews),
+  hotels:         useReviewStore((s) => s.hotels),
+  selectedHotelId: useReviewStore((s) => s.selectedHotelId),
+  ratingFilter:   useReviewStore((s) => s.ratingFilter),
+  startDate:      useReviewStore((s) => s.startDate),
+  endDate:        useReviewStore((s) => s.endDate),
+  isLoading:      useReviewStore((s) => s.isLoading),
+  error:          useReviewStore((s) => s.error),
+});
 
-
-//     export const useReportState = () => ({
-//     timeseriesData: useReportStore((s) => s.timeseriesData),
-//     sourceData: useReportStore((s) => s.sourceData),
-//     period: useReportStore((s) => s.period),
-//     isLoading: useReportStore((s) => s.isLoading),
-//     error: useReportStore((s) => s.error),
-//   });
-  
-
-export const useReviewActions = () => useReviewStore((state) => state.actions);
+export const useReviewActions = () => useReviewStore((s) => s.actions);
