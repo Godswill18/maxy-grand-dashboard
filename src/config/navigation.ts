@@ -12,6 +12,7 @@ import {
   BarChart3,
   Star,
   Tag,
+  Megaphone,
   // Waiter
   Home,
   ClipboardList,
@@ -57,6 +58,7 @@ export const superAdminNav: NavItem[] = [
   { name: "Room Categories", href: "/room-categories", icon: Tag },
   {name: "Blog Management", href: "/blog-management", icon: Space},
   { name: "Gallery Management", href: "/gallery-management", icon: ImagesIcon},
+  { name: "Announcements", href: "/announcements", icon: Megaphone },
   // { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -89,6 +91,7 @@ export const managerNav: NavItem[] = [
   { name: "Orders", href: "/manager/orders", icon: UtensilsCrossed },
   { name: "Operations", href: "/manager/operations", icon: ClipboardList },
   { name: "Reviews", href: "/manager/reviews", icon: Star },
+  { name: "Announcements", href: "/manager/announcements", icon: Megaphone },
   // { name: "Settings", href: "/manager/settings", icon: Settings },
 ];
 

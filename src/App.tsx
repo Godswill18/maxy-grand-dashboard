@@ -74,6 +74,8 @@ import CategoryManagement from "./pages/superAdmin/CategoryManagement";
 import StaffProfile from "./pages/StaffProfile";
 import ProfileUpdate from "./pages/Profileupdate";
 import ChangePassword from "./pages/Changepassword";
+import Announcements from "./pages/superAdmin/Announcements";
+import ManagerAnnouncements from "./pages/manager/Announcements";
 
 const queryClient = new QueryClient();
 
@@ -286,6 +288,7 @@ const App = () => (
                 <Route path="/blog-management" element={<BlogManagement />} />
                 <Route path="/gallery-management" element={<GalleryManagement />} />
                 <Route path="/room-categories" element={<CategoryManagement />} />
+                <Route path="/announcements" element={<Announcements />} />
                 <Route path="/profile" element={<StaffProfile/>}/>
                 <Route path="/profile/update" element={<ProfileUpdate/>}/>
                 <Route path="/profile/change-password" element={<ChangePassword/>}/>
@@ -325,6 +328,7 @@ const App = () => (
                 <Route path="/manager/booking-calendar" element={<Bookings />} />
                 <Route path="/manager/orders" element={<Restaurant />} />
                 <Route path="/manager/reviews" element={<Reviews />} />
+                <Route path="/manager/announcements" element={<ManagerAnnouncements />} />
                 {/* <Route path="/manager/transactions" element={<Transactions />} /> */}
                 <Route path="/manager/rooms" element={<RoomReceptionist />} />
                 <Route path="/manager/profile" element={<StaffProfile/>}/>

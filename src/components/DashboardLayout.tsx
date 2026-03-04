@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 // import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
+import { StaffAnnouncementBanner } from "@/components/StaffAnnouncementBanner";
 import { NavItem } from "@/config/navigation";
 import { useAuthStore } from "../store/useAuthStore"; // Import the store
 import { toast } from "sonner"; // Use sonner for logout toast
@@ -62,7 +63,7 @@ export function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-background flex w-full">
-      
+      <StaffAnnouncementBanner />
       <div className="min-h-screen bg-background flex w-full">
         {/* Sidebar (fixed) */}
         <Sidebar
