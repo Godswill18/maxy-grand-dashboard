@@ -1,6 +1,6 @@
 // src/components/BookingCalendar.tsx
 import { useMemo, useState } from "react";
-import { Calendar, momentLocalizer, Event } from "react-big-calendar";
+import { Calendar, momentLocalizer } from "react-big-calendar";
 import { format } from "date-fns";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -32,12 +32,15 @@ export default function BookingCalendar({ bookings }: BookingCalendarProps) {
     [bookings]
   );
 
+  const toDateOnly = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
   const showBookingsForDate = (date: Date) => {
-    const found = bookings.filter(
-      (b) =>
-        new Date(b.checkInDate) <= date &&
-        new Date(b.checkOutDate) >= date
-    );
+    const clicked = toDateOnly(date);
+    const found = bookings.filter((b) => {
+      const checkIn = toDateOnly(new Date(b.checkInDate));
+      const checkOut = toDateOnly(new Date(b.checkOutDate));
+      return checkIn <= clicked && checkOut >= clicked;
+    });
     setSelectedDate(date);
     setSelectedBookings(found);
   };
