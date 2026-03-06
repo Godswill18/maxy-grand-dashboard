@@ -75,7 +75,7 @@ const usePerformanceStore = create<PerformanceState>((set) => ({
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`${VITE_API_URL}/api/cleaning/performance/metrics`, {
+      const response = await fetch(`${VITE_API_URL}/api/cleaning/cleaner-stats`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

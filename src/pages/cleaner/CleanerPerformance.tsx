@@ -184,14 +184,20 @@ export default function CleanerPerformance() {
                         labelLine={false}
                         label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         outerRadius={80}
-                        fill="#8884d8"
                         dataKey="value"
                       >
-                        {taskTypeData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
+                        {(() => {
+                          const palette = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6'];
+                          return taskTypeData.map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={entry.color && !entry.color.includes('var(') ? entry.color : palette[index % palette.length]}
+                            />
+                          ));
+                        })()}
                       </Pie>
                       <Tooltip />
+                      <Legend />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
