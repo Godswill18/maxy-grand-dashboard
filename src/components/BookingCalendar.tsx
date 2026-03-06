@@ -75,14 +75,14 @@ export default function BookingCalendar({ bookings }: BookingCalendarProps) {
 
       {/* Modal for bookings on selected date */}
       <Dialog open={!!selectedDate} onOpenChange={() => setSelectedDate(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
               Bookings for {selectedDate ? format(selectedDate, "PPP") : ""}
             </DialogTitle>
           </DialogHeader>
           {selectedBookings.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-3 overflow-y-auto pr-1">
               {selectedBookings.map((b) => (
                 <Card key={b._id}>
                   <CardContent className="p-4 flex flex-col gap-1">
