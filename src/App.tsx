@@ -2,7 +2,8 @@ import { Toaster } from "./components/ui/toaster";
 import { Toaster as Sonner } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Outlet, Navigate, useNavigate } from "react-router-dom";
 
 // Import the ONE layout
 import { DashboardLayout } from "./components/DashboardLayout";
@@ -143,10 +144,32 @@ const RoleBasedLayout = () => {
  * This component listens for force logout events from the backend
  * When a staff member's shift ends, they will be automatically logged out
  */
+const STAFF_ROLES = ['receptionist', 'cleaner', 'waiter', 'headWaiter'];
+
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
-  // ✅ This hook listens for force logout events via Socket.IO
-  // When shift ends: Shows toast → Logs out → Redirects to login
+  // ✅ Primary: Socket listener — reacts instantly when cron/admin emits force:logout
   useForceLogout();
+
+  const { user, getMe } = useAuthStore();
+  const navigate = useNavigate();
+
+  // ✅ Fallback: Poll getMe() every 5 minutes for staff only.
+  // Catches sessions that survived a missed socket event (brief offline, reconnect, etc.)
+  // getMe() already clears auth state if isActive===false or isShiftTime===false,
+  // so throwing here means we just need to redirect.
+  useEffect(() => {
+    if (!user || !STAFF_ROLES.includes(user.role)) return;
+
+    const interval = setInterval(async () => {
+      try {
+        await getMe();
+      } catch {
+        navigate('/login', { replace: true });
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, [user?.role]);
 
   return <>{children}</>;
 }

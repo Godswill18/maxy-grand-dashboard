@@ -407,11 +407,16 @@ export default function CheckInOut() {
     };
   }, [initSocketListeners, closeSocketListeners, fetchGuests]);
 
-  const filteredGuests = guests.filter(guest =>
-    guest.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    guest.bookingId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    guest.room.includes(searchQuery)
-  );
+  const sortByLatest = (a: any, b: any) =>
+    new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
+
+  const filteredGuests = guests
+    .filter(guest =>
+      guest.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      guest.bookingId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      guest.room.includes(searchQuery)
+    )
+    .sort(sortByLatest);
 
   const pendingCheckIns = filteredGuests.filter(g => g.status === "Pending Check-in");
   const checkedIn = filteredGuests.filter(g => g.status === "Checked In");

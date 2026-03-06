@@ -206,7 +206,15 @@ export const useAuthStore = create<AuthState>()(
           const data = await res.json();
           
           if (!res.ok) {
-            // ✅ IMPORTANT: Don't logout admin/superadmin on 403
+            // SHIFT_ENDED: backend confirmed staff is outside their shift — always enforce logout
+            if (res.status === 403 && data.code === 'SHIFT_ENDED') {
+              console.log('❌ Shift ended — session terminated by server');
+              set({ user: null, isAuthenticated: false, token: null, error: data.message });
+              sessionStorage.removeItem('token');
+              throw new Error(data.message);
+            }
+
+            // ✅ IMPORTANT: Don't logout admin/superadmin on other 403s
             if (res.status === 403) {
               const currentUser = get().user;
               if (currentUser?.role === 'superadmin' || currentUser?.role === 'admin') {
@@ -214,12 +222,12 @@ export const useAuthStore = create<AuthState>()(
                 return currentUser;
               }
             }
-            
-            set({ 
-              user: null, 
-              isAuthenticated: false, 
-              token: null, 
-              error: data.message 
+
+            set({
+              user: null,
+              isAuthenticated: false,
+              token: null,
+              error: data.message
             });
             sessionStorage.removeItem('token');
             throw new Error(data.message || data.error || 'Failed to fetch user');

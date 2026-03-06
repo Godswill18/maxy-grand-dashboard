@@ -21,6 +21,7 @@ export interface Guest {
   specialRequests?: string;
   roomRate?: number;
   bookingType?: 'online' | 'walk-in';
+  updatedAt?: string;
 }
 
 const mapBookingStatusToFrontend = (status: string): Guest['status'] => {
@@ -94,6 +95,7 @@ const mapBookingToGuest = (booking: any): Guest => {
     specialRequests: booking.specialRequests || undefined,
     roomRate: roomType?.price || 0,
     bookingType: booking.bookingType || 'online',
+    updatedAt: booking.updatedAt,
   };
 };
 
