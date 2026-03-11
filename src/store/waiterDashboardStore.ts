@@ -35,17 +35,20 @@ interface RecentOrder {
   };
 }
 
+const WAITER_DASHBOARD_TTL = 60 * 1000; // 1 minute — orders change frequently
+
 interface DashboardState {
   // State
   stats: DashboardStats | null;
   recentOrders: RecentOrder[];
   loading: boolean;
   error: string | null;
+  lastFetched: number | null;
 
   // Actions
   fetchDashboardStats: () => Promise<void>;
   fetchRecentOrders: (limit?: number) => Promise<void>;
-  refreshDashboard: () => Promise<void>;
+  refreshDashboard: (force?: boolean) => Promise<void>;
   clearError: () => void;
 }
 
@@ -77,6 +80,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   recentOrders: [],
   loading: false,
   error: null,
+  lastFetched: null,
 
   // Fetch Dashboard Stats
   fetchDashboardStats: async () => {
@@ -117,17 +121,21 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   },
 
   // Refresh All Dashboard Data
-  refreshDashboard: async () => {
+  refreshDashboard: async (force = false) => {
+    const { lastFetched } = get();
+    if (lastFetched && Date.now() - lastFetched < WAITER_DASHBOARD_TTL && !force) return;
+
     set({ loading: true, error: null });
     try {
       await Promise.all([
         get().fetchDashboardStats(),
         get().fetchRecentOrders()
       ]);
+      set({ lastFetched: Date.now() });
     } catch (error: any) {
-      set({ 
-        error: error.response?.data?.error || 'Failed to refresh dashboard', 
-        loading: false 
+      set({
+        error: error.response?.data?.error || 'Failed to refresh dashboard',
+        loading: false
       });
       throw error;
     }

@@ -50,6 +50,8 @@ interface Hotel {
   name: string;
 }
 
+const BOOKING_TTL = 2 * 60 * 1000; // 2 minutes
+
 // Define the state and actions for your store
 interface BookingState {
   bookings: Booking[];
@@ -57,7 +59,8 @@ interface BookingState {
   currentHotelId: string | null;
   isLoading: boolean;
   error: string | null;
-  fetchBookings: (hotelId?: string) => Promise<void>;
+  lastFetched: number | null;             // cache timestamp
+  fetchBookings: (hotelId?: string, force?: boolean) => Promise<void>;
   fetchHotels: () => Promise<void>;
   updateBookingStatus: (id: string, bookingStatus: Booking['bookingStatus']) => Promise<void>;
   updateBooking: (id: string, data: any) => Promise<void>;
@@ -85,6 +88,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   currentHotelId: null,
   isLoading: false,
   error: null,
+  lastFetched: null,
 
   // --- 1. AXIOS ACTIONS (for initial load and updates) ---
 
@@ -102,7 +106,14 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     }
   },
 
-  fetchBookings: async (hotelId?: string) => {
+  fetchBookings: async (hotelId?: string, force = false) => {
+    const { lastFetched, currentHotelId: prevHotelId } = get();
+    const hotelChanged = hotelId !== prevHotelId;
+    const isFresh = lastFetched && Date.now() - lastFetched < BOOKING_TTL;
+
+    // Skip fetch if data is still fresh, same hotel, and not forced (e.g. by socket event)
+    if (isFresh && !force && !hotelChanged) return;
+
     set({ isLoading: true, error: null, currentHotelId: hotelId || null });
     try {
       const token = getToken();
@@ -115,7 +126,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         headers: { Authorization: `Bearer ${token}` },
         withCredentials: true,
       });
-      set({ bookings: response.data.data || [], isLoading: false });
+      set({ bookings: response.data.data || [], isLoading: false, lastFetched: Date.now() });
     } catch (err) {
       const error = err as AxiosError;
       set({ error: error.message, isLoading: false });
@@ -269,31 +280,25 @@ cancelBooking: async (id: string) => {
 
     // Listen for new bookings
     socket.on('bookingCreated', (newBooking: Booking) => {
-      // Refetch to include new booking if matches current hotel
       const currentHotelId = get().currentHotelId;
       const hotelId = typeof newBooking.hotelId === 'string' ? newBooking.hotelId : newBooking.hotelId._id;
-      
       if (currentHotelId === null || hotelId === currentHotelId) {
-        get().fetchBookings(currentHotelId || undefined);
+        get().fetchBookings(currentHotelId || undefined, true); // force — bypass cache
       }
       toast.info(`New booking created for ${newBooking.guestName}`);
     });
 
-    // Listen for updates
     socket.on('bookingUpdated', (updatedBooking: Booking) => {
-      // Refetch if matches current hotel
       const currentHotelId = get().currentHotelId;
       const hotelId = typeof updatedBooking.hotelId === 'string' ? updatedBooking.hotelId : updatedBooking.hotelId._id;
-      
       if (currentHotelId === null || hotelId === currentHotelId) {
-        get().fetchBookings(currentHotelId || undefined);
+        get().fetchBookings(currentHotelId || undefined, true); // force — bypass cache
       }
       toast.info(`Booking for ${updatedBooking.guestName} was updated`);
     });
 
-    // Listen for deletions
-    socket.on('bookingDeleted', (bookingId: string) => {
-      get().fetchBookings(get().currentHotelId || undefined);
+    socket.on('bookingDeleted', (_bookingId: string) => {
+      get().fetchBookings(get().currentHotelId || undefined, true); // force — bypass cache
       toast.warning('A booking was deleted');
     });
   },

@@ -56,6 +56,8 @@ interface DashboardStats {
   };
 }
 
+const RECEPTIONIST_DASHBOARD_TTL = 60 * 1000; // 1 minute — live operational data
+
 interface ReceptionistDashboardState {
   // Data
   stats: DashboardStats;
@@ -63,13 +65,14 @@ interface ReceptionistDashboardState {
   weeklyRevenue: RevenueData[];
   pendingCheckIns: PendingCheckIn[];
   expectedCheckOuts: ExpectedCheckOut[];
-  
+  lastFetched: number | null;
+
   // Loading states
   isLoading: boolean;
   error: string | null;
-  
+
   // Actions
-  fetchDashboardData: () => Promise<void>;
+  fetchDashboardData: (force?: boolean) => Promise<void>;
   fetchStats: () => Promise<void>;
   fetchCheckInActivity: () => Promise<void>;
   fetchWeeklyRevenue: () => Promise<void>;
@@ -95,6 +98,7 @@ export const useReceptionistDashboardStore = create<ReceptionistDashboardState>(
   expectedCheckOuts: [],
   isLoading: false,
   error: null,
+  lastFetched: null,
 
   // Fetch dashboard stats
   fetchStats: async () => {
@@ -217,9 +221,12 @@ export const useReceptionistDashboardStore = create<ReceptionistDashboardState>(
   },
 
   // Fetch all dashboard data
-  fetchDashboardData: async () => {
+  fetchDashboardData: async (force = false) => {
+    const { lastFetched } = get();
+    if (lastFetched && Date.now() - lastFetched < RECEPTIONIST_DASHBOARD_TTL && !force) return;
+
     set({ isLoading: true, error: null });
-    
+
     try {
       await Promise.all([
         get().fetchStats(),
@@ -228,6 +235,7 @@ export const useReceptionistDashboardStore = create<ReceptionistDashboardState>(
         get().fetchPendingCheckIns(),
         get().fetchExpectedCheckOuts(),
       ]);
+      set({ lastFetched: Date.now() });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       set({ error: (error as Error).message });

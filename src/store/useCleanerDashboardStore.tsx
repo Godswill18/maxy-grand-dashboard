@@ -42,22 +42,29 @@ interface DashboardData {
   urgentTasks: UrgentTask[];
 }
 
+const CLEANER_DASHBOARD_TTL = 2 * 60 * 1000; // 2 minutes
+
 interface DashboardState {
   dashboardData: DashboardData | null;
   isLoading: boolean;
   error: string | null;
+  lastFetched: number | null;
   fetchDashboardData: () => Promise<void>;
   clearError: () => void;
 }
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
-const useDashboardStore = create<DashboardState>((set) => ({
+const useDashboardStore = create<DashboardState>((set, get) => ({
   dashboardData: null,
   isLoading: false,
   error: null,
+  lastFetched: null,
 
   fetchDashboardData: async () => {
+    const { lastFetched } = get();
+    if (lastFetched && Date.now() - lastFetched < CLEANER_DASHBOARD_TTL) return;
+
     set({ isLoading: true, error: null });
     try {
       const token = sessionStorage.getItem('token');
@@ -84,7 +91,7 @@ const useDashboardStore = create<DashboardState>((set) => ({
       
     //   console.log('Fetched dashboard data:', data);
 
-      set({ dashboardData: data, isLoading: false });
+      set({ dashboardData: data, isLoading: false, lastFetched: Date.now() });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       set({ 

@@ -16,12 +16,15 @@ export interface Branch {
   updatedAt?: string;
 }
 
+const BRANCH_TTL = 10 * 60 * 1000; // 10 minutes — branches rarely change
+
 // Define the shape of the store's state and actions
 interface BranchState {
   branches: Branch[];
   currentBranch: Branch | null;
   isLoading: boolean;
   error: string | null;
+  lastFetched: number | null;
   fetchBranches: () => Promise<void>;
   fetchActiveBranches: () => Promise<void>;
   fetchBranchById: (id: string) => Promise<void>;
@@ -53,6 +56,7 @@ export const useBranchStore = create<BranchState>((set, get) => ({
   currentBranch: null,
   isLoading: false,
   error: null,
+  lastFetched: null,
 
   // ✅ NEW: Calculate staff count for a branch based on hotelId
   calculateStaffCount: (hotelId: string, staffList: any[]) => {
@@ -99,6 +103,9 @@ export const useBranchStore = create<BranchState>((set, get) => ({
 
   // --- FETCH ALL BRANCHES (for Admin) ---
   fetchBranches: async () => {
+    const { lastFetched } = get();
+    if (lastFetched && Date.now() - lastFetched < BRANCH_TTL) return;
+
     set({ isLoading: true, error: null });
     const { apiUrl, headers } = getApiConfig();
     try {
@@ -111,13 +118,16 @@ export const useBranchStore = create<BranchState>((set, get) => ({
       if (!response.ok || !data.success) {
         throw new Error(data.message || 'Failed to fetch branches');
       }
-      set({ branches: data.data, isLoading: false });
+      set({ branches: data.data, isLoading: false, lastFetched: Date.now() });
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
     }
   },
 
   fetchActiveBranches: async () => {
+    const { lastFetched } = get();
+    if (lastFetched && Date.now() - lastFetched < BRANCH_TTL) return;
+
     set({ isLoading: true, error: null });
     const { apiUrl, headers } = getApiConfig();
     try {
@@ -130,7 +140,7 @@ export const useBranchStore = create<BranchState>((set, get) => ({
       if (!response.ok || !data.success) {
         throw new Error(data.message || 'Failed to fetch branches');
       }
-      set({ branches: data.data, isLoading: false });
+      set({ branches: data.data, isLoading: false, lastFetched: Date.now() });
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
     }
@@ -171,10 +181,10 @@ export const useBranchStore = create<BranchState>((set, get) => ({
       if (!response.ok || !data.success) {
         throw new Error(data.message || 'Failed to create branch');
       }
-      // Add the new branch to the local state
       set((state) => ({
         branches: [...state.branches, data.data],
         isLoading: false,
+        lastFetched: null, // invalidate
       }));
       return true;
     } catch (err: any) {
@@ -198,11 +208,11 @@ export const useBranchStore = create<BranchState>((set, get) => ({
       if (!response.ok || !data.success) {
         throw new Error(data.message || 'Failed to update branch');
       }
-      // Update the branch in the local state
       set((state) => ({
         branches: state.branches.map((b) => (b._id === id ? data.data : b)),
         currentBranch: state.currentBranch?._id === id ? data.data : state.currentBranch,
         isLoading: false,
+        lastFetched: null, // invalidate
       }));
       return true;
     } catch (err: any) {
@@ -225,10 +235,10 @@ export const useBranchStore = create<BranchState>((set, get) => ({
       if (!response.ok || !data.success) {
         throw new Error(data.message || 'Failed to delete branch');
       }
-      // Remove the branch from local state
       set((state) => ({
         branches: state.branches.filter((b) => b._id !== id),
         isLoading: false,
+        lastFetched: null, // invalidate
       }));
       return true;
     } catch (err: any) {

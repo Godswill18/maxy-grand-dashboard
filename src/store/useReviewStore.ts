@@ -41,11 +41,13 @@ interface ReviewState {
 
 interface ReviewActions {
   fetchHotels: () => Promise<void>;
-  fetchReviews: (role?: string) => Promise<void>;
+  fetchReviews: (role?: string, force?: boolean) => Promise<void>;
   setHotelFilter: (hotelId: string, role?: string) => void;
   setRatingFilter: (rating: number | null, role?: string) => void;
   setDateRange: (start: string, end: string, role?: string) => void;
 }
+
+const REVIEW_TTL = 5 * 60 * 1000; // 5 minutes
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
@@ -65,6 +67,7 @@ export const useReviewStore = create<ReviewState & { actions: ReviewActions }>(
     endDate: '',
     isLoading: false,
     error: null,
+    lastFetched: null as number | null,
 
     actions: {
       fetchHotels: async () => {
@@ -84,7 +87,11 @@ export const useReviewStore = create<ReviewState & { actions: ReviewActions }>(
        * - Branch manager (role='admin') → GET /api/reviews/branch (server-enforced hotel filter)
        * - Superadmin                   → GET /api/reviews (with optional hotelId param)
        */
-      fetchReviews: async (role?: string) => {
+      fetchReviews: async (role?: string, force = false) => {
+        // Return cached data if still fresh and no force flag (filter changes pass force=true)
+        const { lastFetched } = get() as any;
+        if (lastFetched && Date.now() - lastFetched < REVIEW_TTL && !force) return;
+
         set({ isLoading: true, error: null });
         const { selectedHotelId, ratingFilter, startDate, endDate } = get();
 
@@ -110,7 +117,7 @@ export const useReviewStore = create<ReviewState & { actions: ReviewActions }>(
           const data = Array.isArray(response.data)
             ? response.data
             : response.data.data ?? [];
-          set({ reviews: data, isLoading: false });
+          (set as any)({ reviews: data, isLoading: false, lastFetched: Date.now() });
         } catch (err: any) {
           const error = err.response?.data?.message || err.message;
           set({ isLoading: false, error });
@@ -119,17 +126,17 @@ export const useReviewStore = create<ReviewState & { actions: ReviewActions }>(
 
       setHotelFilter: (hotelId: string, role?: string) => {
         set({ selectedHotelId: hotelId });
-        get().actions.fetchReviews(role);
+        get().actions.fetchReviews(role, true); // filter changed — always refetch
       },
 
       setRatingFilter: (rating: number | null, role?: string) => {
         set({ ratingFilter: rating });
-        get().actions.fetchReviews(role);
+        get().actions.fetchReviews(role, true);
       },
 
       setDateRange: (start: string, end: string, role?: string) => {
         set({ startDate: start, endDate: end });
-        get().actions.fetchReviews(role);
+        get().actions.fetchReviews(role, true);
       },
     },
   })

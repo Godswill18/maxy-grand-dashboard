@@ -54,6 +54,8 @@ interface DashboardStats {
   availableRooms: number;
 }
 
+const MANAGER_DASHBOARD_TTL = 2 * 60 * 1000; // 2 minutes
+
 interface ManagerDashboardState {
   // Data
   staff: StaffMember[];
@@ -64,12 +66,14 @@ interface ManagerDashboardState {
   revenueData: RevenueData[];
   occupancyData: OccupancyData[];
   
+  lastFetched: number | null;
+
   // Loading states
   isLoading: boolean;
   error: string | null;
-  
+
   // Actions
-  fetchDashboardData: () => Promise<void>;
+  fetchDashboardData: (force?: boolean) => Promise<void>;
   fetchStaff: () => Promise<void>;
   fetchRequests: () => Promise<void>;
   fetchRooms: () => Promise<void>;
@@ -100,6 +104,7 @@ const useManagerDashboardStore = create<ManagerDashboardState>((set, get) => ({
   occupancyData: [],
   isLoading: false,
   error: null,
+  lastFetched: null,
 
   // Fetch all staff members
   fetchStaff: async () => {
@@ -363,9 +368,12 @@ const useManagerDashboardStore = create<ManagerDashboardState>((set, get) => ({
   },
 
   // Fetch all dashboard data
-  fetchDashboardData: async () => {
+  fetchDashboardData: async (force = false) => {
+    const { lastFetched } = get();
+    if (lastFetched && Date.now() - lastFetched < MANAGER_DASHBOARD_TTL && !force) return;
+
     set({ isLoading: true, error: null });
-    
+
     try {
       await Promise.all([
         get().fetchStaff(),
@@ -373,11 +381,12 @@ const useManagerDashboardStore = create<ManagerDashboardState>((set, get) => ({
         get().fetchRooms(),
         get().fetchBookings(),
       ]);
-      
+
       // Recalculate all stats after fetching
       get().calculateStats();
       get().calculateRevenueData();
       get().calculateOccupancyData();
+      set({ lastFetched: Date.now() });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       set({ error: (error as Error).message });

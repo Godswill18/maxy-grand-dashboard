@@ -281,7 +281,7 @@ const App = () => (
             {/* Public-only routes (Login, Signup) */}
             <Route element={<PublicRoutes />}>
               <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
+              {/* <Route path="/signup" element={<Signup />} /> */}
             </Route>
 
             {/* Protected routes (all dashboards) */}

@@ -41,6 +41,7 @@ interface RoomState {
   isLoading: boolean;
   error: string | null;
   isModalOpen: boolean;
+  lastFetched: number | null;   // cache timestamp
   fetchRooms: () => Promise<void>;
   fetchRoomsAdmin: () => Promise<void>;
   fetchRoomById: (id: string) => Promise<void>;
@@ -49,7 +50,8 @@ interface RoomState {
   closeModal: () => void;
   updateRoom: (id: string, updatedData: Partial<Room>) => Promise<{ success: boolean }>; // For text-only
   deleteRoom: (id: string) => Promise<{ success: boolean }>;
-  
+  invalidate: () => void;       // force-expire the cache on next fetch
+
   // --- 👇 NEW FUNCTIONS ADDED ---
   addImages: (id: string, formData: FormData) => Promise<{ success: boolean }>;
   deleteImage: (id: string, imagePath: string) => Promise<{ success: boolean }>;
@@ -58,6 +60,8 @@ interface RoomState {
   calculateRoomCountByHotelId: (hotelId: string) => number;
 getRoomsByHotelId: (hotelId: string) => Room[];
 }
+
+const ROOM_TTL = 2 * 60 * 1000; // 2 minutes
 
 // Helper function to get the auth token (if you have one)
 const getToken = () => {
@@ -73,13 +77,19 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   isLoading: false,
   error: null,
   isModalOpen: false,
-  
+  lastFetched: null,
+
   openModal: () => set({ isModalOpen: true }),
   closeModal: () => set({ isModalOpen: false }),
+  invalidate: () => set({ lastFetched: null }),
 
   fetchRooms: async () => {
     const { user } = useAuthStore.getState(); // Get current user
     if (!user) return;
+
+    // Return cached data if still fresh
+    const { lastFetched } = get();
+    if (lastFetched && Date.now() - lastFetched < ROOM_TTL) return;
 
     set({ isLoading: true });
     try {
@@ -91,7 +101,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       const data = await res.json();
 
       if (data.success) {
-        set({ rooms: data.rooms });
+        set({ rooms: data.rooms, lastFetched: Date.now() });
       } else {
         set({ rooms: [] });
         console.error('Failed to fetch rooms:', data.message);
@@ -105,6 +115,10 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   },
 
    fetchRoomsAdmin: async () => {
+    // Return cached data if still fresh
+    const { lastFetched } = get();
+    if (lastFetched && Date.now() - lastFetched < ROOM_TTL) return;
+
     set({ isLoading: true, error: null });
     
     // 1. Get User Context
@@ -156,8 +170,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
           rooms = resData.data.rooms;
         }
 
-        set({ rooms, isLoading: false });
-
+        set({ rooms, isLoading: false, lastFetched: Date.now() });
 
     } catch (err) {
       const error = err as AxiosError;
@@ -200,6 +213,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         rooms: state.rooms.map((r) => (r._id === id ? updated : r)),
         currentRoom: state.currentRoom?._id === id ? updated : state.currentRoom,
         isLoading: false,
+        lastFetched: null, // invalidate so next full fetch is fresh
       }));
 
       return { success: true };
@@ -226,6 +240,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         rooms: state.rooms.filter((r) => r._id !== id),
         currentRoom: state.currentRoom?._id === id ? null : state.currentRoom,
         isLoading: false,
+        lastFetched: null,
       }));
       return { success: true };
     } catch (err) {
@@ -247,7 +262,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         },
         withCredentials: true,
       });
-      set({ isLoading: false });
+      set({ isLoading: false, lastFetched: null });
       // After creating, fetch the updated list of rooms
       useRoomStore.getState().fetchRoomsAdmin();
       return { success: true };
