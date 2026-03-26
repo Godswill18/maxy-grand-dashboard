@@ -31,6 +31,7 @@ import {
   Space,
   Calendar1Icon,
   ImagesIcon,
+  HelpCircle,
 } from "lucide-react";
 
 // Define a reusable NavItem type
@@ -59,6 +60,7 @@ export const superAdminNav: NavItem[] = [
   {name: "Blog Management", href: "/blog-management", icon: Space},
   { name: "Gallery Management", href: "/gallery-management", icon: ImagesIcon},
   { name: "Announcements", href: "/announcements", icon: Megaphone },
+  { name: "Help & Guide", href: "/help", icon: HelpCircle },
   // { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -71,6 +73,7 @@ export const waiterNav: NavItem[] = [
   // { name: "Reservations", href: "/waiter/reservations", icon: CalendarDays },
   { name: "My Shift", href: "/waiter/my-shift", icon: CalendarDays },
   { name: "Tips & Performance", href: "/waiter/performance", icon: TrendingUp },
+  { name: "Help & Guide", href: "/waiter/help", icon: HelpCircle },
   // { name: "Settings", href: "/waiter/settings", icon: Settings },
 ];
 
@@ -92,6 +95,7 @@ export const managerNav: NavItem[] = [
   { name: "Operations", href: "/manager/operations", icon: ClipboardList },
   { name: "Reviews", href: "/manager/reviews", icon: Star },
   { name: "Announcements", href: "/manager/announcements", icon: Megaphone },
+  { name: "Help & Guide", href: "/manager/help", icon: HelpCircle },
   // { name: "Settings", href: "/manager/settings", icon: Settings },
 ];
 
@@ -103,6 +107,7 @@ export const cleanerNav: NavItem[] = [
   { name: "Room Status", href: "/cleaner/rooms", icon: Sparkles },
   { name: "Task History", href: "/cleaner/history", icon: History },
   { name: "Performance", href: "/cleaner/performance", icon: TrendingUp },
+  { name: "Help & Guide", href: "/cleaner/help", icon: HelpCircle },
   // { name: "Settings", href: "/cleaner/settings", icon: Settings },
 ];
 
@@ -115,5 +120,6 @@ export const receptionistNav: NavItem[] = [
   { name: "Booking Calendar", href: "/receptionist/calendar", icon: Calendar1Icon },
   { name: "My Shift", href: "/receptionist/my-shift", icon: CalendarDays },
   { name: "Settings", href: "/receptionist/settings", icon: Settings },
+  { name: "Help & Guide", href: "/receptionist/help", icon: HelpCircle },
   // { name: "Payments", href: "/receptionist/payments", icon: CreditCard },
 ];
