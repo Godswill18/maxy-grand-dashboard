@@ -38,7 +38,8 @@ const statusLabels: Record<string, string> = {
   'out-of-service': "Out of Service",
 };
 
-const VITE_BACKEND_IMAGE_URL = (import.meta as any).env?.VITE_BACKEND_IMAGE_URL ?? 'http://localhost:5000';
+const _imgBase = (import.meta as any).env?.VITE_BACKEND_IMAGE_URL ?? 'http://localhost:5000';
+const VITE_BACKEND_IMAGE_URL = _imgBase.endsWith('/') ? _imgBase : `${_imgBase}/`;
 
 const StatCardSkeleton = () => (
   <Card>
@@ -521,7 +522,7 @@ export default function Rooms() {
                     <CardContent className="p-6">
                       {room.images?.length > 0 ? (
                         <img 
-                          src={`${VITE_BACKEND_IMAGE_URL}/${room.images[0]}`}
+                          src={`${VITE_BACKEND_IMAGE_URL}${room.images[0]}`}
                           alt={room.name} 
                           className="h-48 w-full object-cover rounded-md mb-4"
                         />

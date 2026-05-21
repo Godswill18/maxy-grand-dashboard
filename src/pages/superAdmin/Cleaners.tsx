@@ -1,35 +1,40 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Clock, 
-  CheckCircle, 
-  AlertCircle, 
-  User, 
-  CalendarIcon, 
-  Bed, 
+import {
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  User,
+  CalendarIcon,
+  Bed,
   Timer,
   Building2,
   RefreshCw,
   Hotel as HotelIcon,
-  MapPin,
+  UserPlus,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format, formatDistanceToNow } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCleaningStore } from "@/store/useCleaningStore";
+import { cn } from "@/lib/utils";
 
+const taskStatusConfig: Record<string, { label: string; badge: string; border: string }> = {
+  pending:       { label: "Pending",     badge: "bg-amber-100 text-amber-700 border-amber-200", border: "border-l-amber-400" },
+  "in-progress": { label: "In Progress", badge: "bg-blue-100 text-blue-700 border-blue-200",    border: "border-l-blue-400"  },
+  completed:     { label: "Completed",   badge: "bg-green-100 text-green-700 border-green-200", border: "border-l-green-400" },
+};
+
+// ── Unassigned Room Card ────────────────────────────────────────────────────
 interface UnassignedRoomCardProps {
   room: any;
   onAssign: (roomId: string, cleanerId: string, notes: string) => void;
@@ -37,60 +42,80 @@ interface UnassignedRoomCardProps {
   showHotelName: boolean;
 }
 
-const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign, cleaners, showHotelName }) => {
+const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({
+  room,
+  onAssign,
+  cleaners,
+  showHotelName,
+}) => {
   const [selectedCleanerId, setSelectedCleanerId] = useState("");
   const [notes, setNotes] = useState("");
 
   return (
-    <Card className="hover:shadow-lg transition-shadow">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Room {room.roomNumber}</CardTitle>
-          <Badge variant="secondary" className="bg-orange-100 text-orange-800">
-            Needs Assignment
+    <Card className="border-l-4 border-l-orange-400 hover:shadow-md transition-shadow">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="font-semibold text-foreground">Room {room.roomNumber}</h3>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+              <Bed className="h-3.5 w-3.5 shrink-0" />
+              <span>{room.roomTypeId?.name}</span>
+              {showHotelName && room.hotelId && (
+                <>
+                  <span>·</span>
+                  <span>{room.hotelId.name}</span>
+                </>
+              )}
+            </div>
+          </div>
+          <Badge className="bg-orange-100 text-orange-700 border border-orange-200 text-xs shrink-0">
+            Unassigned
           </Badge>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm">
-            <Bed className="h-4 w-4 text-muted-foreground" />
-            <span>{room.roomTypeId.name}</span>
-          </div>
-          {showHotelName && room.hotelId && (
-            <div className="flex items-center gap-2 text-sm">
-              <HotelIcon className="h-4 w-4 text-muted-foreground" />
-              <span>{room.hotelId.name}</span>
-            </div>
-          )}
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Assign Cleaner</label>
+
+        <div className="border-t" />
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Assign Cleaner
+          </label>
           <Select value={selectedCleanerId} onValueChange={setSelectedCleanerId}>
-            <SelectTrigger>
+            <SelectTrigger className="h-9 text-sm">
               <SelectValue placeholder="Select a cleaner" />
             </SelectTrigger>
             <SelectContent>
-              {cleaners.map((cleaner) => (
-                <SelectItem key={cleaner._id} value={cleaner._id}>
-                  {cleaner.firstName} {cleaner.lastName}
+              {cleaners.length === 0 ? (
+                <SelectItem value="__none__" disabled>
+                  No cleaners available
                 </SelectItem>
-              ))}
+              ) : (
+                cleaners.map((c) => (
+                  <SelectItem key={c._id} value={c._id}>
+                    {c.firstName} {c.lastName}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Notes (optional)</label>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Notes (optional)
+          </label>
           <Textarea
-            placeholder="Any special instructions..."
+            placeholder="Special instructions..."
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            rows={3}
+            rows={2}
+            className="text-sm resize-none"
           />
         </div>
+
         <Button
           size="sm"
           className="w-full"
+          disabled={!selectedCleanerId}
           onClick={() => {
             if (!selectedCleanerId) {
               toast.error("Please select a cleaner");
@@ -100,9 +125,8 @@ const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign,
             setSelectedCleanerId("");
             setNotes("");
           }}
-          disabled={!selectedCleanerId}
         >
-          <User className="h-4 w-4 mr-2" />
+          <UserPlus className="h-4 w-4 mr-2" />
           Assign Cleaner
         </Button>
       </CardContent>
@@ -110,153 +134,181 @@ const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign,
   );
 };
 
+// ── Assigned Task Card ──────────────────────────────────────────────────────
 interface AssignedTaskCardProps {
   task: any;
   showHotelName: boolean;
 }
 
 const AssignedTaskCard: React.FC<AssignedTaskCardProps> = ({ task, showHotelName }) => {
-  const getStatusBadge = () => {
-    switch (task.status) {
-      case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
-      case 'in-progress':
-        return <Badge className="bg-blue-100 text-blue-800">In Progress</Badge>;
-      case 'completed':
-        return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
-      default:
-        return <Badge className="bg-gray-100 text-gray-800">Unknown</Badge>;
-    }
+  const cfg = taskStatusConfig[task.status] ?? {
+    label: task.status,
+    badge: "bg-gray-100 text-gray-700 border-gray-200",
+    border: "border-l-gray-400",
   };
 
+  const initials =
+    (task.assignedCleaner?.firstName?.[0] ?? "") +
+    (task.assignedCleaner?.lastName?.[0] ?? "");
+
   return (
-    <Card className="hover:shadow-lg transition-shadow">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Room {task.roomId?.roomNumber}</CardTitle>
-          {getStatusBadge()}
+    <Card className={cn("border-l-4 hover:shadow-md transition-shadow", cfg.border)}>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="font-semibold text-foreground">Room {task.roomId?.roomNumber}</h3>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+              <Bed className="h-3.5 w-3.5 shrink-0" />
+              <span>{task.roomId?.roomTypeId?.name}</span>
+              {task.hotelId && (
+                <>
+                  <span>·</span>
+                  <span>{task.hotelId.name}</span>
+                </>
+              )}
+            </div>
+          </div>
+          <Badge className={cn("text-xs border shrink-0", cfg.badge)}>{cfg.label}</Badge>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm">
-            <Bed className="h-4 w-4 text-muted-foreground" />
-            <span>{task.roomId?.roomTypeId.name}</span>
+
+        <div className="border-t" />
+
+        {/* Cleaner avatar + name */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary text-xs font-semibold uppercase">
+            {initials || <User className="h-4 w-4" />}
           </div>
-          
-          { task.roomId && (
-            <div className="flex items-center gap-2 text-sm">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span>{task?.hotelId.name}</span>
+          <div>
+            <p className="text-sm font-medium leading-tight">
+              {task.assignedCleaner?.firstName} {task.assignedCleaner?.lastName}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Assigned {formatDistanceToNow(new Date(task.createdAt))} ago
+            </p>
+          </div>
+        </div>
+
+        {/* Timeline */}
+        <div className="space-y-1.5">
+          {task.estimatedDuration && task.status !== "completed" && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Timer className="h-3.5 w-3.5 shrink-0" />
+              <span>Est. {task.estimatedDuration}</span>
             </div>
           )}
-          
-          <div className="flex items-center gap-2 text-sm">
-            <User className="h-4 w-4 text-muted-foreground" />
-            <span>{task.assignedCleaner?.firstName} {task.assignedCleaner?.lastName}</span>
-          </div>
 
-          {task.estimatedDuration && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Timer className="h-4 w-4" />
-              <span>Estimated: {task.estimatedDuration}</span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span>Assigned {formatDistanceToNow(new Date(task.createdAt))} ago</span>
-          </div>
-
-          {task.status === 'in-progress' && task.startTime && (
-            <div className="flex items-center gap-2 text-sm font-medium text-blue-600 bg-blue-50 p-2 rounded-md border border-blue-200">
-              <Clock className="h-4 w-4" />
+          {task.status === "in-progress" && task.startTime && (
+            <div className="flex items-center gap-2 text-xs font-medium text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-md border border-blue-100">
+              <Timer className="h-3.5 w-3.5 shrink-0" />
               <span>Started {formatDistanceToNow(new Date(task.startTime))} ago</span>
             </div>
           )}
 
-          {task.status === 'completed' && task.actualDuration !== undefined && (
-            <div className="flex items-center gap-2 text-sm font-medium text-green-600 bg-green-50 p-2 rounded-md border border-green-200">
-              <CheckCircle className="h-4 w-4" />
-              <span>Completed in {task.actualDuration} minutes</span>
-            </div>
-          )}
-
-
-          {task.status === 'completed' && task.finishTime && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <CheckCircle className="h-4 w-4" />
-              <span>Finished {formatDistanceToNow(new Date(task.finishTime))} ago</span>
-            </div>
-          )}
-
-          {task.notes && (
-            <div className="flex items-start gap-2 text-sm p-2 bg-blue-50 rounded-md border border-blue-100">
-              <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
-              <span className="text-blue-700">{task.notes}</span>
+          {task.status === "completed" && (
+            <div className="grid grid-cols-2 gap-2">
+              {task.actualDuration !== undefined && (
+                <div className="flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 px-2.5 py-1.5 rounded-md border border-green-100">
+                  <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{task.actualDuration} min</span>
+                </div>
+              )}
+              {task.finishTime && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted px-2.5 py-1.5 rounded-md">
+                  <Clock className="h-3.5 w-3.5 shrink-0" />
+                  <span>Done {formatDistanceToNow(new Date(task.finishTime))} ago</span>
+                </div>
+              )}
             </div>
           )}
         </div>
+
+        {/* Notes */}
+        {task.notes && (
+          <div className="flex items-start gap-2 text-xs p-2.5 bg-amber-50 rounded-md border border-amber-100">
+            <AlertCircle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+            <span className="text-amber-700">{task.notes}</span>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 };
 
+// ── Date Picker ─────────────────────────────────────────────────────────────
 const DatePicker = ({
   date,
   setDate,
+  label,
 }: {
   date?: Date;
-  setDate: (date?: Date) => void;
-}) => {
-  return (
+  setDate: (d?: Date) => void;
+  label: string;
+}) => (
+  <div className="flex flex-col gap-1.5 flex-1">
+    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+      {label}
+    </label>
     <Popover>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className={`w-[280px] justify-start text-left font-normal ${
+          className={cn(
+            "w-full justify-start text-left font-normal text-sm",
             !date && "text-muted-foreground"
-          }`}
+          )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {date ? format(date, "PPP") : <span>Pick a date</span>}
+          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+          {date ? format(date, "PPP") : "Pick a date"}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          selected={date}
-          onSelect={setDate}
-          initialFocus
-        />
+        <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
       </PopoverContent>
     </Popover>
-  );
-};
+  </div>
+);
 
+// ── Empty State ─────────────────────────────────────────────────────────────
+const EmptyState = ({ message }: { message: string }) => (
+  <Card className="border-dashed bg-muted/20">
+    <CardContent className="flex flex-col items-center justify-center py-14 text-center gap-3">
+      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+        <CheckCircle className="h-6 w-6 text-muted-foreground" />
+      </div>
+      <div>
+        <h3 className="font-semibold">All Caught Up!</h3>
+        <p className="text-sm text-muted-foreground mt-0.5">{message}</p>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+// ── Loading Skeleton ────────────────────────────────────────────────────────
 const LoadingSkeleton = () => (
   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
     {[...Array(6)].map((_, i) => (
-      <Card key={i} className="hover:shadow-lg transition-shadow">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-6 w-32" />
-            <Skeleton className="h-6 w-24 rounded-full" />
+      <Card key={i} className="border-l-4 border-l-muted">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex justify-between">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-5 w-20 rounded-full" />
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-48" />
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-4 w-64" />
+          <Skeleton className="h-px w-full" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="w-8 h-8 rounded-full" />
+            <div className="space-y-1">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-24" />
+            </div>
           </div>
-          <Skeleton className="h-6 w-20" />
+          <Skeleton className="h-9 w-full rounded-md" />
         </CardContent>
       </Card>
     ))}
   </div>
 );
 
+// ── Main Component ──────────────────────────────────────────────────────────
 export default function Cleaners() {
   const [fromDate, setFromDate] = useState<Date | undefined>();
   const [toDate, setToDate] = useState<Date | undefined>();
@@ -281,145 +333,180 @@ export default function Cleaners() {
     refreshData,
   } = useCleaningStore();
 
-    const safeHotels = Array.isArray(hotels) ? hotels : [];
+  const safeHotels = Array.isArray(hotels) ? hotels : [];
 
   useEffect(() => {
-    const loadData = async () => {
-      await Promise.all([
-        fetchHotels(),
-        fetchCleaningRooms(),
-        fetchAllRequests(),
-        fetchCleaners(),
-      ]);
-    };
-    loadData();
+    Promise.all([
+      fetchHotels(),
+      fetchCleaningRooms(),
+      fetchAllRequests(),
+      fetchCleaners(),
+    ]);
   }, [fetchHotels, fetchCleaningRooms, fetchAllRequests, fetchCleaners]);
 
   const unassignedRooms = useMemo(
     () =>
       cleaningRooms.filter(
-        (room) => !pendingTasks.some((task) => task.roomId?._id === room?._id) &&
-                  !inProgressTasks.some((task) => task.roomId?._id === room?._id)
+        (room) =>
+          !pendingTasks.some((t) => t.roomId?._id === room?._id) &&
+          !inProgressTasks.some((t) => t.roomId?._id === room?._id)
       ),
     [cleaningRooms, pendingTasks, inProgressTasks]
   );
 
-  // console.log(pendingTasks)
-
-  const filteredCompletedTasks = useMemo(() => {
-    return completedTasks.filter((task) => {
-      const taskDate = new Date(task.updatedAt);
-      if (fromDate && taskDate < fromDate) return false;
-      if (toDate && taskDate > toDate) return false;
-      return true;
-    });
-  }, [completedTasks, fromDate, toDate]);
-
-  const stats = [
-    { label: "Rooms Needing Cleaning", value: cleaningRooms.length, color: "text-orange-600" },
-    { label: "Pending", value: pendingTasks.length, color: "text-yellow-600" },
-    { label: "In Progress", value: inProgressTasks.length, color: "text-blue-600" },
-    { label: "Completed", value: filteredCompletedTasks.length, color: "text-green-600" },
-  ];
+  const filteredCompletedTasks = useMemo(
+    () =>
+      completedTasks.filter((task) => {
+        const d = new Date(task.updatedAt);
+        if (fromDate && d < fromDate) return false;
+        if (toDate && d > toDate) return false;
+        return true;
+      }),
+    [completedTasks, fromDate, toDate]
+  );
 
   const handleRefresh = async () => {
     await refreshData();
-    toast.success('Data refreshed');
+    toast.success("Data refreshed");
   };
 
-  // Handler for hotel toggle selection
   const handleHotelToggleChange = (value: string) => {
-    if (value === 'all-hotels') {
-      setViewMode('all-hotels');
+    if (!value) return;
+    if (value === "all-hotels") {
+      setViewMode("all-hotels");
     } else {
-      // value is a hotel ID
-      setViewMode('single-hotel');
+      setViewMode("single-hotel");
       setSelectedHotel(value);
     }
   };
 
-    const selectedHotelName = selectedHotelId 
-    ? safeHotels.find(h => h._id === selectedHotelId)?.name || 'selected hotel'
-    : 'selected hotel';
+  const selectedHotelName =
+    selectedHotelId
+      ? safeHotels.find((h) => h._id === selectedHotelId)?.name ?? "selected hotel"
+      : "selected hotel";
 
-  const showHotelName = viewMode === 'all-hotels';
+  const showHotelName = viewMode === "all-hotels";
+  const currentToggleValue = viewMode === "all-hotels" ? "all-hotels" : selectedHotelId || "";
 
-  // Determine current toggle value
-  const currentToggleValue = viewMode === 'all-hotels' ? 'all-hotels' : selectedHotelId || '';
+  const statCards = [
+    {
+      label: "Needs Cleaning",
+      value: cleaningRooms.length,
+      color: "text-orange-600",
+      bg: "bg-orange-50",
+      icon: <Sparkles className="h-5 w-5 text-orange-500" />,
+      border: "border-l-orange-400",
+    },
+    {
+      label: "Pending",
+      value: pendingTasks.length,
+      color: "text-amber-600",
+      bg: "bg-amber-50",
+      icon: <Clock className="h-5 w-5 text-amber-500" />,
+      border: "border-l-amber-400",
+    },
+    {
+      label: "In Progress",
+      value: inProgressTasks.length,
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+      icon: <Timer className="h-5 w-5 text-blue-500" />,
+      border: "border-l-blue-400",
+    },
+    {
+      label: "Completed",
+      value: filteredCompletedTasks.length,
+      color: "text-green-600",
+      bg: "bg-green-50",
+      icon: <CheckCircle className="h-5 w-5 text-green-500" />,
+      border: "border-l-green-400",
+    },
+  ];
 
+  // ── Loading state ─────────────────────────────────────────────────────────
   if (isLoading && cleaningRooms.length === 0) {
     return (
-      <div className="space-y-6">
-        <div>
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-4 w-96 mt-2" />
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1.5">
+            <Skeleton className="h-8 w-56" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <Skeleton className="h-9 w-28" />
         </div>
-        <div className="flex gap-4">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-10 w-32" />
-        </div>
-        <div className="grid gap-4 md:grid-cols-4">
-          {stats.map((_, index) => (
-            <Card key={index}>
-              <CardContent className="p-4">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-8 w-16 mt-2" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="border-l-4 border-l-muted">
+              <CardContent className="p-4 flex items-center gap-3">
+                <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
+                <div className="space-y-1">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-7 w-10" />
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
-        <div className="space-y-4">
-          <Skeleton className="h-10 w-96" />
-          <LoadingSkeleton />
-        </div>
+        <LoadingSkeleton />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 animate-in fade-in duration-500">
       {/* Header */}
-      <div>
-           <h1 className="text-3xl font-bold">Cleaning Management</h1>
-        <p className="text-muted-foreground">
-          {viewMode === 'all-hotels' 
-            ? 'Manage cleaning assignments across all hotels' 
-            : `Manage cleaning assignments for ${selectedHotelName}`}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+            Cleaning Management
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {viewMode === "all-hotels"
+              ? "Managing all hotel branches"
+              : `Managing ${selectedHotelName}`}
+            {" "}· {cleaners.length} cleaner{cleaners.length !== 1 ? "s" : ""} available
+          </p>
+        </div>
+        <Button
+          onClick={handleRefresh}
+          variant="outline"
+          size="sm"
+          disabled={isLoading}
+          className="shrink-0 self-start"
+        >
+          <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
+          Refresh
+        </Button>
       </div>
 
-      {/* Filter Controls */}
-      <Card className="border-2">
-        <CardContent className="p-4 space-y-4">
-          {/* Hotel Level Toggle - Now with individual hotel names */}
-          <div className="space-y-3">
-            <label className="text-sm font-medium flex items-center gap-2">
-              <HotelIcon className="h-4 w-4" />
-              Hotel View
-            </label>
-            <ToggleGroup 
-              type="single" 
-              value={currentToggleValue} 
+      {/* Hotel Branch Selector */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <HotelIcon className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Hotel Branch</span>
+          </div>
+          <div className="overflow-x-auto pb-1 scrollbar-hide">
+            <ToggleGroup
+              type="single"
+              value={currentToggleValue}
               onValueChange={handleHotelToggleChange}
-              className="justify-start flex-wrap"
+              className="justify-start flex-nowrap gap-2 w-max"
             >
-              {/* All Hotels Toggle */}
-              <ToggleGroupItem 
-                value="all-hotels" 
+              <ToggleGroupItem
+                value="all-hotels"
                 aria-label="All Hotels"
-                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground whitespace-nowrap"
               >
                 <HotelIcon className="h-4 w-4 mr-2" />
                 All Hotels
               </ToggleGroupItem>
-
-              {/* Individual Hotel Toggles */}
               {safeHotels.map((hotel) => (
-                <ToggleGroupItem 
+                <ToggleGroupItem
                   key={hotel._id}
-                  value={hotel._id} 
+                  value={hotel._id}
                   aria-label={hotel.name}
-                  className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                  className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground whitespace-nowrap"
                 >
                   <Building2 className="h-4 w-4 mr-2" />
                   {hotel.name}
@@ -427,33 +514,26 @@ export default function Cleaners() {
               ))}
             </ToggleGroup>
           </div>
-
-          {/* Refresh Button */}
-          <div className="pt-3 border-t">
-            <Button onClick={handleRefresh} variant="outline" disabled={isLoading} size="sm">
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh Data
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
-      {/* Active Filter Display */}
-       <div className="flex flex-wrap gap-2">
-        <Badge variant="outline" className="text-sm py-1 px-3">
-          <HotelIcon className="h-3 w-3 mr-1" />
-          {viewMode === 'all-hotels' ? 'All Hotels' : selectedHotelName}
-        </Badge>
-      </div>
-
-
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        {stats.map((stat, index) => (
-          <Card key={index}>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
-              <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {statCards.map((s) => (
+          <Card key={s.label} className={cn("border-l-4", s.border)}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div
+                className={cn(
+                  "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
+                  s.bg
+                )}
+              >
+                {s.icon}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground leading-tight truncate">{s.label}</p>
+                <p className={cn("text-2xl font-bold leading-tight", s.color)}>{s.value}</p>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -461,37 +541,27 @@ export default function Cleaners() {
 
       {/* Tabs */}
       <Tabs defaultValue="unassigned" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="unassigned">
-            Unassigned ({unassignedRooms.length})
-          </TabsTrigger>
-          <TabsTrigger value="pending">
-            Pending ({pendingTasks.length})
-          </TabsTrigger>
-          <TabsTrigger value="in-progress">
-            In Progress ({inProgressTasks.length})
-          </TabsTrigger>
-          <TabsTrigger value="completed">
-            Completed ({filteredCompletedTasks.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-1 scrollbar-hide">
+          <TabsList className="flex w-max gap-1">
+            <TabsTrigger value="unassigned" className="whitespace-nowrap">
+              Unassigned ({unassignedRooms.length})
+            </TabsTrigger>
+            <TabsTrigger value="pending" className="whitespace-nowrap">
+              Pending ({pendingTasks.length})
+            </TabsTrigger>
+            <TabsTrigger value="in-progress" className="whitespace-nowrap">
+              In Progress ({inProgressTasks.length})
+            </TabsTrigger>
+            <TabsTrigger value="completed" className="whitespace-nowrap">
+              Completed ({filteredCompletedTasks.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        {/* Unassigned Tab */}
-        <TabsContent value="unassigned" className="space-y-4">
+        {/* Unassigned */}
+        <TabsContent value="unassigned" className="mt-0 space-y-4">
           {unassignedRooms.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center h-[50vh]">
-              <Card className="w-full max-w-md border-dashed bg-muted/30">
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="rounded-full bg-muted p-4 mb-4">
-                    <CheckCircle className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <h3 className="font-semibold text-lg">All Caught Up!</h3>
-                  <p className="text-muted-foreground mt-2">
-                    No unassigned cleaning rooms.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+            <EmptyState message="No unassigned rooms. All rooms are covered." />
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {unassignedRooms.map((room) => (
@@ -507,22 +577,10 @@ export default function Cleaners() {
           )}
         </TabsContent>
 
-        {/* Pending Tab */}
-        <TabsContent value="pending" className="space-y-4">
+        {/* Pending */}
+        <TabsContent value="pending" className="mt-0 space-y-4">
           {pendingTasks.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center h-[50vh]">
-              <Card className="w-full max-w-md border-dashed bg-muted/30">
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="rounded-full bg-muted p-4 mb-4">
-                    <CheckCircle className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <h3 className="font-semibold text-lg">All Caught Up!</h3>
-                  <p className="text-muted-foreground mt-2">
-                    No pending tasks.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+            <EmptyState message="No pending tasks. All assigned rooms are being cleaned or done." />
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {pendingTasks.map((task) => (
@@ -532,22 +590,10 @@ export default function Cleaners() {
           )}
         </TabsContent>
 
-        {/* In Progress Tab */}
-        <TabsContent value="in-progress" className="space-y-4">
+        {/* In Progress */}
+        <TabsContent value="in-progress" className="mt-0 space-y-4">
           {inProgressTasks.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center h-[50vh]">
-              <Card className="w-full max-w-md border-dashed bg-muted/30">
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="rounded-full bg-muted p-4 mb-4">
-                    <CheckCircle className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <h3 className="font-semibold text-lg">All Caught Up!</h3>
-                  <p className="text-muted-foreground mt-2">
-                    No tasks in progress.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+            <EmptyState message="No tasks currently in progress." />
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {inProgressTasks.map((task) => (
@@ -557,32 +603,40 @@ export default function Cleaners() {
           )}
         </TabsContent>
 
-        {/* Completed Tab */}
-        <TabsContent value="completed" className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4 mb-4">
-            <div className="flex-1">
-              <label className="text-sm font-medium block mb-1">From Date</label>
-              <DatePicker date={fromDate} setDate={setFromDate} />
-            </div>
-            <div className="flex-1">
-              <label className="text-sm font-medium block mb-1">To Date</label>
-              <DatePicker date={toDate} setDate={setToDate} />
-            </div>
-          </div>
-          {filteredCompletedTasks.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center h-[50vh]">
-              <Card className="w-full max-w-md border-dashed bg-muted/30">
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="rounded-full bg-muted p-4 mb-4">
-                    <CheckCircle className="h-8 w-8 text-muted-foreground" />
+        {/* Completed */}
+        <TabsContent value="completed" className="mt-0 space-y-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <DatePicker date={fromDate} setDate={setFromDate} label="From Date" />
+                <DatePicker date={toDate} setDate={setToDate} label="To Date" />
+                {(fromDate || toDate) && (
+                  <div className="flex items-end sm:pb-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setFromDate(undefined);
+                        setToDate(undefined);
+                      }}
+                      className="whitespace-nowrap"
+                    >
+                      Clear Dates
+                    </Button>
                   </div>
-                  <h3 className="font-semibold text-lg">All Caught Up!</h3>
-                  <p className="text-muted-foreground mt-2">
-                    No completed tasks match the filter.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {filteredCompletedTasks.length === 0 ? (
+            <EmptyState
+              message={
+                fromDate || toDate
+                  ? "No completed tasks in the selected date range."
+                  : "No completed tasks yet."
+              }
+            />
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredCompletedTasks.map((task) => (

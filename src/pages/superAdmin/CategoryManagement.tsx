@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 import {
     Dialog,
     DialogContent,
@@ -273,40 +274,26 @@ export default function CategoryManagement() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                    <CardContent className="p-6 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-muted-foreground">Total Categories</p>
-                            <p className="text-3xl font-bold">{isLoading ? "—" : categories.length}</p>
-                        </div>
-                        <div className="p-3 bg-primary/10 rounded-full">
-                            <Tag className="h-6 w-6 text-primary" />
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="p-6 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-muted-foreground">Active Categories</p>
-                            <p className="text-3xl font-bold text-success">{isLoading ? "—" : activeCount}</p>
-                        </div>
-                        <div className="p-3 bg-success/10 rounded-full">
-                            <Tag className="h-6 w-6 text-success" />
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="p-6 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-muted-foreground">Rooms Assigned</p>
-                            <p className="text-3xl font-bold">{isLoading ? "—" : totalRooms}</p>
-                        </div>
-                        <div className="p-3 bg-accent/10 rounded-full">
-                            <BedDouble className="h-6 w-6 text-accent" />
-                        </div>
-                    </CardContent>
-                </Card>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {[
+                    { label: "Total Categories", value: categories.length, color: "text-foreground", bg: "bg-muted",    border: "border-l-gray-400",  icon: <Tag      className="h-5 w-5 text-muted-foreground" /> },
+                    { label: "Active",           value: activeCount,        color: "text-green-600", bg: "bg-green-50", border: "border-l-green-400", icon: <Tag      className="h-5 w-5 text-green-500" /> },
+                    { label: "Rooms Assigned",   value: totalRooms,         color: "text-blue-600",  bg: "bg-blue-50",  border: "border-l-blue-400",  icon: <BedDouble className="h-5 w-5 text-blue-500" /> },
+                ].map((s) => (
+                    <Card key={s.label} className={cn("border-l-4", s.border)}>
+                        <CardContent className="p-4 flex items-center gap-3">
+                            <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", s.bg)}>
+                                {s.icon}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-xs text-muted-foreground leading-tight">{s.label}</p>
+                                <p className={cn("text-2xl font-bold leading-tight", s.color)}>
+                                    {isLoading ? "—" : s.value}
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
             </div>
 
             {/* Category List */}
@@ -316,40 +303,64 @@ export default function CategoryManagement() {
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
-                        <div className="space-y-3">
-                            {[...Array(5)].map((_, i) => (
-                                <Skeleton key={i} className="h-16 w-full rounded-md" />
+                        <div className="space-y-2">
+                            {[...Array(4)].map((_, i) => (
+                                <div key={i} className="flex items-center justify-between rounded-lg border p-4 border-l-4 border-l-muted">
+                                    <div className="flex items-start gap-3">
+                                        <Skeleton className="w-8 h-8 rounded-md shrink-0" />
+                                        <div className="space-y-1.5">
+                                            <Skeleton className="h-4 w-36" />
+                                            <Skeleton className="h-3 w-48" />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Skeleton className="w-8 h-8 rounded-md" />
+                                        <Skeleton className="w-8 h-8 rounded-md" />
+                                    </div>
+                                </div>
                             ))}
                         </div>
                     ) : categories.length === 0 ? (
-                        <div className="py-16 text-center">
-                            <Tag className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                            <p className="font-semibold">No categories yet</p>
-                            <p className="text-sm text-muted-foreground mb-4">
-                                Create your first room category to start organising rooms.
-                            </p>
-                            <Button variant="outline" onClick={openCreate}>
-                                <Plus className="h-4 w-4 mr-2" />
-                                Add Category
-                            </Button>
-                        </div>
+                        <Card className="border-dashed bg-muted/20">
+                            <CardContent className="flex flex-col items-center justify-center py-14 text-center gap-3">
+                                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                                    <Tag className="h-6 w-6 text-muted-foreground" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold">No categories yet</h3>
+                                    <p className="text-sm text-muted-foreground mt-0.5">
+                                        Create your first room category to start organising rooms.
+                                    </p>
+                                </div>
+                                <Button variant="outline" size="sm" onClick={openCreate}>
+                                    <Plus className="h-4 w-4 mr-2" /> Add Category
+                                </Button>
+                            </CardContent>
+                        </Card>
                     ) : (
                         <div className="space-y-2">
                             {categories.map((cat) => (
                                 <div
                                     key={cat._id}
-                                    className="flex items-center justify-between rounded-lg border p-4 hover:bg-muted/30 transition-colors"
+                                    className={cn(
+                                        "flex items-center justify-between rounded-lg border border-l-4 p-4 hover:bg-muted/30 transition-colors",
+                                        cat.isActive ? "border-l-green-400" : "border-l-gray-300"
+                                    )}
                                 >
                                     <div className="flex items-start gap-3">
                                         <div className="p-2 bg-primary/10 rounded-md mt-0.5">
                                             <Tag className="h-4 w-4 text-primary" />
                                         </div>
                                         <div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2 flex-wrap">
                                                 <p className="font-medium">{cat.name}</p>
                                                 <Badge
-                                                    variant={cat.isActive ? "default" : "secondary"}
-                                                    className="text-xs"
+                                                    className={cn(
+                                                        "text-xs border",
+                                                        cat.isActive
+                                                            ? "bg-green-100 text-green-700 border-green-200"
+                                                            : "bg-muted text-muted-foreground"
+                                                    )}
                                                 >
                                                     {cat.isActive ? "Active" : "Inactive"}
                                                 </Badge>
