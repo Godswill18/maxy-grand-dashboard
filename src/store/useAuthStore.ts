@@ -310,42 +310,19 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      // ✅ FIXED: checkAuth with admin skip
       checkAuth: async () => {
         try {
           const token = sessionStorage.getItem('token');
-          
+
           if (!token) {
-            // ✅ Check if current user is admin before logging out
-            const currentUser = get().user;
-            if (currentUser?.role === 'superadmin' || currentUser?.role === 'admin') {
-              console.log('⚠️ No token but admin/superadmin - keeping logged in');
-              return true;
-            }
-            
-            set({ 
-              user: null, 
-              isAuthenticated: false, 
-              token: null 
-            });
+            set({ user: null, isAuthenticated: false, token: null });
             return false;
           }
 
           const user = await get().getMe();
           return !!user;
-        } catch (error) {
-          // ✅ Don't logout admin/superadmin on error
-          const currentUser = get().user;
-          if (currentUser?.role === 'superadmin' || currentUser?.role === 'admin') {
-            console.log('⚠️ Auth check error for admin/superadmin - keeping logged in');
-            return true;
-          }
-          
-          set({ 
-            user: null, 
-            isAuthenticated: false, 
-            token: null 
-          });
+        } catch {
+          set({ user: null, isAuthenticated: false, token: null });
           sessionStorage.removeItem('token');
           return false;
         }

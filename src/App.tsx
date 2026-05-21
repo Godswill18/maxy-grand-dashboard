@@ -181,7 +181,15 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
  * If no, it redirects to the /login page.
  */
 function ProtectedRoutes() {
-  const { user, isLoading } = useAuthStore();
+  const { user, isLoading, logout } = useAuthStore();
+  const token = sessionStorage.getItem('token');
+
+  // If user is hydrated from localStorage but token is gone, clear auth state
+  useEffect(() => {
+    if (user && !token) {
+      logout();
+    }
+  }, []);
 
   if (isLoading) {
     return (
@@ -191,11 +199,11 @@ function ProtectedRoutes() {
     );
   }
 
-  if (!user) {
+  // Both user AND token must be present to access protected routes
+  if (!user || !token) {
     return <Navigate to="/login" replace />;
   }
 
-  // ✅ Wrap with AuthenticatedLayout to enable force logout
   return (
     <AuthenticatedLayout>
       <RoleBasedLayout />

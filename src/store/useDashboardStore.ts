@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import axios from 'axios';
-import { shallow } from 'zustand/shallow';
 
 // --- 1. Define Types ---
 interface Stats {
@@ -34,27 +33,34 @@ interface RevenueData {
   revenue: number;
 }
 
+export interface BranchRevenue {
+  _id: string;
+  name: string;
+  city: string;
+  isActive: boolean;
+  revenue: number;
+  bookings: number;
+}
+
 interface DashboardState {
-  stats: Partial<Stats>; // Use Partial for initial state
+  stats: Partial<Stats>;
   bookingChartData: BookingData[];
   revenueChartData: RevenueData[];
+  branchMonthlyRevenue: BranchRevenue[];
   isLoading: boolean;
+  branchRevenueLoading: boolean;
   error: string | null;
 }
 
 interface DashboardActions {
   fetchDashboardData: () => Promise<void>;
+  fetchBranchMonthlyRevenue: () => Promise<void>;
 }
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
-// TODO: You MUST send an auth token (e.g., from a user/auth store)
 const getAuthHeaders = () => {
-  // const token = useAuthStore.getState().token;
-  // return { Authorization: `Bearer ${token}` };
-  return {
-    // 'Authorization': `Bearer YOUR_TOKEN_HERE`
-  };
+  return {};
 };
 
 // --- 2. Create the Store ---
@@ -64,7 +70,9 @@ export const useDashboardStore = create<DashboardState & { actions: DashboardAct
     stats: {},
     bookingChartData: [],
     revenueChartData: [],
+    branchMonthlyRevenue: [],
     isLoading: true,
+    branchRevenueLoading: true,
     error: null,
 
     // --- Actions ---
@@ -86,26 +94,34 @@ export const useDashboardStore = create<DashboardState & { actions: DashboardAct
           set({ isLoading: false, error });
         }
       },
+
+      fetchBranchMonthlyRevenue: async () => {
+        set({ branchRevenueLoading: true });
+        try {
+          const response = await axios.get(`${VITE_API_URL}/api/dashboard/branch-monthly-revenue`, {
+            headers: getAuthHeaders(), withCredentials: true,
+          });
+          set({
+            branchMonthlyRevenue: response.data.data || [],
+            branchRevenueLoading: false,
+          });
+        } catch {
+          set({ branchRevenueLoading: false });
+        }
+      },
     },
   })
 );
 
 // --- Custom Hooks for easier access ---
 export const useDashboardState = () => ({
-      stats: useDashboardStore((state) => state.stats),
-      bookingChartData: useDashboardStore((state) => state.bookingChartData),
-      revenueChartData: useDashboardStore((state) => state.revenueChartData),
-      isLoading: useDashboardStore((state) => state.isLoading),
-      error: useDashboardStore((state) => state.error),
-    });
-
-//     export const useReportState = () => ({
-//     timeseriesData: useReportStore((s) => s.timeseriesData),
-//     sourceData: useReportStore((s) => s.sourceData),
-//     period: useReportStore((s) => s.period),
-//     isLoading: useReportStore((s) => s.isLoading),
-//     error: useReportStore((s) => s.error),
-//   });
-  
+  stats: useDashboardStore((state) => state.stats),
+  bookingChartData: useDashboardStore((state) => state.bookingChartData),
+  revenueChartData: useDashboardStore((state) => state.revenueChartData),
+  branchMonthlyRevenue: useDashboardStore((state) => state.branchMonthlyRevenue),
+  isLoading: useDashboardStore((state) => state.isLoading),
+  branchRevenueLoading: useDashboardStore((state) => state.branchRevenueLoading),
+  error: useDashboardStore((state) => state.error),
+});
 
 export const useDashboardActions = () => useDashboardStore((state) => state.actions);
