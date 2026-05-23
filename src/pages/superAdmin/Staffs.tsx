@@ -1,9 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -35,16 +43,18 @@ import {
   CheckCircle,
   XCircle,
   Eye,
-  Calendar,
   Building,
+  Building2,
   User,
   Shield,
   Clock,
   CreditCard,
+  Search,
 } from "lucide-react";
 import { useStaffStore, StaffUser } from "@/store/useUserStore";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/useAuthStore";
+import { cn } from "@/lib/utils";
 
 // Capitalize helper
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -90,6 +100,7 @@ export default function Staffs() {
   } = useStaffStore();
   const { user } = useAuthStore();
   const userRole = user?.role;
+  const isSuperAdmin = userRole === "superadmin";
 
   // State for staff details modal
   const [detailsDialog, setDetailsDialog] = useState<{
@@ -124,10 +135,14 @@ export default function Staffs() {
     newRole: "",
   });
 
+  // Filter state
+  const [selectedHotelId, setSelectedHotelId] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string | null>(null);
+
   useEffect(() => {
     initializeSocket();
     fetchAllStaff();
-
     return () => {
       disconnectSocket();
     };
@@ -135,10 +150,7 @@ export default function Staffs() {
 
   // View staff details
   const handleViewDetails = (staffMember: StaffUser) => {
-    setDetailsDialog({
-      open: true,
-      staffMember,
-    });
+    setDetailsDialog({ open: true, staffMember });
   };
 
   // Toggle active status
@@ -147,22 +159,15 @@ export default function Staffs() {
       toast.error("Cannot change status for this role.");
       return;
     }
-
     if (!checked) {
-      setDeactivateDialog({
-        open: true,
-        staffMember,
-        newStatus: checked,
-      });
+      setDeactivateDialog({ open: true, staffMember, newStatus: checked });
       return;
     }
-
     performStatusUpdate(staffMember, checked);
   };
 
   const performStatusUpdate = (staffMember: StaffUser, newStatus: boolean) => {
     updateStaffStatus(staffMember._id, newStatus);
-
     if (newStatus) {
       toast.success(
         `${staffMember.firstName} ${staffMember.lastName} can now login to the system.`,
@@ -182,8 +187,6 @@ export default function Staffs() {
       toast.error("Cannot change superadmin role.");
       return;
     }
-
-    // Show confirmation dialog
     setRoleChangeDialog({
       open: true,
       staffMember,
@@ -199,12 +202,7 @@ export default function Staffs() {
         `${roleChangeDialog.staffMember.firstName} ${roleChangeDialog.staffMember.lastName}'s role updated to ${capitalize(roleChangeDialog.newRole)}.`
       );
     }
-    setRoleChangeDialog({
-      open: false,
-      staffMember: null,
-      currentRole: "",
-      newRole: "",
-    });
+    setRoleChangeDialog({ open: false, staffMember: null, currentRole: "", newRole: "" });
   };
 
   const handleConfirmDeactivation = () => {
@@ -213,6 +211,76 @@ export default function Staffs() {
     }
     setDeactivateDialog({ open: false, staffMember: null, newStatus: false });
   };
+
+  // Derived hotel list from populated staff data
+  const hotels = useMemo(() => {
+    const seen = new Set<string>();
+    return staff.reduce<{ _id: string; name: string }[]>((acc, s) => {
+      const id = (s.hotelId as any)?._id;
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        acc.push({ _id: id, name: (s.hotelId as any).name });
+      }
+      return acc;
+    }, []);
+  }, [staff]);
+
+  // Hotel + search filter (used for stats)
+  const baseFiltered = useMemo(() => {
+    let result = [...staff];
+    if (selectedHotelId !== "all") {
+      result = result.filter((s) => (s.hotelId as any)?._id === selectedHotelId);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (s) =>
+          `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
+          s.email.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [staff, selectedHotelId, searchQuery]);
+
+  // Stats from base (not affected by role pill)
+  const stats = useMemo(
+    () => ({
+      total:        baseFiltered.length,
+      active:       baseFiltered.filter((s) => s.isActive).length,
+      inactive:     baseFiltered.filter((s) => !s.isActive).length,
+      admin:        baseFiltered.filter((s) => s.role === "admin").length,
+      receptionist: baseFiltered.filter((s) => s.role === "receptionist").length,
+      cleaner:      baseFiltered.filter((s) => s.role === "cleaner").length,
+      waiter:       baseFiltered.filter((s) => s.role === "waiter" || s.role === "headWaiter").length,
+    }),
+    [baseFiltered]
+  );
+
+  // Final grid data (base + role filter)
+  const displayedStaff = useMemo(() => {
+    if (!roleFilter) return baseFiltered;
+    if (roleFilter === "waiter")
+      return baseFiltered.filter((s) => s.role === "waiter" || s.role === "headWaiter");
+    return baseFiltered.filter((s) => s.role === roleFilter);
+  }, [baseFiltered, roleFilter]);
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setRoleFilter(null);
+    setSelectedHotelId("all");
+  };
+
+  const hasActiveFilters = searchQuery || roleFilter || selectedHotelId !== "all";
+
+  const statPills = [
+    { label: "Total Staff",   value: stats.total,        color: "text-foreground",  filter: null,            clickable: false },
+    { label: "Active",        value: stats.active,       color: "text-green-600",   filter: null,            clickable: false },
+    { label: "Inactive",      value: stats.inactive,     color: "text-red-500",     filter: null,            clickable: false },
+    { label: "Managers",      value: stats.admin,        color: "text-primary",     filter: "admin",         clickable: true },
+    { label: "Receptionists", value: stats.receptionist, color: "text-blue-500",    filter: "receptionist",  clickable: true },
+    { label: "Cleaners",      value: stats.cleaner,      color: "text-purple-500",  filter: "cleaner",       clickable: true },
+    { label: "Waiters",       value: stats.waiter,       color: "text-amber-600",   filter: "waiter",        clickable: true },
+  ];
 
   const renderContent = () => {
     if (isLoading && staff.length === 0) {
@@ -242,23 +310,33 @@ export default function Staffs() {
 
     if (error) {
       return (
-        <Card className="col-span-full bg-danger/10 border-danger">
+        <Card className="border-destructive/50 bg-destructive/5">
           <CardContent className="p-6 flex items-center gap-4">
-            <AlertCircle className="h-8 w-8 text-danger" />
+            <AlertCircle className="h-8 w-8 text-destructive shrink-0" />
             <div>
-              <h3 className="font-semibold text-danger">Error Fetching Staff</h3>
-              <p className="text-danger/80">{error}</p>
+              <h3 className="font-semibold text-destructive">Error Fetching Staff</h3>
+              <p className="text-sm text-muted-foreground">{error}</p>
             </div>
           </CardContent>
         </Card>
       );
     }
 
-    if (staff.length === 0) {
+    if (displayedStaff.length === 0) {
       return (
-        <Card className="col-span-full">
-          <CardContent className="p-6 text-center text-muted-foreground">
-            No staff members found.
+        <Card className="border-dashed">
+          <CardContent className="p-10 text-center text-muted-foreground">
+            <User className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <p className="font-medium">
+              {staff.length > 0
+                ? "No staff match your filters."
+                : "No staff members found."}
+            </p>
+            {hasActiveFilters && (
+              <Button variant="outline" size="sm" className="mt-4" onClick={resetFilters}>
+                Reset Filters
+              </Button>
+            )}
           </CardContent>
         </Card>
       );
@@ -266,12 +344,13 @@ export default function Staffs() {
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {(staff || []).map((staffMember, index) => (
+        {displayedStaff.map((staffMember, index) => (
           <Card
             key={staffMember._id}
-            className={`hover:shadow-lg transition-all animate-in fade-in slide-in-from-bottom ${
-              !staffMember.isActive ? "opacity-75 border-destructive/30" : ""
-            }`}
+            className={cn(
+              "hover:shadow-lg transition-all animate-in fade-in slide-in-from-bottom",
+              !staffMember.isActive && "opacity-75 border-destructive/30"
+            )}
             style={{ animationDelay: `${index * 50}ms` }}
           >
             <CardContent className="p-6">
@@ -282,7 +361,6 @@ export default function Staffs() {
                     <h3 className="font-semibold text-lg text-foreground">
                       {staffMember.firstName} {staffMember.lastName}
                     </h3>
-                    {/* Active/Inactive indicator */}
                     {staffMember.isActive ? (
                       <Tooltip>
                         <TooltipTrigger>
@@ -304,9 +382,10 @@ export default function Staffs() {
                     )}
                   </div>
                   <Badge
-                    className={`mt-1 ${
+                    className={cn(
+                      "mt-1",
                       roleColors[staffMember.role] || "bg-muted text-muted-foreground"
-                    }`}
+                    )}
                   >
                     {capitalize(staffMember.role)}
                   </Badge>
@@ -381,7 +460,7 @@ export default function Staffs() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <MapPin className="h-4 w-4 flex-shrink-0" />
-                  <span>{staffMember.hotelId?.name || "No branch assigned"}</span>
+                  <span>{(staffMember.hotelId as any)?.name || "No branch assigned"}</span>
                 </div>
               </div>
 
@@ -403,15 +482,81 @@ export default function Staffs() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-5 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Staff Management</h1>
-          <p className="text-muted-foreground">
-            Manage all hotel staff across branches. Inactive staff cannot login.
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Staff Management</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            {displayedStaff.length} staff member{displayedStaff.length !== 1 ? "s" : ""} · real-time updates enabled
           </p>
         </div>
+      </div>
+
+      {/* Filter Row */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            {isSuperAdmin && (
+              <Select
+                value={selectedHotelId}
+                onValueChange={(v) => {
+                  setSelectedHotelId(v);
+                  setRoleFilter(null);
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-[200px] shrink-0">
+                  <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="All branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All branches</SelectItem>
+                  {hotels.map((h) => (
+                    <SelectItem key={h._id} value={h._id}>
+                      {h.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="shrink-0" onClick={resetFilters}>
+                Reset
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stats Pills */}
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        {statPills.map(({ label, value, color, filter, clickable }) => (
+          <button
+            key={label}
+            onClick={() =>
+              clickable && setRoleFilter(roleFilter === filter ? null : filter)
+            }
+            className={cn(
+              "flex flex-col items-center min-w-[96px] rounded-xl border p-3 shrink-0 transition-colors",
+              clickable ? "cursor-pointer" : "cursor-default",
+              clickable && roleFilter === filter
+                ? "bg-primary/5 border-primary"
+                : "bg-card hover:bg-accent"
+            )}
+          >
+            <span className={cn("text-2xl font-bold leading-tight", color)}>{value}</span>
+            <span className="text-xs text-muted-foreground mt-0.5 whitespace-nowrap">{label}</span>
+          </button>
+        ))}
       </div>
 
       {/* Staff Grid */}
@@ -504,8 +649,7 @@ export default function Staffs() {
                       {capitalize(detailsDialog.staffMember.role)}
                     </Badge>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {roleDescriptions[detailsDialog.staffMember.role] ||
-                        "No description"}
+                      {roleDescriptions[detailsDialog.staffMember.role] || "No description"}
                     </p>
                   </div>
                   <div>
@@ -542,15 +686,9 @@ export default function Staffs() {
                   <div>
                     <p className="text-sm text-muted-foreground">Assigned Branch</p>
                     <p className="font-medium">
-                      {detailsDialog.staffMember.hotelId?.name || "No branch assigned"}
+                      {(detailsDialog.staffMember.hotelId as any)?.name || "No branch assigned"}
                     </p>
                   </div>
-                  {/* <div>
-                    <p className="text-sm text-muted-foreground">Branch ID</p>
-                    <p className="font-mono text-sm">
-                      {detailsDialog.staffMember.hotelId?._id || "N/A"}
-                    </p>
-                  </div> */}
                 </div>
               </div>
 
@@ -561,10 +699,6 @@ export default function Staffs() {
                   Account Information
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
-                  {/* <div>
-                    <p className="text-sm text-muted-foreground">User ID</p>
-                    <p className="font-mono text-sm">{detailsDialog.staffMember._id}</p>
-                  </div> */}
                   <div>
                     <p className="text-sm text-muted-foreground">Account Created</p>
                     <p className="font-medium">
@@ -580,18 +714,16 @@ export default function Staffs() {
                 </div>
               </div>
 
-              {/* Access Permissions */}
+              {/* Inactive warning */}
               {!detailsDialog.staffMember.isActive && (
                 <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-md">
                   <div className="flex items-start gap-3">
                     <Lock className="h-5 w-5 text-destructive mt-0.5" />
                     <div>
-                      <h4 className="font-semibold text-destructive mb-1">
-                        Account Inactive
-                      </h4>
+                      <h4 className="font-semibold text-destructive mb-1">Account Inactive</h4>
                       <p className="text-sm text-destructive/90">
-                        This staff member cannot login to the system. To grant access,
-                        activate their account using the toggle switch.
+                        This staff member cannot login to the system. To grant access, activate
+                        their account using the toggle switch.
                       </p>
                     </div>
                   </div>
@@ -636,8 +768,7 @@ export default function Staffs() {
                 </ul>
               </div>
               <p className="text-xs text-muted-foreground">
-                You can reactivate their account at any time by toggling the switch back
-                on.
+                You can reactivate their account at any time by toggling the switch back on.
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -664,12 +795,7 @@ export default function Staffs() {
         open={roleChangeDialog.open}
         onOpenChange={(open) => {
           if (!open)
-            setRoleChangeDialog({
-              open: false,
-              staffMember: null,
-              currentRole: "",
-              newRole: "",
-            });
+            setRoleChangeDialog({ open: false, staffMember: null, currentRole: "", newRole: "" });
         }}
       >
         <AlertDialogContent>
@@ -692,8 +818,7 @@ export default function Staffs() {
                   <span className="text-sm text-muted-foreground">Current Role:</span>
                   <Badge
                     className={
-                      roleColors[roleChangeDialog.currentRole] ||
-                      "bg-muted text-muted-foreground"
+                      roleColors[roleChangeDialog.currentRole] || "bg-muted text-muted-foreground"
                     }
                   >
                     {capitalize(roleChangeDialog.currentRole)}
@@ -706,8 +831,7 @@ export default function Staffs() {
                   <span className="text-sm text-muted-foreground">New Role:</span>
                   <Badge
                     className={
-                      roleColors[roleChangeDialog.newRole] ||
-                      "bg-muted text-muted-foreground"
+                      roleColors[roleChangeDialog.newRole] || "bg-muted text-muted-foreground"
                     }
                   >
                     {capitalize(roleChangeDialog.newRole)}
@@ -725,8 +849,7 @@ export default function Staffs() {
                 </ul>
               </div>
               <p className="text-xs text-muted-foreground">
-                The user will see their new role after logging in again or refreshing the
-                page.
+                The user will see their new role after logging in again or refreshing the page.
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>

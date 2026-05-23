@@ -227,9 +227,10 @@ export default function Performance() {
                   <Tooltip
                     formatter={(value: number) => formatCurrency(value)}
                     contentStyle={{
-                      backgroundColor: 'white',
-                      border: '1px solid #e5e7eb',
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
                       borderRadius: '8px',
+                      color: 'hsl(var(--card-foreground))',
                     }}
                   />
                   <Line
@@ -264,9 +265,10 @@ export default function Performance() {
                   <Tooltip
                     formatter={(value: number) => formatCurrency(value)}
                     contentStyle={{
-                      backgroundColor: 'white',
-                      border: '1px solid #e5e7eb',
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
                       borderRadius: '8px',
+                      color: 'hsl(var(--card-foreground))',
                     }}
                   />
                   <Bar dataKey="orders" fill="hsl(var(--info))" radius={[8, 8, 0, 0]} />

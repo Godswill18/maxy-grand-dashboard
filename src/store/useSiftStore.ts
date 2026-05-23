@@ -1,7 +1,16 @@
 import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
+import { useAuthStore } from './useAuthStore';
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
+
+const getAuthHeaders = (): Record<string, string> => {
+  const token = useAuthStore.getState().token || sessionStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+};
 
 // Types
 export interface ShiftData {
@@ -95,7 +104,7 @@ export const useShiftStore = create<ShiftStore>((set, get) => ({
 
       const response = await fetch(`${VITE_API_URL}/api/shifts?${params}`, {
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -120,7 +129,7 @@ export const useShiftStore = create<ShiftStore>((set, get) => ({
 
       const response = await fetch(`${VITE_API_URL}/api/shifts/my-schedule?${params}`, {
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -142,7 +151,7 @@ export const useShiftStore = create<ShiftStore>((set, get) => ({
       const response = await fetch(`${VITE_API_URL}/api/shifts`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(shiftData),
       });
 
@@ -176,7 +185,7 @@ export const useShiftStore = create<ShiftStore>((set, get) => ({
       const response = await fetch(`${VITE_API_URL}/api/shifts/${shiftId}`, {
         method: 'PUT',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(shiftData),
       });
 
@@ -208,7 +217,7 @@ export const useShiftStore = create<ShiftStore>((set, get) => ({
       const response = await fetch(`${VITE_API_URL}/api/shifts/${shiftId}`, {
         method: 'DELETE',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -234,7 +243,7 @@ export const useShiftStore = create<ShiftStore>((set, get) => ({
       const response = await fetch(`${VITE_API_URL}/api/shifts/${shiftId}/activate`, {
         method: 'PUT',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -266,7 +275,7 @@ export const useShiftStore = create<ShiftStore>((set, get) => ({
       const response = await fetch(`${VITE_API_URL}/api/shifts/${shiftId}/deactivate`, {
         method: 'PUT',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {

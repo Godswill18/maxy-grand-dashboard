@@ -42,6 +42,7 @@ import CleanerPerformance from "./pages/cleaner/CleanerPerformance";
 import PaymentProcessing from "./pages/receptionist/PaymentProcessing";
 import Rooms from "./pages/superAdmin/Rooms";
 import Bookings from "./pages/superAdmin/Bookings";
+import BookingCalendarPage from "./pages/superAdmin/BookingCalendarPage";
 import Cleaners from "./pages/superAdmin/Cleaners";
 import Transactions from "./pages/superAdmin/Transactions";
 import Requests from "./pages/superAdmin/Requests";
@@ -312,6 +313,7 @@ const App = () => (
                 <Route path="/rooms" element={<Rooms />} />
                 <Route path="/rooms/:id" element={<RoomDetailPage />} />
                 <Route path="/bookings" element={<Bookings />} />
+                <Route path="/bookings/calendar" element={<BookingCalendarPage />} />
                 <Route path="/cleaners" element={<Cleaners />} />
                 <Route path="/transactions" element={<Transactions />} />
                 <Route path="/requests" element={<Requests />} />
@@ -359,7 +361,7 @@ const App = () => (
                 <Route path="/manager/operations" element={<Operations />} />
                 <Route path="/manager/house-keeping" element={<Housekeeping />} />
                 <Route path="/manager/bookings" element={<BookingManagement />} />
-                <Route path="/manager/booking-calendar" element={<Bookings />} />
+                <Route path="/manager/booking-calendar" element={<BookingCalendarPage />} />
                 <Route path="/manager/orders" element={<Restaurant />} />
                 <Route path="/manager/reviews" element={<Reviews />} />
                 <Route path="/manager/announcements" element={<ManagerAnnouncements />} />

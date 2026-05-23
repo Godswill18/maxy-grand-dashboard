@@ -3,10 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
   Calendar,
-  Bed,
-  DollarSign,
   AlertCircle,
   Trash,
   Search,
@@ -36,7 +35,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import BookingCalendar from "@/components/BookingCalendar";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { format } from "date-fns";
 import { Calendar as DatePickerCalendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
@@ -44,8 +48,15 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuthStore } from "@/store/useAuthStore";
-import { BookingCardSkeleton, CalendarSkeleton } from "@/components/skeleton/BookingsSkeletion";
 import { cn } from "@/lib/utils";
+
+const STATUS_ROW: Record<string, string> = {
+  pending:       "border-l-amber-400  bg-amber-50/30  dark:bg-amber-900/10",
+  confirmed:     "border-l-green-400  bg-green-50/30  dark:bg-green-900/10",
+  "checked-in":  "border-l-blue-400   bg-blue-50/30   dark:bg-blue-900/10",
+  "checked-out": "border-l-gray-300   bg-gray-50/30   dark:bg-gray-800/10",
+  cancelled:     "border-l-red-400    bg-red-50/30    dark:bg-red-900/10",
+};
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   pending:       { label: "Pending",     className: "bg-amber-100 text-amber-700 border-amber-200" },
@@ -76,6 +87,11 @@ const getInitials = (name: string) =>
     .substring(0, 2)
     .toUpperCase();
 
+const getNights = (checkIn: string, checkOut: string) => {
+  const diff = new Date(checkOut).getTime() - new Date(checkIn).getTime();
+  return Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)));
+};
+
 export default function Bookings() {
   const {
     bookings,
@@ -97,31 +113,27 @@ export default function Bookings() {
   const [searchQuery, setSearchQuery] = useState("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [selectedHotelId, setSelectedHotelId] = useState(
-    role === "superadmin" ? "" : defaultHotelId || ""
-  );
+  const [selectedHotelId, setSelectedHotelId] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailBooking, setDetailBooking] = useState<any>(null);
   const PAGE_SIZE = 20;
 
   const canManage = role === "superadmin";
 
   useEffect(() => {
-    fetchBookings();
     initSocketListeners();
     return () => closeSocketListeners();
-  }, [fetchBookings, initSocketListeners, closeSocketListeners]);
+  }, [initSocketListeners, closeSocketListeners]);
 
   useEffect(() => {
     if (role === "superadmin") fetchHotels();
   }, [role, fetchHotels]);
 
   useEffect(() => {
-    const hotelIdToUse = role === "superadmin" ? selectedHotelId : defaultHotelId;
-    if (hotelIdToUse) {
-      fetchBookings(hotelIdToUse);
-      setCurrentPage(1);
-    }
-  }, [selectedHotelId, role, defaultHotelId, fetchBookings]);
+    fetchBookings(selectedHotelId === "all" ? undefined : selectedHotelId);
+    setCurrentPage(1);
+  }, [selectedHotelId, fetchBookings]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -164,6 +176,7 @@ export default function Bookings() {
       });
     }
 
+    filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return filtered;
   }, [bookings, statusFilter, searchQuery, dateRange]);
 
@@ -179,10 +192,10 @@ export default function Bookings() {
     setStatusFilter(null);
   };
 
-  if (role === "superadmin" && !selectedHotelId && hotels.length > 0) {
-    setSelectedHotelId(hotels[0]?._id || "");
-    return null;
-  }
+  const openDetail = (booking: any) => {
+    setDetailBooking(booking);
+    setDetailOpen(true);
+  };
 
   if (role !== "superadmin" && !defaultHotelId) {
     return (
@@ -194,22 +207,13 @@ export default function Bookings() {
     );
   }
 
-  const statusTabs = [
-    { key: null,          label: "All",         count: stats.total },
-    { key: "pending",     label: "Pending",      count: stats.pending },
-    { key: "confirmed",   label: "Confirmed",    count: stats.confirmed },
-    { key: "checked-in",  label: "Checked In",   count: stats.checkedIn },
-    { key: "checked-out", label: "Checked Out",  count: stats.checkedOut },
-    { key: "cancelled",   label: "Cancelled",    count: stats.cancelled },
-  ];
-
   const statCards = [
-    { label: "Total",       value: stats.total,     color: "text-foreground",    filter: null },
-    { label: "Pending",     value: stats.pending,   color: "text-amber-600",     filter: "pending" },
-    { label: "Confirmed",   value: stats.confirmed, color: "text-green-600",     filter: "confirmed" },
-    { label: "Checked In",  value: stats.checkedIn, color: "text-blue-600",      filter: "checked-in" },
-    { label: "Checked Out", value: stats.checkedOut,color: "text-gray-500",      filter: "checked-out" },
-    { label: "Cancelled",   value: stats.cancelled, color: "text-red-500",       filter: "cancelled" },
+    { label: "Total",       value: stats.total,      color: "text-foreground",  filter: null },
+    { label: "Pending",     value: stats.pending,    color: "text-amber-600",   filter: "pending" },
+    { label: "Confirmed",   value: stats.confirmed,  color: "text-green-600",   filter: "confirmed" },
+    { label: "Checked In",  value: stats.checkedIn,  color: "text-blue-600",    filter: "checked-in" },
+    { label: "Checked Out", value: stats.checkedOut, color: "text-gray-500",    filter: "checked-out" },
+    { label: "Cancelled",   value: stats.cancelled,  color: "text-red-500",     filter: "cancelled" },
   ];
 
   return (
@@ -254,6 +258,7 @@ export default function Bookings() {
                   <SelectValue placeholder="Select branch" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All branches</SelectItem>
                   {hotels.map((hotel) => (
                     <SelectItem key={hotel._id} value={hotel._id}>
                       {hotel.name}
@@ -309,34 +314,6 @@ export default function Bookings() {
         </CardContent>
       </Card>
 
-      {/* Status Tabs */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-        {statusTabs.map(({ key, label, count }) => (
-          <button
-            key={key ?? "all"}
-            onClick={() => setStatusFilter(key)}
-            className={cn(
-              "px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors border",
-              statusFilter === key
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
-            )}
-          >
-            {label} <span className="opacity-70">({count})</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Loading State */}
-      {isLoading && (
-        <div className="grid grid-cols-1 gap-4">
-          <CalendarSkeleton />
-          <BookingCardSkeleton />
-          <BookingCardSkeleton />
-          <BookingCardSkeleton />
-        </div>
-      )}
-
       {/* Error State */}
       {error && (
         <Card className="border-destructive/50 bg-destructive/5">
@@ -350,243 +327,482 @@ export default function Bookings() {
         </Card>
       )}
 
-      {/* Calendar */}
-      <BookingCalendar bookings={filteredBookings} />
-
-      {/* Bookings List */}
-      {!isLoading && !error && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-foreground">
-              {statusFilter ? statusConfig[statusFilter]?.label : "All"} Bookings
-            </h2>
-            <span className="text-sm text-muted-foreground">{filteredBookings.length} results</span>
-          </div>
-
-          {paginatedBookings.length === 0 ? (
-            <Card>
-              <CardContent className="py-16 flex flex-col items-center gap-3 text-center">
-                <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center">
-                  <Calendar className="h-7 w-7 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-semibold">No Bookings Found</h3>
-                <p className="text-muted-foreground text-sm max-w-xs">
-                  {statusFilter || searchQuery || dateRange
-                    ? "No bookings match your current filters. Try adjusting or resetting them."
-                    : "New bookings will appear here in real-time."}
-                </p>
-                {(statusFilter || searchQuery || dateRange) && (
-                  <Button variant="outline" size="sm" onClick={resetFilters}>
-                    Reset Filters
-                  </Button>
+      {/* Table */}
+      <div className="rounded-lg border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b bg-muted/40">
+              <tr>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground w-8">#</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Guest</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Room · Hotel</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Check-in</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Check-out</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Nights</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Amount</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Payment</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                {canManage && (
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Actions</th>
                 )}
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 gap-3">
-              {paginatedBookings.map((booking, index) => (
-                <Card
-                  key={booking._id}
-                  className="hover:shadow-md transition-shadow animate-in fade-in slide-in-from-bottom-1"
-                  style={{ animationDelay: `${index * 40}ms` }}
-                >
-                  <CardContent className="p-4 md:p-5">
-                    <div className="flex flex-col gap-3">
-                      {/* Top row: avatar + identity + badges */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary font-semibold text-sm">
-                            {getInitials(booking.guestName)}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-foreground leading-tight truncate">
-                              {booking.guestName}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              Room {booking.roomTypeId?.roomNumber || "N/A"} ·{" "}
-                              {booking.hotelId?.name || "N/A"}
-                            </p>
-                            {booking.confirmationCode && (
-                              <p className="text-xs text-muted-foreground font-mono">
-                                #{booking.confirmationCode}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 justify-end shrink-0">
-                          {booking.bookingType && (
-                            <Badge
-                              variant="outline"
-                              className="text-xs capitalize"
-                            >
-                              {booking.bookingType}
-                            </Badge>
-                          )}
-                          <Badge
-                            className={cn(
-                              "text-xs border",
-                              paymentConfig[booking.paymentStatus]?.className
-                            )}
-                          >
-                            {paymentConfig[booking.paymentStatus]?.label ||
-                              booking.paymentStatus}
-                          </Badge>
-                          <Badge
-                            className={cn(
-                              "text-xs border",
-                              statusConfig[booking.bookingStatus]?.className
-                            )}
-                          >
-                            {statusConfig[booking.bookingStatus]?.label ||
-                              booking.bookingStatus}
-                          </Badge>
-                        </div>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading && (
+                <>
+                  {[...Array(8)].map((_, i) => (
+                    <tr key={i} className="border-b border-l-4 border-l-muted">
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-4" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-32" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-8" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                      {canManage && <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>}
+                    </tr>
+                  ))}
+                </>
+              )}
+
+              {!isLoading && paginatedBookings.length === 0 && (
+                <tr>
+                  <td colSpan={canManage ? 10 : 9} className="py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                        <Calendar className="h-6 w-6 text-muted-foreground" />
                       </div>
-
-                      <div className="border-t" />
-
-                      {/* Middle row: dates + amounts */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Check In</p>
-                          <p className="font-medium">{formatDate(booking.checkInDate)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Check Out</p>
-                          <p className="font-medium">{formatDate(booking.checkOutDate)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Total</p>
-                          <p className="font-semibold">
-                            ₦{booking.totalAmount.toLocaleString()}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Paid</p>
-                          <p className="font-semibold">
-                            ₦{(booking.amountPaid ?? 0).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Actions row */}
-                      {canManage && (
-                        <>
-                          <div className="border-t" />
-                          <div className="flex items-center justify-end gap-2">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                  Manage
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Change Status</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    updateBookingStatus(booking._id, "confirmed")
-                                  }
-                                >
-                                  Set as Confirmed
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    updateBookingStatus(booking._id, "checked-in")
-                                  }
-                                >
-                                  Set as Checked In
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    updateBookingStatus(booking._id, "checked-out")
-                                  }
-                                >
-                                  Set as Checked Out
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() =>
-                                    updateBookingStatus(booking._id, "cancelled")
-                                  }
-                                >
-                                  Set as Cancelled
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="destructive"
-                                  size="icon"
-                                  className="shrink-0"
-                                >
-                                  <Trash className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Booking?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will permanently delete the booking for{" "}
-                                    <span className="font-semibold">
-                                      {booking.guestName}
-                                    </span>
-                                    . This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => deleteBooking(booking._id)}
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </>
+                      <p className="font-semibold">No Bookings Found</p>
+                      <p className="text-muted-foreground text-xs max-w-xs">
+                        {statusFilter || searchQuery || dateRange
+                          ? "No bookings match your filters."
+                          : "New bookings will appear here in real-time."}
+                      </p>
+                      {(statusFilter || searchQuery || dateRange) && (
+                        <Button variant="outline" size="sm" onClick={resetFilters}>
+                          Reset Filters
+                        </Button>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                  </td>
+                </tr>
+              )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between gap-4 pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((p) => p - 1)}
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Prev
-              </Button>
-              <span className="text-sm text-muted-foreground text-center">
-                Page {currentPage} of {totalPages}
-                <span className="hidden sm:inline">
-                  {" "}· {filteredBookings.length} bookings
-                </span>
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage((p) => p + 1)}
-              >
-                Next
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-          )}
+              {!isLoading &&
+                paginatedBookings.map((booking, index) => (
+                  <tr
+                    key={booking._id}
+                    className={cn(
+                      "border-b border-l-4 cursor-pointer hover:bg-muted/50 transition-colors",
+                      STATUS_ROW[booking.bookingStatus] ?? "border-l-gray-200"
+                    )}
+                    onClick={() => openDetail(booking)}
+                  >
+                    <td className="px-4 py-3 text-muted-foreground text-xs">
+                      {(currentPage - 1) * PAGE_SIZE + index + 1}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary font-semibold text-xs">
+                          {getInitials(booking.guestName)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium truncate max-w-[140px]">{booking.guestName}</p>
+                          {booking.confirmationCode && (
+                            <p className="text-xs text-muted-foreground font-mono">
+                              #{booking.confirmationCode}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium">{booking.roomTypeId?.roomNumber || "N/A"}</p>
+                      <p className="text-xs text-muted-foreground truncate max-w-[120px]">
+                        {booking.hotelId?.name || "N/A"}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {formatDate(booking.checkInDate)}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {formatDate(booking.checkOutDate)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {getNights(booking.checkInDate, booking.checkOutDate)}
+                    </td>
+                    <td className="px-4 py-3 font-semibold whitespace-nowrap">
+                      ₦{booking.totalAmount.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        className={cn(
+                          "text-xs border",
+                          paymentConfig[booking.paymentStatus]?.className
+                        )}
+                      >
+                        {paymentConfig[booking.paymentStatus]?.label || booking.paymentStatus}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        className={cn(
+                          "text-xs border",
+                          statusConfig[booking.bookingStatus]?.className
+                        )}
+                      >
+                        {statusConfig[booking.bookingStatus]?.label || booking.bookingStatus}
+                      </Badge>
+                    </td>
+                    {canManage && (
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-7 text-xs px-2">
+                                Manage
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => updateBookingStatus(booking._id, "confirmed")}
+                              >
+                                Set as Confirmed
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => updateBookingStatus(booking._id, "checked-in")}
+                              >
+                                Set as Checked In
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => updateBookingStatus(booking._id, "checked-out")}
+                              >
+                                Set as Checked Out
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => updateBookingStatus(booking._id, "cancelled")}
+                              >
+                                Set as Cancelled
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive"
+                              >
+                                <Trash className="h-3.5 w-3.5" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Booking?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete the booking for{" "}
+                                  <span className="font-semibold">{booking.guestName}</span>.
+                                  This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteBooking(booking._id)}
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Pagination */}
+      {!isLoading && totalPages > 1 && (
+        <div className="flex items-center justify-between gap-4 pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((p) => p - 1)}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Prev
+          </Button>
+          <span className="text-sm text-muted-foreground text-center">
+            Page {currentPage} of {totalPages}
+            <span className="hidden sm:inline"> · {filteredBookings.length} bookings</span>
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage((p) => p + 1)}
+          >
+            Next
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
         </div>
       )}
+
+      {/* Booking Detail Sheet */}
+      <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Booking Details</SheetTitle>
+          </SheetHeader>
+          {detailBooking && (
+            <div className="mt-6 space-y-6">
+              {/* Guest Info */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
+                    {getInitials(detailBooking.guestName)}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-lg leading-tight">
+                      {detailBooking.guestName}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{detailBooking.guestEmail}</p>
+                  </div>
+                </div>
+                {detailBooking.guestPhone && (
+                  <p className="text-sm text-muted-foreground pl-1">{detailBooking.guestPhone}</p>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Booking Info */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wide">
+                  Booking Info
+                </h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  {detailBooking.confirmationCode && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Confirmation Code</p>
+                      <p className="font-mono font-semibold">#{detailBooking.confirmationCode}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs text-muted-foreground">Booking Type</p>
+                    <p className="font-medium capitalize">{detailBooking.bookingType || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Room</p>
+                    <p className="font-medium">{detailBooking.roomTypeId?.roomNumber || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Hotel</p>
+                    <p className="font-medium">{detailBooking.hotelId?.name || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Check-in</p>
+                    <p className="font-medium">{formatDate(detailBooking.checkInDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Check-out</p>
+                    <p className="font-medium">{formatDate(detailBooking.checkOutDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Nights</p>
+                    <p className="font-medium">
+                      {getNights(detailBooking.checkInDate, detailBooking.checkOutDate)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Guests</p>
+                    <p className="font-medium">{detailBooking.numberOfGuests || "N/A"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Financial */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wide">
+                  Financial
+                </h3>
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total</p>
+                    <p className="font-bold text-primary">
+                      ₦{(detailBooking.totalAmount ?? 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Paid</p>
+                    <p className="font-semibold">
+                      ₦{(detailBooking.amountPaid ?? 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Balance</p>
+                    <p className="font-semibold">
+                      ₦{(
+                        (detailBooking.totalAmount ?? 0) - (detailBooking.amountPaid ?? 0)
+                      ).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <Badge
+                  className={cn(
+                    "text-xs border",
+                    paymentConfig[detailBooking.paymentStatus]?.className
+                  )}
+                >
+                  {paymentConfig[detailBooking.paymentStatus]?.label ||
+                    detailBooking.paymentStatus}
+                </Badge>
+              </div>
+
+              <Separator />
+
+              {/* Status */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wide">
+                  Status
+                </h3>
+                <Badge
+                  className={cn(
+                    "text-xs border",
+                    statusConfig[detailBooking.bookingStatus]?.className
+                  )}
+                >
+                  {statusConfig[detailBooking.bookingStatus]?.label ||
+                    detailBooking.bookingStatus}
+                </Badge>
+                {detailBooking.updatedAt && (
+                  <p className="text-xs text-muted-foreground">
+                    Last updated {new Date(detailBooking.updatedAt).toLocaleString()}
+                  </p>
+                )}
+              </div>
+
+              {/* Special Requests */}
+              {(detailBooking.preferences?.specialRequests ||
+                detailBooking.specialRequests) && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wide">
+                      Special Requests
+                    </h3>
+                    <p className="text-sm bg-muted p-3 rounded-md">
+                      {detailBooking.preferences?.specialRequests ||
+                        detailBooking.specialRequests}
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* Actions */}
+              {canManage && (
+                <>
+                  <Separator />
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wide">
+                      Actions
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            Change Status
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuLabel>Set Status</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => {
+                              updateBookingStatus(detailBooking._id, "confirmed");
+                              setDetailOpen(false);
+                            }}
+                          >
+                            Set as Confirmed
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              updateBookingStatus(detailBooking._id, "checked-in");
+                              setDetailOpen(false);
+                            }}
+                          >
+                            Set as Checked In
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              updateBookingStatus(detailBooking._id, "checked-out");
+                              setDetailOpen(false);
+                            }}
+                          >
+                            Set as Checked Out
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => {
+                              updateBookingStatus(detailBooking._id, "cancelled");
+                              setDetailOpen(false);
+                            }}
+                          >
+                            Set as Cancelled
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm">
+                            <Trash className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Booking?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete the booking for{" "}
+                              <span className="font-semibold">{detailBooking.guestName}</span>.
+                              This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => {
+                                deleteBooking(detailBooking._id);
+                                setDetailOpen(false);
+                              }}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

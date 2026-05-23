@@ -60,7 +60,8 @@ interface DashboardActions {
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
 const getAuthHeaders = () => {
-  return {};
+  const token = sessionStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
 // --- 2. Create the Store ---
@@ -105,8 +106,9 @@ export const useDashboardStore = create<DashboardState & { actions: DashboardAct
             branchMonthlyRevenue: response.data.data || [],
             branchRevenueLoading: false,
           });
-        } catch {
-          set({ branchRevenueLoading: false });
+        } catch (err: any) {
+          const error = err.response?.data?.message || err.message;
+          set({ branchRevenueLoading: false, error });
         }
       },
     },

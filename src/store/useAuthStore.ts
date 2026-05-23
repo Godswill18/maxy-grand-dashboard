@@ -33,7 +33,9 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       isLoading: false,
-      token: null,
+      // Initialise synchronously from sessionStorage so stores that call
+      // useAuthStore.getState().token on first render never get null after a reload.
+      token: sessionStorage.getItem('token'),
       isAuthenticated: false,
       error: null,
 
@@ -187,9 +189,13 @@ export const useAuthStore = create<AuthState>()(
       getMe: async () => {
         set({ isLoading: true, error: null });
         try {
+          const currentToken = get().token || sessionStorage.getItem('token');
           const res = await fetch(`${VITE_API_URL}/api/user/get-user`, {
             method: 'GET',
             credentials: 'include',
+            headers: {
+              ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
+            },
           });
 
           if (res.status === 401) {

@@ -57,6 +57,7 @@ interface BookingState {
   bookings: Booking[];
   hotels: Hotel[];
   currentHotelId: string | null;
+  requestId: number;
   isLoading: boolean;
   error: string | null;
   lastFetched: number | null;             // cache timestamp
@@ -86,6 +87,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   bookings: [],
   hotels: [],
   currentHotelId: null,
+  requestId: 0,
   isLoading: false,
   error: null,
   lastFetched: null,
@@ -107,14 +109,15 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   },
 
   fetchBookings: async (hotelId?: string, force = false) => {
-    const { lastFetched, currentHotelId: prevHotelId } = get();
+    const { lastFetched, currentHotelId: prevHotelId, requestId: prevId } = get();
     const hotelChanged = hotelId !== prevHotelId;
     const isFresh = lastFetched && Date.now() - lastFetched < BOOKING_TTL;
 
     // Skip fetch if data is still fresh, same hotel, and not forced (e.g. by socket event)
     if (isFresh && !force && !hotelChanged) return;
 
-    set({ isLoading: true, error: null, currentHotelId: hotelId || null });
+    const myId = prevId + 1;
+    set({ isLoading: true, error: null, currentHotelId: hotelId || null, requestId: myId });
     try {
       const token = getToken();
       const params: any = {};
@@ -126,10 +129,15 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         headers: { Authorization: `Bearer ${token}` },
         withCredentials: true,
       });
-      set({ bookings: response.data.data || [], isLoading: false, lastFetched: Date.now() });
+      // Discard response if a newer request has since been started
+      if (get().requestId === myId) {
+        set({ bookings: response.data.data || [], isLoading: false, lastFetched: Date.now() });
+      }
     } catch (err) {
-      const error = err as AxiosError;
-      set({ error: error.message, isLoading: false });
+      if (get().requestId === myId) {
+        const error = err as AxiosError;
+        set({ error: error.message, isLoading: false });
+      }
     }
   },
 

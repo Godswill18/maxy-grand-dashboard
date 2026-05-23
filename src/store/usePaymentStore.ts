@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
+import { useAuthStore } from './useAuthStore';
 
 interface Payment {
   _id: string;
@@ -66,10 +67,12 @@ export const usePaymentStore = create<PaymentState>((set, get) => ({
 
     //   console.log('Fetching from URL:', url);
 
+      const token = useAuthStore.getState().token || sessionStorage.getItem('token');
       const response = await fetch(url, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         }
       });
 
