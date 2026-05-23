@@ -54,6 +54,15 @@ interface StaffState {
   fetchGuests: () => Promise<void>;
   updateStaffStatus: (userId: string, isActive: boolean) => Promise<void>;
   updateStaffRole: (userId: string, newRole: string) => Promise<void>;
+  createStaff: (data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phoneNumber: string;
+    password: string;
+    role: string;
+    hotelId: string;
+  }) => Promise<StaffUser | null>;
   getUserById: (userId: string) => Promise<StaffUser | GuestUser | null>;
   setCurrentUser: (user: StaffUser | GuestUser | AdminUser | null) => void; // ✅ NEW
   initializeSocket: () => void;
@@ -220,6 +229,29 @@ export const useStaffStore = create<StaffState>((set, get) => ({
     } catch (err: any) {
       console.error("Error updating staff role:", err.message);
       set({ error: err.message });
+    }
+  },
+
+  createStaff: async (data) => {
+    try {
+      const response = await fetch(`${VITE_API_URL}/api/users/create-user`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create staff');
+      }
+      const result = await response.json();
+      const newStaff = result.data as StaffUser;
+      // Optimistically add; socket 'staffUpdated' deduplicates on action === 'create'
+      set((state) => ({ staff: [...state.staff, newStaff] }));
+      return newStaff;
+    } catch (err: any) {
+      set({ error: err.message });
+      return null;
     }
   },
 

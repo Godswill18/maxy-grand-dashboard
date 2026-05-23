@@ -12,12 +12,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -50,8 +53,10 @@ import {
   Clock,
   CreditCard,
   Search,
+  Plus,
 } from "lucide-react";
 import { useStaffStore, StaffUser } from "@/store/useUserStore";
+import { useBranchStore } from "@/store/useBranchStore";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/useAuthStore";
 import { cn } from "@/lib/utils";
@@ -97,7 +102,9 @@ export default function Staffs() {
     disconnectSocket,
     updateStaffStatus,
     updateStaffRole,
+    createStaff,
   } = useStaffStore();
+  const { branches, fetchActiveBranches } = useBranchStore();
   const { user } = useAuthStore();
   const userRole = user?.role;
   const isSuperAdmin = userRole === "superadmin";
@@ -140,13 +147,22 @@ export default function Staffs() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string | null>(null);
 
+  // Add staff modal state
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isCreating, setIsCreating]           = useState(false);
+  const [createForm, setCreateForm] = useState({
+    firstName: "", lastName: "", email: "", phoneNumber: "",
+    password: "", role: "receptionist", hotelId: "",
+  });
+
   useEffect(() => {
     initializeSocket();
     fetchAllStaff();
+    fetchActiveBranches();
     return () => {
       disconnectSocket();
     };
-  }, [initializeSocket, fetchAllStaff, disconnectSocket]);
+  }, [initializeSocket, fetchAllStaff, disconnectSocket, fetchActiveBranches]);
 
   // View staff details
   const handleViewDetails = (staffMember: StaffUser) => {
@@ -203,6 +219,28 @@ export default function Staffs() {
       );
     }
     setRoleChangeDialog({ open: false, staffMember: null, currentRole: "", newRole: "" });
+  };
+
+  const handleCreateStaff = async () => {
+    if (!createForm.firstName || !createForm.lastName || !createForm.email || !createForm.password) {
+      toast.error("Please fill in all required fields.");
+      return;
+    }
+    if (!createForm.hotelId) {
+      toast.error("Please select a branch.");
+      return;
+    }
+    setIsCreating(true);
+    try {
+      const result = await createStaff(createForm);
+      if (result) {
+        setIsAddDialogOpen(false);
+        setCreateForm({ firstName: "", lastName: "", email: "", phoneNumber: "", password: "", role: "receptionist", hotelId: "" });
+        toast.success("Staff account created successfully.");
+      }
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleConfirmDeactivation = () => {
@@ -491,6 +529,118 @@ export default function Staffs() {
             {displayedStaff.length} staff member{displayedStaff.length !== 1 ? "s" : ""} · real-time updates enabled
           </p>
         </div>
+
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="shrink-0 self-start">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Staff
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add New Staff Member</DialogTitle>
+              <DialogDescription>
+                Create a staff account. They can log in immediately with these credentials.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 pt-1">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="cf-firstName">First Name *</Label>
+                  <Input
+                    id="cf-firstName"
+                    placeholder="John"
+                    value={createForm.firstName}
+                    onChange={(e) => setCreateForm((p) => ({ ...p, firstName: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="cf-lastName">Last Name *</Label>
+                  <Input
+                    id="cf-lastName"
+                    placeholder="Doe"
+                    value={createForm.lastName}
+                    onChange={(e) => setCreateForm((p) => ({ ...p, lastName: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cf-email">Email *</Label>
+                <Input
+                  id="cf-email"
+                  type="email"
+                  placeholder="staff@hotel.com"
+                  value={createForm.email}
+                  onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cf-phone">Phone Number</Label>
+                <Input
+                  id="cf-phone"
+                  placeholder="+234 801 234 5678"
+                  value={createForm.phoneNumber}
+                  onChange={(e) => setCreateForm((p) => ({ ...p, phoneNumber: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cf-password">Password *</Label>
+                <Input
+                  id="cf-password"
+                  type="password"
+                  placeholder="Min. 4 characters"
+                  value={createForm.password}
+                  onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Role *</Label>
+                <Select
+                  value={createForm.role}
+                  onValueChange={(v) => setCreateForm((p) => ({ ...p, role: v }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="receptionist">Receptionist</SelectItem>
+                    <SelectItem value="cleaner">Housekeeper</SelectItem>
+                    <SelectItem value="waiter">Waiter</SelectItem>
+                    <SelectItem value="headWaiter">Head Waiter</SelectItem>
+                    <SelectItem value="admin">Branch Manager</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Branch *</Label>
+                <Select
+                  value={createForm.hotelId}
+                  onValueChange={(v) => setCreateForm((p) => ({ ...p, hotelId: v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                  <SelectContent>
+                    {branches.map((b) => (
+                      <SelectItem key={b._id} value={b._id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsAddDialogOpen(false)}
+                disabled={isCreating}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleCreateStaff} disabled={isCreating}>
+                {isCreating ? "Creating..." : "Create Staff"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Filter Row */}

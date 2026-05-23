@@ -29,7 +29,7 @@ import Staffs from "./pages/superAdmin/Staffs";
 import Users from "./pages/superAdmin/Users";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/auth/Login";
-import Signup from "./pages/auth/Signup";
+// import Signup from "./pages/auth/Signup";  // Disabled: staff accounts created by superadmin/manager from dashboard
 import WaiterDashboard from "./pages/waiter/WaiterDashboard";
 import Orders from "./pages/waiter/Orders";
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
