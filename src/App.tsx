@@ -29,6 +29,7 @@ import Staffs from "./pages/superAdmin/Staffs";
 import Users from "./pages/superAdmin/Users";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/auth/Login";
+import ForgotPassword from "./pages/auth/ForgotPassword";
 // import Signup from "./pages/auth/Signup";  // Disabled: staff accounts created by superadmin/manager from dashboard
 import WaiterDashboard from "./pages/waiter/WaiterDashboard";
 import Orders from "./pages/waiter/Orders";
@@ -293,6 +294,9 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               {/* <Route path="/signup" element={<Signup />} /> */}
             </Route>
+
+            {/* Forgot password — fully public, no auth required */}
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
             {/* Protected routes (all dashboards) */}
             {/* This parent route provides the main layout (`RoleBasedLayout`) */}

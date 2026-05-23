@@ -6,11 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import CheckInForm, { CheckInFormData } from "@/components/modals/CheckInForm";
+import { useCheckInStore } from "@/store/useCheckInStore";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Phone, Mail, BedDouble, Edit, X, UserPlus, Calendar, Users2, CheckCircle, LogOut, Star, CreditCard, MapPin, AlertCircle } from "lucide-react";
+import { Search, Phone, Mail, BedDouble, Edit, X, UserPlus, Calendar, Users2, CheckCircle, LogOut, Star, CreditCard, MapPin, AlertCircle, ArrowLeftRight } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -83,6 +86,7 @@ interface AvailableRoom {
 
 export default function BookingManagement() {
   const { bookings, isLoading, fetchBookings, updateBooking, cancelBooking } = useBookingStore();
+  const { checkInWithRegistration } = useCheckInStore();
   const { user } = useAuthStore();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,13 +101,16 @@ export default function BookingManagement() {
   const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
 
-  const [walkInConfirmOpen, setWalkInConfirmOpen] = useState(false);
-  const [walkInBookingToCheck, setWalkInBookingToCheck] = useState<any>(null);
+  // Check-in Sheet
+  const [checkInSheetOpen, setCheckInSheetOpen] = useState(false);
+  const [checkInBooking,   setCheckInBooking]   = useState<any>(null);
 
-  const [onlineConfirmOpen, setOnlineConfirmOpen] = useState(false);
-  const [onlineBookingToCheck, setOnlineBookingToCheck] = useState<any>(null);
-  const [confirmationCode, setConfirmationCode] = useState("");
-  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  // Change Room Dialog
+  const [changeRoomOpen,     setChangeRoomOpen]     = useState(false);
+  const [changeRoomBooking,  setChangeRoomBooking]  = useState<any>(null);
+  const [changeRoomRooms,    setChangeRoomRooms]    = useState<AvailableRoom[]>([]);
+  const [changeRoomSelected, setChangeRoomSelected] = useState("");
+  const [changeRoomLoading,  setChangeRoomLoading]  = useState(false);
 
   const [earlyCheckInErrorOpen, setEarlyCheckInErrorOpen] = useState(false);
   const [earlyCheckInMessage, setEarlyCheckInMessage] = useState("");
@@ -371,114 +378,68 @@ export default function BookingManagement() {
     setCancelDialogOpen(true);
   };
 
-  const handleWalkInCheckIn = (booking: any) => {
+  const handleCheckIn = (booking: any) => {
     const checkInDate = new Date(booking.checkInDate);
     const today = new Date();
     checkInDate.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
 
     if (today < checkInDate) {
-      const formattedCheckInDate = checkInDate.toLocaleDateString('en-US', {
+      const formattedDate = checkInDate.toLocaleDateString('en-US', {
         weekday: 'short', month: 'short', day: '2-digit', year: 'numeric',
       });
-      setEarlyCheckInMessage(
-        `Guest cannot check in before the scheduled check-in date (${formattedCheckInDate}).`
-      );
+      setEarlyCheckInMessage(`Guest cannot check in before the scheduled check-in date (${formattedDate}).`);
       setEarlyCheckInErrorOpen(true);
       return;
     }
 
-    setWalkInBookingToCheck(booking);
-    setWalkInConfirmOpen(true);
+    setCheckInBooking(booking);
+    setCheckInSheetOpen(true);
   };
 
-  const confirmWalkInCheckIn = async () => {
-    if (!walkInBookingToCheck) return;
+  const handleCheckInConfirm = async (formData: CheckInFormData) => {
+    if (!checkInBooking) return;
+    await checkInWithRegistration(checkInBooking._id, formData);
+    setCheckInSheetOpen(false);
+    setCheckInBooking(null);
+    await fetchBookings();
+  };
 
+  const handleOpenChangeRoom = async (booking: any) => {
+    setChangeRoomBooking(booking);
+    setChangeRoomSelected("");
+    setChangeRoomOpen(true);
+    setChangeRoomLoading(true);
     try {
-      const response = await fetch(
-        `${VITE_API_URL}/api/receptionist/${walkInBookingToCheck._id}/check-in`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            guestDetails: walkInBookingToCheck.guestDetails || {},
-            preferences: walkInBookingToCheck.preferences || {},
-          }),
-        }
+      const hotelId = user?.hotelId;
+      const checkIn  = new Date(booking.checkInDate).toISOString().split("T")[0];
+      const checkOut = new Date(booking.checkOutDate).toISOString().split("T")[0];
+      const res = await fetch(
+        `${VITE_API_URL}/api/rooms/available_rooms?checkIn=${checkIn}&checkOut=${checkOut}&hotelId=${hotelId}`,
+        { credentials: "include" }
       );
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Check-in failed");
-
-      toast.success(`${walkInBookingToCheck.guestName} checked in successfully!`);
-      setWalkInConfirmOpen(false);
-      setWalkInBookingToCheck(null);
-      await fetchBookings();
-    } catch (error: any) {
-      console.error('Walk-in check-in error:', error);
-      toast.error(error.message || "Check-in failed");
-    }
-  };
-
-  const handleOnlineCheckIn = (booking: any) => {
-    const checkInDate = new Date(booking.checkInDate);
-    const today = new Date();
-    checkInDate.setHours(0, 0, 0, 0);
-    today.setHours(0, 0, 0, 0);
-
-    if (today < checkInDate) {
-      const formattedCheckInDate = checkInDate.toLocaleDateString('en-US', {
-        weekday: 'short', month: 'short', day: '2-digit', year: 'numeric',
-      });
-      setEarlyCheckInMessage(
-        `Guest cannot check in before the scheduled check-in date (${formattedCheckInDate}).`
-      );
-      setEarlyCheckInErrorOpen(true);
-      return;
-    }
-
-    setOnlineBookingToCheck(booking);
-    setConfirmationCode("");
-    setOnlineConfirmOpen(true);
-  };
-
-  const verifyAndCheckIn = async () => {
-    if (!onlineBookingToCheck || !confirmationCode) {
-      toast.error("Please enter confirmation code");
-      return;
-    }
-
-    setIsVerifyingCode(true);
-    try {
-      const response = await fetch(
-        `${VITE_API_URL}/api/receptionist/${onlineBookingToCheck._id}/check-in`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            confirmationCode,
-            guestDetails: onlineBookingToCheck.guestDetails || {},
-            preferences: onlineBookingToCheck.preferences || {},
-          }),
-        }
-      );
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Check-in failed");
-
-      toast.success(`${onlineBookingToCheck.guestName} checked in successfully!`);
-      setOnlineConfirmOpen(false);
-      setOnlineBookingToCheck(null);
-      setConfirmationCode("");
-      await fetchBookings();
-    } catch (error: any) {
-      console.error('Online check-in error:', error);
-      toast.error(error.message || "Check-in failed");
+      const data = await res.json();
+      setChangeRoomRooms(data.data || []);
+    } catch {
+      toast.error("Failed to load available rooms.");
     } finally {
-      setIsVerifyingCode(false);
+      setChangeRoomLoading(false);
+    }
+  };
+
+  const confirmChangeRoom = async () => {
+    if (!changeRoomBooking || !changeRoomSelected) return;
+    setChangeRoomLoading(true);
+    try {
+      await updateBooking(changeRoomBooking._id, { roomId: changeRoomSelected });
+      toast.success("Room changed successfully.");
+      setChangeRoomOpen(false);
+      setChangeRoomBooking(null);
+      await fetchBookings();
+    } catch {
+      toast.error("Failed to change room.");
+    } finally {
+      setChangeRoomLoading(false);
     }
   };
 
@@ -675,22 +636,14 @@ export default function BookingManagement() {
                     </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1 flex-wrap">
-                        {booking.bookingStatus === "confirmed" && isWalkIn && (
+                        {booking.bookingStatus === "confirmed" && (
                           <Button
                             size="sm"
                             className="h-7 text-xs px-2 bg-green-600 hover:bg-green-700"
-                            onClick={() => handleWalkInCheckIn(booking)}
+                            onClick={() => handleCheckIn(booking)}
                           >
+                            <UserPlus className="h-3 w-3 mr-1" />
                             Check In
-                          </Button>
-                        )}
-                        {booking.bookingStatus === "confirmed" && isOnline && (
-                          <Button
-                            size="sm"
-                            className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700"
-                            onClick={() => handleOnlineCheckIn(booking)}
-                          >
-                            Verify &amp; In
                           </Button>
                         )}
                         {booking.bookingStatus === "checked-in" && (
@@ -701,6 +654,19 @@ export default function BookingManagement() {
                           >
                             <LogOut className="h-3 w-3 mr-1" />
                             Out
+                          </Button>
+                        )}
+                        {(booking.bookingStatus === "confirmed" ||
+                          booking.bookingStatus === "pending" ||
+                          booking.bookingStatus === "checked-in") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2 text-purple-600 border-purple-300 hover:bg-purple-50"
+                            onClick={() => handleOpenChangeRoom(booking)}
+                          >
+                            <ArrowLeftRight className="h-3 w-3 mr-1" />
+                            Room
                           </Button>
                         )}
                         {(booking.bookingStatus === "confirmed" ||
@@ -1107,87 +1073,81 @@ export default function BookingManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Walk-in Check-in Confirmation Modal */}
-      <AlertDialog open={walkInConfirmOpen} onOpenChange={setWalkInConfirmOpen}>
-        <AlertDialogContent className="z-50">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Check In Walk-in Guest?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {walkInBookingToCheck && (
-                <div className="space-y-2 mt-4">
-                  <p><strong>Guest:</strong> {walkInBookingToCheck.guestName}</p>
-                  <p><strong>Room:</strong> {walkInBookingToCheck.roomTypeId?.roomNumber || 'TBA'}</p>
-                  <p>
-                    <strong>Check-in:</strong>{" "}
-                    {new Date(walkInBookingToCheck.checkInDate).toLocaleDateString()}
-                  </p>
-                </div>
+      {/* Check-in Sheet — full registration form */}
+      <Sheet open={checkInSheetOpen} onOpenChange={setCheckInSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto p-0">
+          <SheetHeader className="p-6 pb-0">
+            <SheetTitle className="flex items-center gap-2">
+              Check In — {checkInBooking?.guestName}
+              {checkInBooking?.bookingType === "online" && (
+                <Badge className="bg-blue-100 text-blue-700 border border-blue-200">Online Booking</Badge>
               )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setWalkInBookingToCheck(null)}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmWalkInCheckIn}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              Confirm Check-in
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </SheetTitle>
+          </SheetHeader>
+          {checkInBooking && (
+            <CheckInForm
+              bookingId={checkInBooking._id}
+              guestName={checkInBooking.guestName}
+              bookingType={checkInBooking.bookingType}
+              onConfirm={handleCheckInConfirm}
+              onCancel={() => { setCheckInSheetOpen(false); setCheckInBooking(null); }}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
 
-      {/* Online Booking Confirmation Code Modal */}
-      <Dialog open={onlineConfirmOpen} onOpenChange={setOnlineConfirmOpen}>
-        <DialogContent className="z-50">
+      {/* Change Room Dialog */}
+      <Dialog open={changeRoomOpen} onOpenChange={setChangeRoomOpen}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Enter Confirmation Code</DialogTitle>
+            <DialogTitle>Change Room</DialogTitle>
+            <DialogDescription>
+              Reassign {changeRoomBooking?.guestName} to a different available room.
+            </DialogDescription>
           </DialogHeader>
-          {onlineBookingToCheck && (
-            <div className="space-y-4">
-              <div className="p-3 rounded-lg border border-blue-200">
-                <p className="text-sm">
-                  <strong>Guest:</strong> {onlineBookingToCheck.guestName}
-                </p>
-                <p className="text-sm">
-                  <strong>Check-in:</strong>{" "}
-                  {new Date(onlineBookingToCheck.checkInDate).toLocaleDateString()}
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="confirmCode">Confirmation Code</Label>
-                <Input
-                  id="confirmCode"
-                  placeholder="Enter 6-digit code"
-                  value={confirmationCode}
-                  onChange={(e) => setConfirmationCode(e.target.value)}
-                  maxLength={10}
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setOnlineConfirmOpen(false);
-                    setOnlineBookingToCheck(null);
-                    setConfirmationCode("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-blue-600 hover:bg-blue-700"
-                  onClick={verifyAndCheckIn}
-                  disabled={isVerifyingCode || !confirmationCode}
-                >
-                  {isVerifyingCode ? "Verifying..." : "Verify & Check In"}
-                </Button>
-              </div>
+
+          <div className="p-3 rounded-lg border bg-muted/40 text-sm">
+            <p className="text-muted-foreground">Current Room</p>
+            <p className="font-medium mt-0.5">
+              {(changeRoomBooking?.roomId as any)?.roomNumber
+                ?? (changeRoomBooking?.roomTypeId as any)?.roomNumber
+                ?? (changeRoomBooking?.roomTypeId as any)?.name
+                ?? "Not yet assigned"}
+            </p>
+          </div>
+
+          {changeRoomLoading ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Loading available rooms...</p>
+          ) : changeRoomRooms.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">No other rooms available for these dates.</p>
+          ) : (
+            <div className="space-y-1.5">
+              <Label>Select New Room</Label>
+              <Select value={changeRoomSelected} onValueChange={setChangeRoomSelected}>
+                <SelectTrigger><SelectValue placeholder="Choose a room" /></SelectTrigger>
+                <SelectContent>
+                  {changeRoomRooms.map((r) => (
+                    <SelectItem key={r._id} value={r._id}>
+                      Room {r.roomNumber} — {r.roomTypeId?.name} (₦{r.roomTypeId?.price?.toLocaleString()}/night)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
+
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setChangeRoomOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={confirmChangeRoom}
+              disabled={!changeRoomSelected || changeRoomLoading}
+            >
+              {changeRoomLoading ? "Saving..." : "Change Room"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
