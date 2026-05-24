@@ -120,7 +120,7 @@ export const receptionistNav: NavItem[] = [
   { name: "Bookings", href: "/receptionist/bookings", icon: Calendar },
   { name: "Booking Calendar", href: "/receptionist/calendar", icon: Calendar1Icon },
   { name: "My Shift", href: "/receptionist/my-shift", icon: CalendarDays },
-  { name: "Settings", href: "/receptionist/settings", icon: Settings },
+  // { name: "Settings", href: "/receptionist/settings", icon: Settings },
   { name: "Help & Guide", href: "/receptionist/help", icon: HelpCircle },
   // { name: "Payments", href: "/receptionist/payments", icon: CreditCard },
 ];

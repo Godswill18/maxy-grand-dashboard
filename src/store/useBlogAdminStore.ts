@@ -58,7 +58,7 @@ interface BlogAdminStore {
 }
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
-const getToken = () => sessionStorage.getItem('token');
+const getToken = () => localStorage.getItem('token');
 
 // Helper function to handle API errors
 const handleApiError = async (response: Response) => {

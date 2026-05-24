@@ -166,8 +166,13 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
     const interval = setInterval(async () => {
       try {
         await getMe();
-      } catch {
-        navigate('/login', { replace: true });
+      } catch (err: any) {
+        // Only redirect on confirmed auth failures — not on network errors.
+        // A brief WiFi drop should not log the user out.
+        const isNetworkError = err instanceof TypeError;
+        if (!isNetworkError) {
+          navigate('/login', { replace: true });
+        }
       }
     }, 5 * 60 * 1000); // 5 minutes
 
@@ -184,7 +189,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
  */
 function ProtectedRoutes() {
   const { user, isLoading, logout } = useAuthStore();
-  const token = sessionStorage.getItem('token');
+  const token = localStorage.getItem('token');
 
   // If user is hydrated from localStorage but token is gone, clear auth state
   useEffect(() => {

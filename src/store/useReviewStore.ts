@@ -52,7 +52,7 @@ const REVIEW_TTL = 5 * 60 * 1000; // 5 minutes
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
 const getAuthHeaders = () => ({
-  Authorization: `Bearer ${sessionStorage.getItem('token')}`,
+  Authorization: `Bearer ${localStorage.getItem('token')}`,
 });
 
 // --- Store ---

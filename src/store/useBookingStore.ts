@@ -75,13 +75,8 @@ interface BookingState {
 }
 
 // Helper to get auth token
-const getToken = () => sessionStorage.getItem('token');
+const getToken = () => localStorage.getItem('token');
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
-
-const getUser = () => {
-  const userStr = sessionStorage.getItem('user');
-  return userStr ? JSON.parse(userStr) : null;
-};
 
 export const useBookingStore = create<BookingState>((set, get) => ({
   bookings: [],

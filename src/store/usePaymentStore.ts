@@ -67,7 +67,7 @@ export const usePaymentStore = create<PaymentState>((set, get) => ({
 
     //   console.log('Fetching from URL:', url);
 
-      const token = useAuthStore.getState().token || sessionStorage.getItem('token');
+      const token = useAuthStore.getState().token;
       const response = await fetch(url, {
         credentials: 'include',
         headers: {

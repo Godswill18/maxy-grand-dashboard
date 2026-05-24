@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/useAuthStore';
 import { toast } from 'sonner';
@@ -14,71 +14,47 @@ const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost
 export const useForceLogout = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const hasLoggedOut = useRef(false);
 
   useEffect(() => {
     if (!user) return;
+    hasLoggedOut.current = false;
 
     // Create socket connection
-    const socket: Socket = io(VITE_API_URL, { 
+    const socket: Socket = io(VITE_API_URL, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
     });
 
-    socket.on('connect', () => {
-      console.log('🔌 Force logout listener connected:', socket.id);
-      
-      // Join user-specific room
-      socket.emit('join', `user:${user._id}`);
-    });
+    const handleForceLogout = async (data: any) => {
+      if (hasLoggedOut.current) return;
+      hasLoggedOut.current = true;
 
-    // ✅ Listen for force logout events
-    socket.on(`user:${user._id}:force:logout`, async (data: any) => {
       console.log('🚪 FORCE LOGOUT EVENT RECEIVED:', data);
-      
-      // Show notification
       toast.error(data.message || 'Your shift has ended. You have been logged out.', {
         duration: 5000,
-        // important: true,
       });
 
-      // Wait a moment for user to see the message
       setTimeout(async () => {
-        // Perform logout
         await logout();
-        
-        // Redirect to login
-        navigate('/login', { 
+        navigate('/login', {
           replace: true,
-          state: { 
+          state: {
             message: data.message,
             reason: data.reason,
           }
         });
-
-        // Reload page to clear all state
-        setTimeout(() => {
-          window.location.reload();
-        }, 100);
-      }, 2000); // 2 second delay to show toast
-    });
-
-    // Also listen for general force logout event
-    socket.on('force:logout', async (data: any) => {
-      console.log('🚪 FORCE LOGOUT (GENERAL) EVENT RECEIVED:', data);
-      
-      toast.error(data.message || 'You have been logged out.', {
-        duration: 5000,
-        // important: true,
-      });
-
-      setTimeout(async () => {
-        await logout();
-        navigate('/login', { replace: true });
-        setTimeout(() => {
-          window.location.reload();
-        }, 100);
+        setTimeout(() => window.location.reload(), 100);
       }, 2000);
+    };
+
+    socket.on('connect', () => {
+      console.log('🔌 Force logout listener connected:', socket.id);
+      socket.emit('join', `user:${user._id}`);
     });
+
+    socket.on(`user:${user._id}:force:logout`, handleForceLogout);
+    socket.on('force:logout', handleForceLogout);
 
     // Listen for user status changes
     socket.on(`user:${user._id}:status:changed`, (data: any) => {

@@ -85,7 +85,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   fetchOrders: async (params = {}) => {
     set({ isLoading: true, error: null });
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem('token');
       const user = getUser();
       const queryParams = new URLSearchParams(params as any);
       if (user.role === 'admin' && !params.hotelId) {

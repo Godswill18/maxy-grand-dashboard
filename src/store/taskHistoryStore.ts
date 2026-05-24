@@ -54,7 +54,7 @@ const useTaskHistoryStore = create<TaskHistoryState>((set) => ({
   fetchCompletedTasks: async () => {
     set({ isLoading: true, error: null });
     try {
-      const token = sessionStorage.getItem('token'); // Adjust based on your auth storage
+      const token = localStorage.getItem('token');
       
       if (!token) {
         throw new Error('No authentication token found');

@@ -24,7 +24,7 @@ interface CategoryState {
 }
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
-const getToken = () => sessionStorage.getItem('token');
+const getToken = () => localStorage.getItem('token');
 
 export const useCategoryStore = create<CategoryState>((set) => ({
     categories: [],

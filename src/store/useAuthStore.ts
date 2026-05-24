@@ -33,9 +33,9 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       isLoading: false,
-      // Initialise synchronously from sessionStorage so stores that call
+      // Initialise synchronously from localStorage so stores that call
       // useAuthStore.getState().token on first render never get null after a reload.
-      token: sessionStorage.getItem('token'),
+      token: localStorage.getItem('token'),
       isAuthenticated: false,
       error: null,
 
@@ -72,7 +72,7 @@ export const useAuthStore = create<AuthState>()(
             });
 
             if (data.token) {
-              sessionStorage.setItem("token", data.token);
+              localStorage.setItem("token", data.token);
             }
             
             return { 
@@ -189,7 +189,7 @@ export const useAuthStore = create<AuthState>()(
       getMe: async () => {
         set({ isLoading: true, error: null });
         try {
-          const currentToken = get().token || sessionStorage.getItem('token');
+          const currentToken = get().token || localStorage.getItem('token');
           const res = await fetch(`${VITE_API_URL}/api/user/get-user`, {
             method: 'GET',
             credentials: 'include',
@@ -205,7 +205,7 @@ export const useAuthStore = create<AuthState>()(
               token: null, 
               error: 'Unauthorized' 
             });
-            sessionStorage.removeItem('token');
+            localStorage.removeItem('token');
             throw new Error('Unauthorized');
           }
 
@@ -216,7 +216,7 @@ export const useAuthStore = create<AuthState>()(
             if (res.status === 403 && data.code === 'SHIFT_ENDED') {
               console.log('❌ Shift ended — session terminated by server');
               set({ user: null, isAuthenticated: false, token: null, error: data.message });
-              sessionStorage.removeItem('token');
+              localStorage.removeItem('token');
               throw new Error(data.message);
             }
 
@@ -235,7 +235,7 @@ export const useAuthStore = create<AuthState>()(
               token: null,
               error: data.message
             });
-            sessionStorage.removeItem('token');
+            localStorage.removeItem('token');
             throw new Error(data.message || data.error || 'Failed to fetch user');
           }
 
@@ -248,7 +248,7 @@ export const useAuthStore = create<AuthState>()(
             });
             
             if (data.token) {
-              sessionStorage.setItem('token', data.token);
+              localStorage.setItem('token', data.token);
               set({ token: data.token });
             }
             
@@ -264,52 +264,48 @@ export const useAuthStore = create<AuthState>()(
               token: null, 
               error: 'Account deactivated' 
             });
-            sessionStorage.removeItem('token');
+            localStorage.removeItem('token');
             throw new Error('Your account has been deactivated');
           }
 
-          if (data.isShiftTime === false) {
-            console.log('❌ Staff shift time ended');
-            set({ 
-              user: null, 
-              isAuthenticated: false, 
-              token: null, 
-              error: 'Shift time ended' 
-            });
-            sessionStorage.removeItem('token');
-            throw new Error('Your shift time has ended');
-          }
-
           console.log('✅ Staff access allowed');
-          set({ 
-            user: data, 
-            isAuthenticated: true 
+          set({
+            user: data,
+            isAuthenticated: true
           });
-          
+
           if (data.token) {
-            sessionStorage.setItem('token', data.token);
+            localStorage.setItem('token', data.token);
             set({ token: data.token });
           }
           
           return data;
-        } catch (error) {
+        } catch (error: any) {
           const message = error instanceof Error ? error.message : 'A network or server error occurred.';
-          
-          // ✅ Don't clear state for admin/superadmin
+          const isNetworkError = error instanceof TypeError;
+
+          // Don't clear state for admin/superadmin
           const currentUser = get().user;
           if (currentUser?.role === 'superadmin' || currentUser?.role === 'admin') {
-            console.log('⚠️ Error for admin/superadmin - preserving state');
             set({ isLoading: false });
             return currentUser;
           }
-          
-          set({ 
-            error: message, 
-            user: null, 
-            isAuthenticated: false, 
-            token: null 
+
+          // Network errors (offline, DNS fail, timeout) preserve the session — a blip
+          // should not log staff out. Auth failures (401/403) already cleared state
+          // before reaching here.
+          if (isNetworkError) {
+            set({ isLoading: false });
+            throw error;
+          }
+
+          set({
+            error: message,
+            user: null,
+            isAuthenticated: false,
+            token: null
           });
-          sessionStorage.removeItem('token');
+          localStorage.removeItem('token');
           throw error;
         } finally {
           set({ isLoading: false });
@@ -318,7 +314,7 @@ export const useAuthStore = create<AuthState>()(
 
       checkAuth: async () => {
         try {
-          const token = sessionStorage.getItem('token');
+          const token = localStorage.getItem('token');
 
           if (!token) {
             set({ user: null, isAuthenticated: false, token: null });
@@ -329,7 +325,7 @@ export const useAuthStore = create<AuthState>()(
           return !!user;
         } catch {
           set({ user: null, isAuthenticated: false, token: null });
-          sessionStorage.removeItem('token');
+          localStorage.removeItem('token');
           return false;
         }
       },
@@ -341,12 +337,12 @@ export const useAuthStore = create<AuthState>()(
             credentials: 'include',
             method: 'POST',
           });
-          sessionStorage.removeItem('token');
+          localStorage.removeItem('token');
         } catch (err: any) {
           console.error('Logout API call failed:', err.message);
-          sessionStorage.removeItem('token');
+          localStorage.removeItem('token');
         } finally {
-          sessionStorage.removeItem('token');
+          localStorage.removeItem('token');
           set({ 
             user: null, 
             isLoading: false, 

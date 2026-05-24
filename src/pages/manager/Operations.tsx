@@ -21,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 const useUserHotelContext = () => {
     const { user } = useAuthStore();
     const hotelId = user?.hotelId || null;
-    const token = sessionStorage.getItem("token");
+    const token = localStorage.getItem('token');
     return { hotelId, token };
 };
 

@@ -29,6 +29,19 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
+const ROOM_AMENITIES = [
+  'WiFi', 'Smart TV', 'Cable TV',
+  'Air Conditioning', 'Ceiling Fan', 'Heating',
+  'Bathtub', 'Shower', 'Hair Dryer',
+  'Mini Bar', 'Refrigerator', 'Microwave', 'Kettle', 'Coffee Maker',
+  'Safe', 'Iron & Ironing Board', 'Work Desk', 'Wardrobe',
+  'Room Service', 'Laundry Service', 'Telephone',
+  'Balcony', 'City View', 'Pool View', 'Sea View',
+  'Pool Access', 'Gym Access', 'Parking', 'Breakfast Included',
+  'King Bed', 'Queen Bed', 'Sofa Bed',
+  'Non-Smoking', 'Pet Friendly', 'Wheelchair Accessible',
+];
+
 // Define the shape of the room prop
 interface EditRoomModalProps {
   isOpen: boolean;
@@ -41,7 +54,7 @@ const formSchema = z.object({
   name: z.string().min(1, "Room name/type is required"),
   roomNumber: z.string().min(1, "Room number is required"),
   description: z.string().min(1, "Description is required"),
-  amenities: z.string().min(1, "Amenities are required (comma-separated)"),
+  amenities: z.array(z.string()).min(1, "Select at least one amenity"),
   price: z.coerce.number().min(1, "Price must be at least 1"),
   capacity: z.coerce.number().min(1, "Capacity must be at least 1"),
   isAvailable: z.boolean().default(true),
@@ -63,7 +76,7 @@ export function EditRoomModal({ isOpen, onClose, room }: EditRoomModalProps) {
       name: "",
       roomNumber: "",
       description: "",
-      amenities: "",
+      amenities: [],
       price: 0,
       capacity: 2,
       isAvailable: true,
@@ -80,8 +93,10 @@ useEffect(() => {
       roomNumber: room.roomNumber ?? "",
       description: room.description ?? "",
       amenities: Array.isArray(room.amenities)
-        ? room.amenities.join(", ")
-        : room.amenities ?? "",
+        ? room.amenities
+        : typeof room.amenities === 'string' && room.amenities
+          ? room.amenities.split(',').map((a: string) => a.trim()).filter(Boolean)
+          : [],
       price: room.price ?? 0,
       capacity: room.capacity ?? 1,
       isAvailable: room.isAvailable ?? true,
@@ -123,7 +138,7 @@ useEffect(() => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[625px]">
+      <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Room Details</DialogTitle>
           <DialogDescription>
@@ -212,10 +227,38 @@ useEffect(() => {
                 name="amenities"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Amenities (comma-separated)</FormLabel>
+                    <FormLabel>Amenities</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., WiFi, AC, TV" {...field} />
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-52 overflow-y-auto pr-1">
+                        {ROOM_AMENITIES.map((amenity) => {
+                          const selected = (field.value as string[]).includes(amenity);
+                          return (
+                            <button
+                              key={amenity}
+                              type="button"
+                              onClick={() => {
+                                const next = selected
+                                  ? (field.value as string[]).filter((a) => a !== amenity)
+                                  : [...(field.value as string[]), amenity];
+                                field.onChange(next);
+                              }}
+                              className={[
+                                'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors text-left',
+                                selected
+                                  ? 'bg-primary text-primary-foreground border-primary'
+                                  : 'bg-background text-foreground border-border hover:bg-muted',
+                              ].join(' ')}
+                            >
+                              <span className="shrink-0 text-xs">{selected ? '✓' : '+'}</span>
+                              <span className="truncate">{amenity}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </FormControl>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {(field.value as string[]).length} selected
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

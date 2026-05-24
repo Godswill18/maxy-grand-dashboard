@@ -5,7 +5,7 @@ import { useAuthStore } from './useAuthStore';
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
 const getAuthHeaders = (): Record<string, string> => {
-  const token = useAuthStore.getState().token || sessionStorage.getItem('token');
+  const token = useAuthStore.getState().token;
   return {
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),

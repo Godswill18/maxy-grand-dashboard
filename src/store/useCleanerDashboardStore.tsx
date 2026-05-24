@@ -67,7 +67,7 @@ const useDashboardStore = create<DashboardState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const token = sessionStorage.getItem('token');
+      const token = localStorage.getItem('token');
       
       if (!token) {
         throw new Error('No authentication token found');

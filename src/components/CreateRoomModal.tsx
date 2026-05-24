@@ -31,13 +31,26 @@ import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Fixed import path
 
+const ROOM_AMENITIES = [
+  'WiFi', 'Smart TV', 'Cable TV',
+  'Air Conditioning', 'Ceiling Fan', 'Heating',
+  'Bathtub', 'Shower', 'Hair Dryer',
+  'Mini Bar', 'Refrigerator', 'Microwave', 'Kettle', 'Coffee Maker',
+  'Safe', 'Iron & Ironing Board', 'Work Desk', 'Wardrobe',
+  'Room Service', 'Laundry Service', 'Telephone',
+  'Balcony', 'City View', 'Pool View', 'Sea View',
+  'Pool Access', 'Gym Access', 'Parking', 'Breakfast Included',
+  'King Bed', 'Queen Bed', 'Sofa Bed',
+  'Non-Smoking', 'Pet Friendly', 'Wheelchair Accessible',
+];
+
 // Validation schema
 const formSchema = z.object({
   hotelId: z.string().min(1, "Hotel ID is required"),
   name: z.string().min(1, "Room name/type is required"),
   roomNumber: z.string().min(1, "Room number is required"),
   description: z.string().min(1, "Description is required"),
-  amenities: z.string().min(1, "Amenities are required (comma-separated)"),
+  amenities: z.array(z.string()).min(1, "Select at least one amenity"),
   price: z.coerce.number().min(1, "Price must be at least 1"),
   capacity: z.coerce.number().min(1, "Capacity must be at least 1"),
   categoryId: z.string().optional(),
@@ -64,7 +77,7 @@ export function CreateRoomModal() {
       name: "",
       roomNumber: "",
       description: "",
-      amenities: "",
+      amenities: [],
       price: 0,
       capacity: 1,
       categoryId: "",
@@ -93,7 +106,7 @@ export function CreateRoomModal() {
     formData.append("name", values.name);
     formData.append("roomNumber", values.roomNumber);
     formData.append("description", values.description);
-    formData.append("amenities", values.amenities);
+    formData.append("amenities", values.amenities.join(","));
     formData.append("price", values.price.toString());
     formData.append("capacity", values.capacity.toString());
     formData.append("isAvailable", values.isAvailable.toString());
@@ -256,8 +269,36 @@ export function CreateRoomModal() {
                 <FormItem>
                   <FormLabel>Amenities</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., WiFi, AC, TV" {...field} />
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-52 overflow-y-auto pr-1">
+                      {ROOM_AMENITIES.map((amenity) => {
+                        const selected = (field.value as string[]).includes(amenity);
+                        return (
+                          <button
+                            key={amenity}
+                            type="button"
+                            onClick={() => {
+                              const next = selected
+                                ? (field.value as string[]).filter((a) => a !== amenity)
+                                : [...(field.value as string[]), amenity];
+                              field.onChange(next);
+                            }}
+                            className={[
+                              'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors text-left',
+                              selected
+                                ? 'bg-primary text-primary-foreground border-primary'
+                                : 'bg-background text-foreground border-border hover:bg-muted',
+                            ].join(' ')}
+                          >
+                            <span className="shrink-0 text-xs">{selected ? '✓' : '+'}</span>
+                            <span className="truncate">{amenity}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </FormControl>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {(field.value as string[]).length} selected
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

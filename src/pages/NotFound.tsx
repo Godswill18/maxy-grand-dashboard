@@ -1,230 +1,210 @@
-import { useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { Home, ArrowLeft, Bell, Clock, Users, Star } from "lucide-react";
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Star, Key, Home, ArrowLeft, Crown } from 'lucide-react';
 
-const NotFoundHotelDoor = () => {
-  const location = useLocation();
+const GOLD = '#d4af37';
+const GOLD_DARK = '#a0830a';
+const GOLD_LIGHT = '#f4d03f';
+
+export default function NotFound() {
   const navigate = useNavigate();
-  const [doorOpen, setDoorOpen] = useState(false);
-
-  useEffect(() => {
-    console.error("404 Error: Guest attempted to access non-existent room:", location.pathname);
-  }, [location.pathname]);
+  const location = useLocation();
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200">
-      {/* Hotel wallpaper pattern */}
-      <div className="absolute inset-0 opacity-10">
+    <>
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(28px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes shimmer {
+          0%   { background-position: -200% center; }
+          100% { background-position:  200% center; }
+        }
+        @keyframes pulse-glow {
+          0%, 100% { filter: drop-shadow(0 0 12px rgba(212,175,55,0.35)); }
+          50%       { filter: drop-shadow(0 0 28px rgba(212,175,55,0.65)); }
+        }
+        .anim-1 { animation: fadeInUp 0.7s ease 0s       forwards; opacity: 0; }
+        .anim-2 { animation: fadeInUp 0.7s ease 0.15s    forwards; opacity: 0; }
+        .anim-3 { animation: fadeInUp 0.7s ease 0.30s    forwards; opacity: 0; }
+        .anim-4 { animation: fadeInUp 0.7s ease 0.45s    forwards; opacity: 0; }
+        .anim-5 { animation: fadeInUp 0.7s ease 0.60s    forwards; opacity: 0; }
+        .anim-6 { animation: fadeInUp 0.7s ease 0.75s    forwards; opacity: 0; }
+        .logo-glow { animation: pulse-glow 3s ease-in-out infinite; }
+        .gold-shimmer {
+          background: linear-gradient(90deg, ${GOLD} 0%, ${GOLD_LIGHT} 30%, #fff8dc 50%, ${GOLD_LIGHT} 70%, ${GOLD} 100%);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: shimmer 4s linear infinite;
+        }
+        .four-zero-four {
+          background: linear-gradient(135deg, ${GOLD} 0%, ${GOLD_LIGHT} 40%, ${GOLD} 70%, ${GOLD_DARK} 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          filter: drop-shadow(0 4px 24px rgba(212,175,55,0.45));
+        }
+        .btn-primary  { transition: all 0.2s ease; }
+        .btn-primary:hover  { opacity: 0.88; transform: translateY(-1px); }
+        .btn-secondary { transition: all 0.2s ease; }
+        .btn-secondary:hover { background: rgba(212,175,55,0.12) !important; transform: translateY(-1px); }
+      `}</style>
+
+      <div
+        className="min-h-screen flex flex-col items-center justify-center px-4 py-16 relative overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, #0a1120 0%, #131e32 50%, #0a1120 100%)' }}
+      >
+        {/* Luxury wallpaper pattern overlay */}
         <div
-          className="absolute inset-0"
+          className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: `radial-gradient(circle, #92400e 1px, transparent 1px)`,
-            backgroundSize: '30px 30px',
+            opacity: 0.045,
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4af37'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
           }}
         />
-      </div>
 
-      {/* Main content */}
-      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-12">
-        <div className="max-w-6xl w-full">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Hotel Door Section */}
-            <div className="flex justify-center">
-              <div className="relative w-full max-w-md">
-                {/* Door frame */}
-                <div className="relative aspect-[0.6/1] max-h-[600px] mx-auto">
-                  {/* Door */}
-                  <div
-                    className="relative h-full bg-gradient-to-b from-amber-800 via-amber-900 to-amber-950 rounded-lg shadow-2xl transition-transform duration-700 ease-in-out origin-left"
-                    style={{
-                      transform: doorOpen ? 'perspective(1200px) rotateY(-45deg)' : 'perspective(1200px) rotateY(0deg)',
-                    }}
-                  >
-                    {/* Door panels */}
-                    <div className="absolute inset-4 border-4 border-amber-700/50 rounded">
-                      <div className="absolute inset-0 flex flex-col">
-                        {/* Top panel */}
-                        <div className="flex-1 border-b-2 border-amber-700/50 relative overflow-hidden">
-                          <div className="absolute inset-2 border-2 border-amber-700/30 rounded" />
-                        </div>
-                        {/* Bottom panel */}
-                        <div className="flex-1 relative overflow-hidden">
-                          <div className="absolute inset-2 border-2 border-amber-700/30 rounded" />
-                        </div>
-                      </div>
-                    </div>
+        {/* Ambient glow orbs */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.06) 0%, transparent 70%)', transform: 'translate(-50%,-50%)' }} />
+        <div className="absolute bottom-1/4 right-1/4 w-72 h-72 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.04) 0%, transparent 70%)', transform: 'translate(50%,50%)' }} />
 
-                    {/* Room number plaque */}
-                    <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-24 bg-gradient-to-br from-yellow-600 to-yellow-800 rounded-lg shadow-xl border-2 border-yellow-700 flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="text-5xl font-black text-amber-950">404</div>
-                        <div className="text-xs text-amber-900 font-semibold mt-1">ROOM</div>
-                      </div>
-                    </div>
+        {/* Content */}
+        <div className="relative z-10 flex flex-col items-center gap-5 max-w-lg w-full text-center">
 
-                    {/* Door handle */}
-                    <div className="absolute top-1/2 right-8 -translate-y-1/2">
-                      <div className="w-4 h-12 bg-gradient-to-r from-yellow-600 to-yellow-700 rounded-full shadow-lg" />
-                      <div className="absolute top-1/2 -translate-y-1/2 -left-2 w-8 h-8 bg-gradient-to-br from-yellow-500 to-yellow-700 rounded-full shadow-xl" />
-                    </div>
-
-                    {/* Peephole */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-gradient-to-br from-gray-800 to-black rounded-full shadow-inner">
-                      <div className="absolute inset-1 bg-gradient-to-br from-blue-900 to-black rounded-full opacity-70" />
-                    </div>
-
-                    {/* Do Not Disturb Sign */}
-                    <div className="absolute -right-2 top-24 transform rotate-12">
-                      <div className="bg-red-600 text-white px-6 py-3 rounded-lg shadow-xl border-2 border-red-700">
-                        <div className="text-center">
-                          <div className="font-black text-lg">DO NOT</div>
-                          <div className="font-black text-lg -mt-1">DISTURB</div>
-                          <div className="text-xs mt-1 opacity-90">Page Not Available</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Wood grain texture overlay */}
-                    <div className="absolute inset-0 opacity-20 mix-blend-overlay rounded-lg">
-                      <div
-                        className="w-full h-full"
-                        style={{
-                          backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Door frame shadow */}
-                  <div className="absolute inset-0 -z-10 blur-2xl opacity-50 bg-amber-900" />
-                </div>
-
-                {/* Interactive button */}
-                <button
-                  onClick={() => setDoorOpen(!doorOpen)}
-                  className="mt-6 w-full px-6 py-3 bg-amber-100 border-2 border-amber-300 text-amber-900 rounded-lg font-semibold hover:bg-amber-200 transition-colors"
-                >
-                  {doorOpen ? 'Close Door' : 'Try Opening Door'}
-                </button>
-              </div>
-            </div>
-
-            {/* Content Section */}
-            <div className="space-y-8 text-center lg:text-left">
-              {/* Hotel header */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 justify-center lg:justify-start">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-amber-500 text-amber-500" />
-                  ))}
-                </div>
-                <h3 className="text-lg font-semibold text-amber-800">Maxy Grand Hotel</h3>
-              </div>
-
-              {/* Main message */}
-              <div className="space-y-4">
-                <h1 className="text-5xl md:text-7xl font-black text-gray-900 leading-tight">
-                  Maxy 404
-                  <br />
-                  <span className="bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
-                    Not Available
-                  </span>
-                </h1>
-                
-                <p className="text-xl text-gray-700 max-w-lg">
-                  We apologize, but this page doesn't exist in our dashboard. Perhaps you have the wrong room number?
-                </p>
-              </div>
-
-              {/* Hotel info card */}
-              {/* <div className="p-6 bg-white border-2 border-amber-200 rounded-2xl shadow-lg space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 bg-amber-100 rounded-lg">
-                    <Bell className="w-6 h-6 text-amber-700" />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <h4 className="font-bold text-gray-900 mb-1">Front Desk Message</h4>
-                    <p className="text-sm text-gray-600">
-                      "Dear valued guest, the page you're looking for doesn't exist in our system. 
-                      Please check your booking confirmation or return to our main lobby."
-                    </p>
-                  </div>
-                </div> */}
-
-                {/* Reception info */}
-                {/* <div className="grid grid-cols-2 gap-4 pt-4 border-t border-amber-200">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Clock className="w-4 h-4 text-amber-600" />
-                    <span>24/7 Support</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Users className="w-4 h-4 text-amber-600" />
-                    <span>Concierge Available</span>
-                  </div>
-                </div>
-              </div> */}
-
-              {/* Error details */}
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-center gap-2 text-sm text-red-800">
-                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                  <span className="font-semibold">Access Denied:</span>
-                  <code className="font-mono text-xs bg-red-100 px-2 py-1 rounded">
-                    {location.pathname}
-                  </code>
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <button
-                  onClick={() => navigate('/')}
-                  className="group relative px-8 py-4 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-xl font-bold text-lg overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-amber-500/50 hover:scale-105"
-                >
-                  <span className="relative z-10 flex items-center justify-center gap-2">
-                    <Home className="w-5 h-5" />
-                    Return to dashboard
-                  </span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-orange-600 to-amber-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                </button>
-
-                <button
-                  onClick={() => navigate(-1)}
-                  className="px-8 py-4 bg-white border-2 border-amber-300 text-amber-800 rounded-xl font-bold text-lg transition-all duration-300 hover:bg-amber-50 hover:border-amber-400 hover:scale-105 flex items-center justify-center gap-2"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                  Go Back
-                </button>
-              </div>
-
-              {/* Hotel amenities showcase */}
-              {/* <div className="pt-6">
-                <p className="text-sm text-gray-500 mb-3">Explore Our Services:</p>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { label: 'Rooms', path: '/rooms' },
-                    { label: 'Bookings', path: '/bookings' },
-                    { label: 'Services', path: '/services' },
-                  ].map((item) => (
-                    <button
-                      key={item.path}
-                      onClick={() => navigate(item.path)}
-                      className="px-4 py-3 bg-gradient-to-br from-amber-100 to-orange-100 border border-amber-200 text-amber-900 rounded-lg text-sm font-semibold hover:from-amber-200 hover:to-orange-200 transition-all hover:scale-105"
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div> */}
-            </div>
+          {/* Stars */}
+          <div className="flex gap-1.5 anim-1">
+            {[...Array(5)].map((_, i) => (
+              <Star key={i} size={14} className="fill-[#d4af37] text-[#d4af37]" />
+            ))}
           </div>
+
+          {/* Logo */}
+          <div className="anim-1 logo-glow">
+            <img
+              src="/mxlogo-black.png"
+              alt="Maxy Grand Hotel"
+              className="h-20 w-auto mx-auto"
+              style={{ filter: 'invert(1) brightness(0.9) sepia(0.6) saturate(2.5) hue-rotate(5deg)' }}
+            />
+          </div>
+
+          {/* Top divider */}
+          <div className="anim-2 flex items-center gap-3 w-full">
+            <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, transparent, ${GOLD})` }} />
+            <Crown size={13} style={{ color: GOLD }} />
+            <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${GOLD}, transparent)` }} />
+          </div>
+
+          {/* Hotel name */}
+          <div className="anim-2 space-y-0.5">
+            <p className="gold-shimmer text-2xl sm:text-3xl font-bold tracking-[0.22em] uppercase">
+              Maxy Grand Hotel
+            </p>
+            <p className="text-[10px] tracking-[0.4em] uppercase" style={{ color: `${GOLD}88` }}>
+              Hospitality Redefined
+            </p>
+          </div>
+
+          {/* Bottom divider */}
+          <div className="anim-2 flex items-center gap-3 w-full">
+            <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, transparent, ${GOLD})` }} />
+            <Crown size={13} style={{ color: GOLD }} />
+            <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${GOLD}, transparent)` }} />
+          </div>
+
+          {/* 404 */}
+          <div
+            className="four-zero-four anim-3 font-extrabold leading-none select-none"
+            style={{ fontSize: 'clamp(5.5rem, 18vw, 9.5rem)', letterSpacing: '0.12em' }}
+          >
+            404
+          </div>
+
+          {/* Hotel plaque */}
+          <div
+            className="anim-4 w-full max-w-sm px-8 py-5"
+            style={{
+              border: `1px solid ${GOLD}50`,
+              background: 'rgba(212,175,55,0.06)',
+              boxShadow: `0 0 40px rgba(212,175,55,0.1), inset 0 0 24px rgba(212,175,55,0.04)`,
+            }}
+          >
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}70)` }} />
+              <Key size={12} style={{ color: GOLD }} />
+              <span className="text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: GOLD }}>
+                Room Not Available
+              </span>
+              <Key size={12} style={{ color: GOLD }} />
+              <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${GOLD}70, transparent)` }} />
+            </div>
+            <p className="text-slate-300 text-sm leading-relaxed">
+              This suite does not exist on our hotel floor plan.
+            </p>
+          </div>
+
+          {/* Description */}
+          <div className="anim-4 space-y-1.5">
+            <p className="text-slate-300 text-base leading-relaxed">
+              The page you requested has checked out<br className="hidden sm:block" />
+              or was never part of our establishment.
+            </p>
+            {location.pathname !== '/' && (
+              <p className="text-slate-600 text-xs tracking-widest uppercase font-mono">
+                Requested floor:{' '}
+                <span className="text-slate-500">{location.pathname}</span>
+              </p>
+            )}
+          </div>
+
+          {/* Buttons */}
+          <div className="anim-5 flex flex-col sm:flex-row gap-3 w-full max-w-sm mt-1">
+            <button
+              onClick={() => navigate('/')}
+              className="btn-primary flex-1 flex items-center justify-center gap-2 px-6 py-3 font-bold text-[11px] tracking-[0.2em] uppercase"
+              style={{
+                background: `linear-gradient(135deg, ${GOLD} 0%, ${GOLD_DARK} 100%)`,
+                color: '#0a1120',
+              }}
+            >
+              <Home size={14} />
+              Return to Lobby
+            </button>
+            <button
+              onClick={() => navigate(-1)}
+              className="btn-secondary flex-1 flex items-center justify-center gap-2 px-6 py-3 font-bold text-[11px] tracking-[0.2em] uppercase"
+              style={{
+                border: `1px solid ${GOLD}60`,
+                color: GOLD,
+                background: 'transparent',
+              }}
+            >
+              <ArrowLeft size={14} />
+              Go Back
+            </button>
+          </div>
+
+          {/* Concierge note */}
+          <div className="anim-6 flex items-center gap-3 w-full mt-1">
+            <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}25)` }} />
+            <span className="text-[10px] tracking-widest uppercase" style={{ color: `${GOLD}50` }}>
+              Need Assistance?
+            </span>
+            <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${GOLD}25, transparent)` }} />
+          </div>
+          <p className="anim-6 text-slate-600 text-xs tracking-wider -mt-2">
+            Our concierge is available 24 &times; 7 to guide you back.
+          </p>
+
+          {/* Footer */}
+          <p className="anim-6 text-slate-700 text-[10px] tracking-[0.3em] uppercase mt-1">
+            &copy; {new Date().getFullYear()} Maxy Grand Hotel &mdash; All Rights Reserved
+          </p>
         </div>
       </div>
-
-      {/* Footer decoration */}
-      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400" />
-    </div>
+    </>
   );
-};
-
-export default NotFoundHotelDoor;
+}

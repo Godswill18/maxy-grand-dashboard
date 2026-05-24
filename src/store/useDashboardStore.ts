@@ -60,7 +60,7 @@ interface DashboardActions {
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
 const getAuthHeaders = () => {
-  const token = sessionStorage.getItem('token');
+  const token = localStorage.getItem('token');
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 

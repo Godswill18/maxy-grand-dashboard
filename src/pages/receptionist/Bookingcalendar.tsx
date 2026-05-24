@@ -33,7 +33,7 @@ export default function BookingCalendar() {
 
   useEffect(() => {
     if (user?.hotelId) {
-      fetchBookings();
+      fetchBookings(user.hotelId);
     }
   }, [user?.hotelId]);
 

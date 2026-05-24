@@ -154,7 +154,7 @@ export default function UsersPage() {
 
     try {
       const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:5000";
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem('token');
 
       const response = await fetch(`${VITE_API_URL}/api/bookings/guest/${guestId}`, {
         headers: {

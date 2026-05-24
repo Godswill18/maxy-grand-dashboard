@@ -103,7 +103,7 @@ interface OperationsState {
 // --- 4. Helper to get Auth Headers securely ---
 const getAuthHeaders = () => {
     const { user } = useAuthStore.getState();
-    const token = sessionStorage.getItem("token");
+    const token = localStorage.getItem('token');
     if (!token || !user?.hotelId) {
         throw new Error("Authentication missing. Please log in.");
     }
