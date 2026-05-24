@@ -80,6 +80,7 @@ import ChangePassword from "./pages/Changepassword";
 import Announcements from "./pages/superAdmin/Announcements";
 import ManagerAnnouncements from "./pages/manager/Announcements";
 import HelpPage from "./pages/HelpPage";
+import BookingHistory from "./pages/BookingHistory";
 
 const queryClient = new QueryClient();
 
@@ -323,6 +324,7 @@ const App = () => (
                 <Route path="/rooms/:id" element={<RoomDetailPage />} />
                 <Route path="/bookings" element={<Bookings />} />
                 <Route path="/bookings/calendar" element={<BookingCalendarPage />} />
+                <Route path="/booking-history" element={<BookingHistory />} />
                 <Route path="/cleaners" element={<Cleaners />} />
                 <Route path="/transactions" element={<Transactions />} />
                 <Route path="/requests" element={<Requests />} />
@@ -371,6 +373,7 @@ const App = () => (
                 <Route path="/manager/house-keeping" element={<Housekeeping />} />
                 <Route path="/manager/bookings" element={<BookingManagement />} />
                 <Route path="/manager/booking-calendar" element={<BookingCalendarPage />} />
+                <Route path="/manager/booking-history" element={<BookingHistory />} />
                 <Route path="/manager/orders" element={<Restaurant />} />
                 <Route path="/manager/reviews" element={<Reviews />} />
                 <Route path="/manager/announcements" element={<ManagerAnnouncements />} />
@@ -407,6 +410,7 @@ const App = () => (
                 <Route path="/receptionist/rooms" element={<RoomReceptionist />} />
                 <Route path="/receptionist/bookings" element={<BookingManagement />} />
                 <Route path="/receptionist/calendar" element={<BookingCalendar />} />
+                <Route path="/receptionist/booking-history" element={<BookingHistory />} />
                 <Route path="/receptionist/my-shift" element={<MySchedule />} />
                 <Route path="/receptionist/payments" element={<PaymentProcessing />} />
                 <Route path="/receptionist/help" element={<HelpPage />} />

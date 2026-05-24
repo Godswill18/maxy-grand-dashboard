@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
+import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, User, Mail, Phone, BedDouble, Clock, DollarSign } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, User, Mail, Phone, BedDouble, Clock, CreditCard, ArrowRight, Calendar } from "lucide-react";
 import { useBookingStore } from "@/store/useBookingStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import CalendarSkeleton from "@/components/skeleton/CalendarSkeleton";
@@ -27,9 +28,8 @@ export default function BookingCalendar() {
   const { bookings, isLoading, fetchBookings } = useBookingStore();
   const { user } = useAuthStore();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedBooking, setSelectedBooking] = useState<BookingEvent | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [daySheetOpen, setDaySheetOpen] = useState(false);
 
   useEffect(() => {
     if (user?.hotelId) {
@@ -145,10 +145,25 @@ const hotelBookings = bookings.filter(booking => {
   const firstDay = getFirstDayOfMonth(currentDate);
   const calendarDays = Array.from({ length: 42 }, (_, i) => i - firstDay + 1);
 
-  const handleEventClick = (event: BookingEvent) => {
-    setSelectedBooking(event);
-    setIsDialogOpen(true);
+  const handleDateClick = (day: number) => {
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    setSelectedDate(date);
+    setDaySheetOpen(true);
   };
+
+  const getEventsForDate = (date: Date): BookingEvent[] => {
+    return events.filter(event => {
+      const checkIn = new Date(event.checkInDate);
+      const checkOut = new Date(event.checkOutDate);
+      checkIn.setHours(0, 0, 0, 0);
+      checkOut.setHours(0, 0, 0, 0);
+      const target = new Date(date);
+      target.setHours(0, 0, 0, 0);
+      return target >= checkIn && target < checkOut;
+    });
+  };
+
+  const selectedDayEvents: BookingEvent[] = selectedDate ? getEventsForDate(selectedDate) : [];
 
   if (isLoading) {
     return (
@@ -297,34 +312,34 @@ const hotelBookings = bookings.filter(booking => {
                   return (
                     <div
                       key={index}
+                      onClick={() => isValidDay && handleDateClick(day)}
                       className={`
-                        day-cell min-h-[120px] p-2 border-2 rounded-lg
-                        ${isValidDay ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700' : 'bg-slate-50/30 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800'}
+                        day-cell min-h-[120px] p-2 border-2 rounded-lg select-none
+                        ${isValidDay ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-pointer' : 'bg-slate-50/30 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800'}
                         ${isTodayDate ? 'ring-2 ring-blue-500 dark:ring-blue-400 ring-offset-2 dark:ring-offset-slate-900 border-blue-300 dark:border-blue-600' : ''}
                       `}
                     >
                       {isValidDay && (
                         <>
                           <div className={`
-                            text-sm font-bold mb-2 
+                            text-sm font-bold mb-2
                             ${isTodayDate ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}
                           `}>
                             {day}
                           </div>
                           <div className="space-y-1 max-h-[80px] overflow-y-auto">
                             {dayEvents.map(event => (
-                              <button
+                              <div
                                 key={event.id}
-                                onClick={() => handleEventClick(event)}
                                 className={`
                                   event-card w-full text-left px-2 py-1 rounded text-xs font-medium
-                                  border cursor-pointer
+                                  border pointer-events-none
                                   ${getStatusColor(event.status)}
                                 `}
                               >
                                 <div className="truncate font-semibold">{event.guestName}</div>
                                 <div className="text-xs opacity-90">Room {event.roomNumber}</div>
-                              </button>
+                              </div>
                             ))}
                           </div>
                         </>
@@ -358,128 +373,116 @@ const hotelBookings = bookings.filter(booking => {
         </div>
       </div>
 
-      {/* Booking Detail Modal */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="calendar-body max-w-2xl bg-white dark:bg-slate-900">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle className="calendar-header text-3xl font-black text-slate-900 dark:text-slate-100">
-                Booking Details
-              </DialogTitle>
-              <Badge className={`${getStatusBadgeColor(selectedBooking?.status || '')} border font-semibold px-3 py-1`}>
-                {selectedBooking?.status.charAt(0).toUpperCase()}
-                {selectedBooking?.status.slice(1).replace('-', ' ')}
-              </Badge>
+      {/* Day detail sheet */}
+      <Sheet open={daySheetOpen} onOpenChange={setDaySheetOpen}>
+        <SheetContent side="right" className="calendar-body w-full sm:max-w-[480px] flex flex-col p-0 bg-white dark:bg-slate-900">
+          <SheetHeader className="px-6 pt-6 pb-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
+            <SheetTitle className="calendar-header text-2xl font-black text-slate-900 dark:text-slate-100">
+              {selectedDate ? format(selectedDate, "EEEE, d MMMM yyyy") : ""}
+            </SheetTitle>
+            <div className="flex items-center gap-2 mt-1">
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: selectedDayEvents.length > 0 ? "#3b82f6" : "#9ca3af" }}
+              />
+              <span className="text-sm text-slate-500 dark:text-slate-400">
+                {selectedDayEvents.length === 0
+                  ? "No bookings"
+                  : `${selectedDayEvents.length} booking${selectedDayEvents.length !== 1 ? "s" : ""}`}
+              </span>
             </div>
-          </DialogHeader>
+          </SheetHeader>
 
-          {selectedBooking && (
-            <div className="space-y-6 mt-4">
-              {/* Guest Information */}
-              <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 dark:from-slate-800 dark:to-blue-950/30 rounded-xl p-6 border-2 border-slate-200/50 dark:border-slate-700/50">
-                <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-                  <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  Guest Information
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <User className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Guest Name</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedBooking.guestName}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Email</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedBooking.guestEmail}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Phone</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedBooking.guestPhone}</p>
-                    </div>
-                  </div>
-                </div>
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+            {selectedDayEvents.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+                <Calendar className="h-14 w-14 text-slate-300 dark:text-slate-600" />
+                <p className="font-semibold text-slate-500 dark:text-slate-400">No bookings on this day</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Select another date to view its bookings</p>
               </div>
+            ) : (
+              selectedDayEvents.map((event) => (
+                <div
+                  key={event.id}
+                  className="rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm"
+                >
+                  {/* Status colour top bar */}
+                  <div className={`h-1.5 ${getStatusColor(event.status).split(' ')[0]}`} />
 
-              {/* Booking Information */}
-              <div className="bg-gradient-to-br from-blue-50 to-emerald-50/30 dark:from-blue-950/30 dark:to-emerald-950/30 rounded-xl p-6 border-2 border-slate-200/50 dark:border-slate-700/50">
-                <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-                  <CalendarIcon className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                  Booking Information
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center gap-3">
-                    <BedDouble className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Room Number</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedBooking.roomNumber}</p>
+                  <div className="p-4 space-y-3">
+                    {/* Guest + status */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-bold text-base text-slate-900 dark:text-slate-100 leading-tight">
+                          {event.guestName}
+                        </p>
+                      </div>
+                      <Badge className={`${getStatusBadgeColor(event.status)} border font-semibold shrink-0`}>
+                        {event.status.charAt(0).toUpperCase()}{event.status.slice(1).replace('-', ' ')}
+                      </Badge>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <User className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Guests</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedBooking.guests}</p>
+
+                    {/* Room + guests */}
+                    <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
+                      <div className="flex items-center gap-1.5">
+                        <BedDouble className="h-3.5 w-3.5 shrink-0" />
+                        <span>Room {event.roomNumber}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <User className="h-3.5 w-3.5 shrink-0" />
+                        <span>{event.guests} guest{event.guests !== 1 ? "s" : ""}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Clock className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Check-in</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">
-                        {selectedBooking.checkInDate.toLocaleDateString()}
-                      </p>
+
+                    {/* Dates */}
+                    <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                      <Clock className="h-3.5 w-3.5 shrink-0" />
+                      <span>{event.checkInDate.toLocaleDateString()}</span>
+                      <ArrowRight className="h-3 w-3 shrink-0" />
+                      <span>{event.checkOutDate.toLocaleDateString()}</span>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Clock className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Check-out</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">
-                        {selectedBooking.checkOutDate.toLocaleDateString()}
-                      </p>
+
+                    {/* Contact */}
+                    <div className="space-y-1">
+                      {event.guestEmail && (
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                          <Mail className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{event.guestEmail}</span>
+                        </div>
+                      )}
+                      {event.guestPhone && (
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                          <Phone className="h-3 w-3 shrink-0" />
+                          <span>{event.guestPhone}</span>
+                        </div>
+                      )}
                     </div>
+
+                    {/* Financial */}
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
+                      <div className="flex items-center gap-2 text-sm">
+                        <CreditCard className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                        <span className="text-slate-500 dark:text-slate-400">Total:</span>
+                        <span className="font-bold text-slate-900 dark:text-slate-100">
+                          ₦{event.totalAmount.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Special requests */}
+                    {event.specialRequests && (
+                      <div className="bg-amber-50/60 dark:bg-amber-950/30 rounded-lg p-3 border border-amber-200/50 dark:border-amber-900/50">
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Special Requests</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 italic">{event.specialRequests}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-
-              {/* Financial Information */}
-              <div className="bg-gradient-to-br from-emerald-50 to-slate-50/30 dark:from-emerald-950/30 dark:to-slate-800 rounded-xl p-6 border-2 border-slate-200/50 dark:border-slate-700/50">
-                <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-green-600 dark:text-green-400" />
-                  Financial Details
-                </h3>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-400 font-medium">Total Amount</span>
-                  <span className="text-2xl font-black text-slate-900 dark:text-slate-100">
-                    ₦{selectedBooking.totalAmount.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              {/* Special Requests */}
-              {selectedBooking.specialRequests && (
-                <div className="bg-amber-50/50 dark:bg-amber-950/30 rounded-xl p-6 border-2 border-amber-200/50 dark:border-amber-900/50">
-                  <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 mb-2">Special Requests</h3>
-                  <p className="text-slate-700 dark:text-slate-300">{selectedBooking.specialRequests}</p>
-                </div>
-              )}
-
-              <Button
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 dark:from-blue-500 dark:to-blue-600 dark:hover:from-blue-600 dark:hover:to-blue-700 text-white font-bold py-6 text-lg shadow-lg"
-                onClick={() => setIsDialogOpen(false)}
-              >
-                Close
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
