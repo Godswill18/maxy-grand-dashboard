@@ -36,18 +36,16 @@ import {
   User,
   BedDouble,
   UtensilsCrossed,
-  ShoppingBag,
   CalendarIcon,
   ArrowUpDown,
   RotateCcw,
   ChefHat,
   Clock,
-  CreditCard,
   Building2,
+  MapPin,
   Loader2,
 } from "lucide-react";
 import { useOrderStore } from "@/store/useOrderStore";
-import { useAuthStore } from "@/store/useAuthStore";
 
 // ── Color maps ─────────────────────────────────────────────────────────────
 const STATUS_CLS: Record<string, string> = {
@@ -132,12 +130,10 @@ function OrderDetailSheet({
   order,
   open,
   onClose,
-  showHotel,
 }: {
   order: any;
   open: boolean;
   onClose: () => void;
-  showHotel?: boolean;
 }) {
   if (!order) return null;
 
@@ -150,7 +146,6 @@ function OrderDetailSheet({
   return (
     <Sheet open={open} onOpenChange={onClose}>
       <SheetContent side="right" className="w-full sm:max-w-[500px] flex flex-col p-0">
-        {/* Header */}
         <SheetHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <SheetTitle className="text-xl font-bold">
             Order #{shortId(order._id)}
@@ -171,7 +166,7 @@ function OrderDetailSheet({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
-          {/* Customer */}
+          {/* Customer + hotel */}
           <section className="space-y-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Customer</p>
             <div className="flex items-center gap-2 text-sm">
@@ -182,7 +177,7 @@ function OrderDetailSheet({
               )}
               <span className="font-medium">{customerLabel(order)}</span>
             </div>
-            {showHotel && order.hotelId?.name && (
+            {order.hotelId?.name && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Building2 className="h-4 w-4 shrink-0" />
                 <span>{order.hotelId.name}</span>
@@ -231,7 +226,7 @@ function OrderDetailSheet({
 
           <Separator />
 
-          {/* Total */}
+          {/* Total + payment */}
           <section className="flex items-center justify-between">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Amount</p>
@@ -245,7 +240,6 @@ function OrderDetailSheet({
             </div>
           </section>
 
-          {/* Special instructions */}
           {order.specialInstructions && (
             <>
               <Separator />
@@ -260,7 +254,6 @@ function OrderDetailSheet({
 
           <Separator />
 
-          {/* Waiter + timestamps */}
           <section className="grid grid-cols-2 gap-4 text-sm">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Waiter</p>
@@ -284,35 +277,48 @@ function OrderDetailSheet({
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
-export default function Restaurant() {
-  const { orders, summary, isLoading, isFetching, fetchOrders, fetchSummary, initSocketListeners, closeSocketListeners } =
-    useOrderStore();
-  const { user } = useAuthStore();
+export default function RestaurantOrders() {
+  const {
+    orders,
+    summary,
+    hotels,
+    isLoading,
+    isFetching,
+    fetchOrders,
+    fetchSummary,
+    fetchHotels,
+    initSocketListeners,
+    closeSocketListeners,
+  } = useOrderStore();
 
-  const [statusFilter, setStatusFilter] = useState("");
-  const [fromDate, setFromDate]         = useState<Date | undefined>();
-  const [toDate, setToDate]             = useState<Date | undefined>();
-  const [sortBy, setSortBy]             = useState<"createdAt" | "totalAmount">("createdAt");
-  const [sortDir, setSortDir]           = useState<"asc" | "desc">("desc");
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [sheetOpen, setSheetOpen]         = useState(false);
+  const safeHotels: any[] = Array.isArray(hotels) ? hotels : (hotels as any)?.data ?? [];
+
+  const [selectedHotelId, setSelectedHotelId] = useState<string>("all");
+  const [statusFilter, setStatusFilter]       = useState("");
+  const [fromDate, setFromDate]               = useState<Date | undefined>();
+  const [toDate, setToDate]                   = useState<Date | undefined>();
+  const [sortBy, setSortBy]                   = useState<"createdAt" | "totalAmount">("createdAt");
+  const [sortDir, setSortDir]                 = useState<"asc" | "desc">("desc");
+  const [selectedOrder, setSelectedOrder]     = useState<any>(null);
+  const [sheetOpen, setSheetOpen]             = useState(false);
 
   const load = useCallback(() => {
     const params: any = { sortBy, sortDir };
-    if (statusFilter) params.status = statusFilter;
+    if (selectedHotelId !== "all") params.hotelId = selectedHotelId;
+    if (statusFilter)    params.status  = statusFilter;
     if (fromDate) params.fromDate = format(fromDate, "yyyy-MM-dd");
     if (toDate)   params.toDate   = format(toDate,   "yyyy-MM-dd");
     fetchOrders(params);
-    fetchSummary();
-  }, [statusFilter, fromDate, toDate, sortBy, sortDir, fetchOrders, fetchSummary]);
+    fetchSummary(selectedHotelId !== "all" ? selectedHotelId : undefined);
+  }, [selectedHotelId, statusFilter, fromDate, toDate, sortBy, sortDir, fetchOrders, fetchSummary]);
 
   useEffect(() => {
-    load();
+    fetchHotels();
     initSocketListeners();
     return () => closeSocketListeners();
   }, []);
 
-  useEffect(() => { load(); }, [statusFilter, fromDate, toDate, sortBy, sortDir]);
+  useEffect(() => { load(); }, [selectedHotelId, statusFilter, fromDate, toDate, sortBy, sortDir]);
 
   const activeCount = useMemo(
     () => orders.filter((o: any) => ACTIVE_STATUSES.has(o.orderStatus)).length,
@@ -334,7 +340,7 @@ export default function Restaurant() {
 
   if (isLoading && orders.length === 0) {
     return (
-      <div className="space-y-6 p-6">
+      <div className="space-y-6">
         <Skeleton className="h-10 w-64" />
         <div className="grid grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24" />)}
@@ -352,27 +358,45 @@ export default function Restaurant() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Restaurant Orders</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Track and manage all restaurant orders in real-time
+            Monitor restaurant orders across all hotel branches
           </p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-400">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          Live
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Hotel branch filter */}
+          <Select value={selectedHotelId} onValueChange={setSelectedHotelId}>
+            <SelectTrigger className="w-[220px]">
+              <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
+              <SelectValue placeholder="All branches" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All branches</SelectItem>
+              {safeHotels.map((h: any) => (
+                <SelectItem key={h._id} value={h._id}>
+                  {h.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Live indicator */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Live
+          </div>
         </div>
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Completed Today"  value={summary?.dailyCompleted ?? 0}  icon={CheckCircle2}  color="bg-emerald-500" />
-        <StatCard title="Orders This Week"  value={summary?.weeklyOrders   ?? 0}  icon={CalendarDays}  color="bg-blue-500"    />
-        <StatCard title="Total This Month"  value={summary?.monthlyOrders  ?? 0}  icon={BarChart3}     color="bg-violet-500"  />
-        <StatCard title="Active Now"        value={activeCount}                   icon={Flame}         color="bg-amber-500"   />
+        <StatCard title="Completed Today"  value={summary?.dailyCompleted ?? 0} icon={CheckCircle2} color="bg-emerald-500" />
+        <StatCard title="Orders This Week" value={summary?.weeklyOrders   ?? 0} icon={CalendarDays} color="bg-blue-500"    />
+        <StatCard title="Total This Month" value={summary?.monthlyOrders  ?? 0} icon={BarChart3}    color="bg-violet-500"  />
+        <StatCard title="Active Now"       value={activeCount}                  icon={Flame}        color="bg-amber-500"   />
       </div>
 
       {/* Filters */}
       <Card>
         <CardContent className="p-4 space-y-3">
-          {/* Status pills */}
           <div className="flex flex-wrap gap-1.5">
             {STATUS_FILTERS.map(({ key, label }) => (
               <button
@@ -390,7 +414,6 @@ export default function Restaurant() {
             ))}
           </div>
 
-          {/* Date + sort row */}
           <div className="flex flex-wrap items-center gap-2">
             <Popover>
               <PopoverTrigger asChild>
@@ -461,6 +484,7 @@ export default function Restaurant() {
             <TableHeader>
               <TableRow className="bg-muted/30">
                 <TableHead className="text-xs">Order</TableHead>
+                <TableHead className="text-xs">Branch</TableHead>
                 <TableHead className="text-xs">Customer</TableHead>
                 <TableHead className="text-xs">Items</TableHead>
                 <TableHead className="text-xs">Amount</TableHead>
@@ -474,7 +498,7 @@ export default function Restaurant() {
             <TableBody>
               {orders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
                     <UtensilsCrossed className="h-10 w-10 mx-auto mb-2 opacity-30" />
                     <p>No orders match the current filters</p>
                     <p className="text-xs mt-1">New orders will appear in real-time</p>
@@ -495,6 +519,9 @@ export default function Restaurant() {
                       <TableCell className="font-mono text-xs font-medium">
                         #{shortId(order._id)}
                       </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {order.hotelId?.name ?? "—"}
+                      </TableCell>
                       <TableCell className="text-sm">
                         <div className="flex items-center gap-1.5">
                           {order.roomNumber ? (
@@ -502,11 +529,11 @@ export default function Restaurant() {
                           ) : (
                             <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           )}
-                          <span className="truncate max-w-[120px]">{customerLabel(order)}</span>
+                          <span className="truncate max-w-[100px]">{customerLabel(order)}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        <span className="truncate max-w-[140px] block">
+                        <span className="truncate max-w-[120px] block">
                           {firstItem}
                           {moreCount > 0 && (
                             <span className="text-xs text-primary ml-1">+{moreCount}</span>
@@ -522,7 +549,7 @@ export default function Restaurant() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge className={STATUS_CLS[order.orderStatus] ?? "bg-gray-100 text-gray-600 border border-gray-200"}>
+                        <Badge className={STATUS_CLS[order.orderStatus] ?? "bg-gray-100 text-gray-600 border"}>
                           {order.orderStatus}
                         </Badge>
                       </TableCell>
@@ -546,13 +573,7 @@ export default function Restaurant() {
         </div>
       </Card>
 
-      {/* Detail sheet */}
-      <OrderDetailSheet
-        order={selectedOrder}
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        showHotel={false}
-      />
+      <OrderDetailSheet order={selectedOrder} open={sheetOpen} onClose={() => setSheetOpen(false)} />
     </div>
   );
 }

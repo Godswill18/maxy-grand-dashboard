@@ -81,6 +81,7 @@ import Announcements from "./pages/superAdmin/Announcements";
 import ManagerAnnouncements from "./pages/manager/Announcements";
 import HelpPage from "./pages/HelpPage";
 import BookingHistory from "./pages/BookingHistory";
+import RestaurantOrders from "./pages/superAdmin/RestaurantOrders";
 
 const queryClient = new QueryClient();
 
@@ -333,6 +334,7 @@ const App = () => (
                 <Route path="/blog-management" element={<BlogManagement />} />
                 <Route path="/gallery-management" element={<GalleryManagement />} />
                 <Route path="/room-categories" element={<CategoryManagement />} />
+                <Route path="/restaurant-orders" element={<RestaurantOrders />} />
                 <Route path="/announcements" element={<Announcements />} />
                 <Route path="/help" element={<HelpPage />} />
                 <Route path="/profile" element={<StaffProfile/>}/>

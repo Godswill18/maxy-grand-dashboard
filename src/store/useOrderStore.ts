@@ -39,7 +39,9 @@ interface OrderState {
   summary: OrderSummary | null;
   hotels: Hotel[];
   currentHotelId: string | null;
+  lastParams: Record<string, any>;
   isLoading: boolean;
+  isFetching: boolean;
   error: string | null;
   fetchOrders: (params?: { page?: number; limit?: number; sortBy?: string; sortDir?: 'asc' | 'desc'; status?: string; fromDate?: string; toDate?: string; amount?: number; hotelId?: string }) => Promise<void>;
   fetchSummary: (hotelId?: string) => Promise<void>;
@@ -66,7 +68,9 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   summary: null,
   hotels: [],
   currentHotelId: null,
+  lastParams: {},
   isLoading: false,
+  isFetching: false,
   error: null,
 
   fetchHotels: async () => {
@@ -83,7 +87,8 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
 
   fetchOrders: async (params = {}) => {
-    set({ isLoading: true, error: null });
+    const isInitialLoad = get().orders.length === 0;
+    set({ isLoading: isInitialLoad, isFetching: true, error: null, lastParams: params });
     try {
       const token = localStorage.getItem('token');
       const user = getUser();
@@ -95,10 +100,10 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         headers: { Authorization: `Bearer ${token}` },
         withCredentials: true,
       });
-      set({ orders: response.data.data, currentHotelId: params.hotelId || user.hotelId || null, isLoading: false });
+      set({ orders: response.data.data, currentHotelId: params.hotelId || user.hotelId || null, isLoading: false, isFetching: false });
     } catch (err) {
       const error = err as AxiosError;
-      set({ error: error.message, isLoading: false });
+      set({ error: error.message, isLoading: false, isFetching: false });
     }
   },
 
@@ -128,7 +133,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     socket.on('orderCreated', (newOrder: Order) => {
       const { currentHotelId } = get();
       if (!currentHotelId || newOrder.hotelId._id === currentHotelId) {
-        get().fetchOrders({}); // Refetch
+        get().fetchOrders(get().lastParams);
       }
       toast.info('New order created');
     });
@@ -136,13 +141,13 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     socket.on('orderUpdated', (updatedOrder: Order) => {
       const { currentHotelId } = get();
       if (!currentHotelId || updatedOrder.hotelId._id === currentHotelId) {
-        get().fetchOrders({});
+        get().fetchOrders(get().lastParams);
       }
       toast.info('Order updated');
     });
 
     socket.on('orderDeleted', (orderId: string) => {
-      get().fetchOrders({});
+      get().fetchOrders(get().lastParams);
       toast.warning('Order deleted');
     });
   },
