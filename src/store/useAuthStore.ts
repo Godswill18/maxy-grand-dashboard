@@ -190,7 +190,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         try {
           const currentToken = get().token || localStorage.getItem('token');
-          const res = await fetch(`${VITE_API_URL}/api/user/get-user`, {
+          const res = await fetch(`${VITE_API_URL}/api/users/get-user`, {
             method: 'GET',
             credentials: 'include',
             headers: {
