@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -12,6 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +39,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   AlertCircle,
   CheckCircle,
   XCircle,
@@ -41,6 +57,16 @@ import {
   ZapOff,
   Clock,
   AlertTriangle,
+  CalendarDays,
+  CalendarCheck,
+  CalendarRange,
+  UserX,
+  ShieldOff,
+  Info,
+  RotateCcw,
+  Building2,
+  User,
+  MapPin,
 } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 import { useShiftStore } from "@/store/useSiftStore";
@@ -48,7 +74,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useStaffStore } from "@/store/useStaffStore";
 import { toast } from "sonner";
 
-// Types
+// ── Types ──────────────────────────────────────────────────────────────────
 interface CreateShiftData {
   userId: string;
   hotelId: string;
@@ -67,6 +93,305 @@ interface ConfirmationDialogState {
   shiftName: string | null;
 }
 
+// ── Color maps ─────────────────────────────────────────────────────────────
+const STATUS_CLS: Record<string, string> = {
+  scheduled:     "bg-blue-100   text-blue-700   border border-blue-200",
+  "in-progress": "bg-emerald-100 text-emerald-700 border border-emerald-200",
+  completed:     "bg-gray-100   text-gray-600   border border-gray-200",
+  cancelled:     "bg-red-100    text-red-700    border border-red-200",
+};
+
+const SHIFT_TYPE_LABEL: Record<string, string> = {
+  morning:   "Morning",
+  afternoon: "Afternoon",
+  evening:   "Evening",
+  night:     "Night",
+  "full-day": "Full Day",
+  custom:    "Custom",
+};
+
+// ── Sub-components ─────────────────────────────────────────────────────────
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+  color,
+  sub,
+}: {
+  title: string;
+  value: number;
+  icon: any;
+  color: string;
+  sub?: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">{title}</p>
+            <p className="text-3xl font-bold mt-1">{value}</p>
+            {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+          </div>
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
+            <Icon className="h-6 w-6 text-white" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Shared form fields ─────────────────────────────────────────────────────
+function ShiftForm({
+  formData,
+  setFormData,
+  staffUsers,
+  staff,
+  onStaffSelect,
+}: {
+  formData: CreateShiftData;
+  setFormData: (d: CreateShiftData) => void;
+  staffUsers: any[];
+  staff: any[];
+  onStaffSelect: (id: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>Staff Member *</Label>
+        <Select value={formData.userId} onValueChange={onStaffSelect}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select staff member" />
+          </SelectTrigger>
+          <SelectContent>
+            {staffUsers.map((s) => (
+              <SelectItem key={s._id} value={s._id}>
+                {s.firstName} {s.lastName} ({s.role})
+                {s.hotelId && ` — ${s.hotelId.name}`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {formData.userId && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Hotel: {staff.find((s) => s._id === formData.userId)?.hotelId?.name ?? "Unknown"}
+          </p>
+        )}
+      </div>
+
+      <Separator />
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label>Start Date *</Label>
+          <Input
+            type="date"
+            value={formData.startDate}
+            onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+          />
+        </div>
+        <div>
+          <Label>End Date *</Label>
+          <Input
+            type="date"
+            value={formData.endDate}
+            min={formData.startDate}
+            onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label>Start Time * (WAT)</Label>
+          <Input
+            type="time"
+            value={formData.startTime}
+            onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground mt-1">Staff can log in from this time</p>
+        </div>
+        <div>
+          <Label>End Time * (WAT)</Label>
+          <Input
+            type="time"
+            value={formData.endTime}
+            onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground mt-1">Staff logged out at this time</p>
+        </div>
+      </div>
+
+      <Separator />
+
+      <div>
+        <Label>Shift Type</Label>
+        <Select
+          value={formData.shiftType}
+          onValueChange={(v) => setFormData({ ...formData, shiftType: v as CreateShiftData["shiftType"] })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select shift type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="morning">Morning</SelectItem>
+            <SelectItem value="afternoon">Afternoon</SelectItem>
+            <SelectItem value="evening">Evening</SelectItem>
+            <SelectItem value="night">Night</SelectItem>
+            <SelectItem value="full-day">Full Day</SelectItem>
+            <SelectItem value="custom">Custom</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label>Notes</Label>
+        <Textarea
+          value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          placeholder="Add any additional notes..."
+          rows={3}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Detail Sheet ───────────────────────────────────────────────────────────
+function ShiftDetailSheet({
+  shift,
+  open,
+  onClose,
+  onEdit,
+  onActivate,
+  onDeactivate,
+  onDelete,
+  safeFormatDate,
+}: {
+  shift: any;
+  open: boolean;
+  onClose: () => void;
+  onEdit: (shift: any) => void;
+  onActivate: (id: string, name: string) => void;
+  onDeactivate: (id: string, name: string) => void;
+  onDelete: (id: string, name: string) => void;
+  safeFormatDate: (d: any, fmt: string, fallback?: string) => string;
+}) {
+  if (!shift) return null;
+  const staffName = `${shift.userId?.firstName ?? ""} ${shift.userId?.lastName ?? ""}`.trim();
+
+  return (
+    <Sheet open={open} onOpenChange={onClose}>
+      <SheetContent side="right" className="w-full sm:max-w-[480px] flex flex-col p-0">
+        <SheetHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+          <SheetTitle className="text-xl font-bold">{staffName || "Shift Details"}</SheetTitle>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <Badge variant="outline" className="capitalize text-xs">{shift.userId?.role}</Badge>
+            <Badge className={STATUS_CLS[shift.status] ?? "bg-gray-100 text-gray-600 border"}>
+              {shift.status}
+            </Badge>
+            {shift.emergencyActivated && (
+              <Badge className="bg-amber-100 text-amber-700 border border-amber-200">
+                <Zap className="h-3 w-3 mr-1" /> Emergency Active
+              </Badge>
+            )}
+          </div>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+          {/* Staff & Hotel */}
+          <section className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Staff</p>
+            <div className="flex items-center gap-2 text-sm">
+              <User className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="font-medium">{staffName}</span>
+            </div>
+            {shift.hotelId?.name && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Building2 className="h-4 w-4 shrink-0" />
+                <span>{shift.hotelId.name}</span>
+              </div>
+            )}
+          </section>
+
+          <Separator />
+
+          {/* Schedule */}
+          <section className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Schedule</p>
+            <div className="flex items-center gap-2 text-sm">
+              <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span>
+                {safeFormatDate(shift.startDate, "MMM d, yyyy")}
+                {safeFormatDate(shift.startDate, "yyyy-MM-dd") !== safeFormatDate(shift.endDate, "yyyy-MM-dd") && (
+                  <> → {safeFormatDate(shift.endDate, "MMM d, yyyy")}</>
+                )}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span>{shift.startTime} – {shift.endTime} WAT (daily)</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <MapPin className="h-4 w-4 shrink-0" />
+              <span>Type: {SHIFT_TYPE_LABEL[shift.shiftType] ?? shift.shiftType}</span>
+            </div>
+          </section>
+
+          {shift.emergencyActivated && shift.emergencyActivatedBy && (
+            <>
+              <Separator />
+              <section className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Emergency Activation</p>
+                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                  <p>Activated by <strong>{shift.emergencyActivatedBy.firstName} {shift.emergencyActivatedBy.lastName}</strong></p>
+                  {shift.emergencyActivatedAt && (
+                    <p className="text-xs mt-1 text-amber-600">{safeFormatDate(shift.emergencyActivatedAt, "MMM d, yyyy 'at' HH:mm")}</p>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
+
+          {shift.notes && (
+            <>
+              <Separator />
+              <section className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notes</p>
+                <p className="text-sm bg-muted/40 rounded-lg p-3 text-muted-foreground italic">{shift.notes}</p>
+              </section>
+            </>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="px-6 py-4 border-t shrink-0 flex gap-2 flex-wrap">
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { onClose(); onEdit(shift); }}>
+            <Edit className="h-3.5 w-3.5" /> Edit
+          </Button>
+          {shift.emergencyActivated ? (
+            <Button size="sm" variant="outline" className="gap-1.5 text-amber-600 border-amber-300 hover:bg-amber-50"
+              onClick={() => { onClose(); onDeactivate(shift._id, staffName); }}>
+              <ZapOff className="h-3.5 w-3.5" /> Remove Emergency
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="gap-1.5 text-amber-600 border-amber-300 hover:bg-amber-50"
+              onClick={() => { onClose(); onActivate(shift._id, staffName); }}>
+              <Zap className="h-3.5 w-3.5" /> Emergency Activate
+            </Button>
+          )}
+          <Button size="sm" variant="outline" className="gap-1.5 text-red-600 border-red-300 hover:bg-red-50 ml-auto"
+            onClick={() => { onClose(); onDelete(shift._id, staffName); }}>
+            <Trash2 className="h-3.5 w-3.5" /> Delete
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
 export default function ShiftScheduler() {
   const { user } = useAuthStore();
   const {
@@ -85,21 +410,17 @@ export default function ShiftScheduler() {
   const { staff, fetchStaff } = useStaffStore();
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedShift, setSelectedShift] = useState<any>(null);
-  const [filterDate, setFilterDate] = useState<Date | null>(null);
-  const [filterStaff, setFilterStaff] = useState<string>("all");
-  const [nigerianTime, setNigerianTime] = useState<Date>(new Date());
+  const [isEditDialogOpen, setIsEditDialogOpen]     = useState(false);
+  const [selectedShift, setSelectedShift]           = useState<any>(null);
+  const [detailSheetOpen, setDetailSheetOpen]       = useState(false);
+  const [filterDate, setFilterDate]                 = useState<string>("");
+  const [filterStaff, setFilterStaff]               = useState<string>("all");
+  const [nigerianTime, setNigerianTime]             = useState<Date>(new Date());
 
-  // ✅ NEW: Confirmation dialog state
   const [confirmDialog, setConfirmDialog] = useState<ConfirmationDialogState>({
-    isOpen: false,
-    type: null,
-    shiftId: null,
-    shiftName: null,
+    isOpen: false, type: null, shiftId: null, shiftName: null,
   });
 
-  // Form data
   const [formData, setFormData] = useState<CreateShiftData>({
     userId: "",
     hotelId: user?.hotelId || "",
@@ -116,12 +437,9 @@ export default function ShiftScheduler() {
     fetchShifts({});
     fetchStaff();
 
-    // Update Nigerian time every second
     const interval = setInterval(() => {
       const now = new Date();
-      // Niferian time
-      const wat = new Date(now.getTime());
-      setNigerianTime(wat);
+      setNigerianTime(new Date(now.toLocaleString("en-US", { timeZone: "Africa/Lagos" })));
     }, 1000);
 
     return () => {
@@ -130,118 +448,79 @@ export default function ShiftScheduler() {
     };
   }, []);
 
-  // Helper function to safely format dates
-  const safeFormatDate = (dateString: any, formatString: string, fallback: string = "Invalid Date"): string => {
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  const safeFormatDate = (dateString: any, formatString: string, fallback = "—"): string => {
     if (!dateString) return fallback;
     try {
-      const date = typeof dateString === 'string' ? parseISO(dateString) : new Date(dateString);
+      const date = typeof dateString === "string" ? parseISO(dateString) : new Date(dateString);
       if (!isValid(date)) return fallback;
       return format(date, formatString);
-    } catch (error) {
-      console.error('Date format error:', error, 'for date:', dateString);
+    } catch {
       return fallback;
     }
   };
 
-  // Helper to check if shift has valid date fields
-  const hasValidDates = (shift: any): boolean => {
-    return !!(shift.startDate && shift.endDate);
+  const hasValidDates = (shift: any) => !!(shift.startDate && shift.endDate);
+
+  const isMultiDayShift = (shift: any) =>
+    hasValidDates(shift) &&
+    safeFormatDate(shift.startDate, "yyyy-MM-dd") !== safeFormatDate(shift.endDate, "yyyy-MM-dd");
+
+  const getShiftDuration = (shift: any) => {
+    if (!hasValidDates(shift)) return "—";
+    const diff = Math.ceil(Math.abs(new Date(shift.endDate).getTime() - new Date(shift.startDate).getTime()) / 86400000);
+    return diff <= 1 ? "1 day" : `${diff} days`;
   };
 
-  // Filter shifts with valid dates only
+  const staffUsers = staff.filter((u) =>
+    ["receptionist", "cleaner", "waiter", "headWaiter"].includes(u.role)
+  );
+
   const validShifts = shifts.filter(hasValidDates);
 
-  // Filter logic with date range support
   const filteredShifts = validShifts.filter((shift) => {
-    // Filter by date
     if (filterDate) {
-      const filterDateStr = format(filterDate, "yyyy-MM-dd");
-      const shiftStartDate = safeFormatDate(shift.startDate, "yyyy-MM-dd", "");
-      const shiftEndDate = safeFormatDate(shift.endDate, "yyyy-MM-dd", "");
-
-      // Check if filter date falls within shift range
-      if (
-        !shiftStartDate ||
-        !shiftEndDate ||
-        filterDateStr < shiftStartDate ||
-        filterDateStr > shiftEndDate
-      ) {
-        return false;
-      }
+      const s = safeFormatDate(shift.startDate, "yyyy-MM-dd", "");
+      const e = safeFormatDate(shift.endDate,   "yyyy-MM-dd", "");
+      if (!s || !e || filterDate < s || filterDate > e) return false;
     }
-
-    // Filter by staff
-    if (filterStaff !== "all") {
-      return shift.userId?._id === filterStaff;
-    }
-
+    if (filterStaff !== "all") return shift.userId?._id === filterStaff;
     return true;
   });
 
-  // Get stats
-const stats = {
-  total: validShifts.length,
-  today: validShifts.filter(shift => {
-    const todayStr = format(nigerianTime, "yyyy-MM-dd");
-    return safeFormatDate(shift.startDate, "yyyy-MM-dd", "") <= todayStr &&
-      safeFormatDate(shift.endDate, "yyyy-MM-dd", "") >= todayStr;
-  }).length,
-  week: validShifts.filter(shift => {
-    const startOfWeek = new Date(nigerianTime);
-    startOfWeek.setDate(nigerianTime.getDate() - nigerianTime.getDay());
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
-    const shiftStart = new Date(safeFormatDate(shift.startDate, "yyyy-MM-dd", ""));
-    const shiftEnd = new Date(safeFormatDate(shift.endDate, "yyyy-MM-dd", ""));
-    return shiftStart <= endOfWeek && shiftEnd >= startOfWeek;
-  }).length,
-  shiftTime: validShifts.filter(shift => shift.isActive).length, // ✅ Within shift hours
-  emergencyActive: validShifts.filter(shift => shift.emergencyActivated).length,
-  offShift: validShifts.filter(shift => 
-    !shift.userId?.isActive && 
-    shift.userId?.role !== 'superadmin' && 
-    shift.userId?.role !== 'admin'
-  ).length, // ✅ Users outside shift time
-  deactivated: validShifts.filter(shift => 
-    shift.userId?.isActive === false
-  ).length, // ✅ NEW: Accounts deactivated by admin
-};
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  const todayStr = format(nigerianTime, "yyyy-MM-dd");
+  const startOfWeek = new Date(nigerianTime);
+  startOfWeek.setDate(nigerianTime.getDate() - nigerianTime.getDay());
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
 
-  // Handle staff selection - auto-set hotelId from selected staff
-  const handleStaffSelection = (staffId: string) => {
-    const selectedStaff = staff.find((s) => s._id === staffId);
-    
-    setFormData({
-      ...formData,
-      userId: staffId,
-      hotelId: selectedStaff?.hotelId?._id || user?.hotelId || formData.hotelId,
-    });
+  const stats = {
+    total:          validShifts.length,
+    today:          validShifts.filter((s) =>
+      safeFormatDate(s.startDate, "yyyy-MM-dd") <= todayStr &&
+      safeFormatDate(s.endDate,   "yyyy-MM-dd") >= todayStr
+    ).length,
+    week:           validShifts.filter((s) => {
+      const ss = new Date(safeFormatDate(s.startDate, "yyyy-MM-dd"));
+      const se = new Date(safeFormatDate(s.endDate,   "yyyy-MM-dd"));
+      return ss <= endOfWeek && se >= startOfWeek;
+    }).length,
+    shiftTime:      validShifts.filter((s) => s.isShiftTime).length,
+    emergency:      validShifts.filter((s) => s.emergencyActivated).length,
+    offShift:       validShifts.filter((s) => !s.userId?.isActive && !["superadmin","admin"].includes(s.userId?.role)).length,
+    deactivated:    validShifts.filter((s) => s.userId?.isActive === false).length,
   };
 
-  // ✅ NEW: Open confirmation dialog
-  const openConfirmDialog = (type: "delete" | "activate" | "deactivate", shiftId: string, shiftName: string) => {
-    setConfirmDialog({
-      isOpen: true,
-      type,
-      shiftId,
-      shiftName,
-    });
-  };
+  // ── Confirmation dialog ───────────────────────────────────────────────────
+  const openConfirmDialog = (type: "delete" | "activate" | "deactivate", shiftId: string, shiftName: string) =>
+    setConfirmDialog({ isOpen: true, type, shiftId, shiftName });
 
-  // ✅ NEW: Close confirmation dialog
-  const closeConfirmDialog = () => {
-    setConfirmDialog({
-      isOpen: false,
-      type: null,
-      shiftId: null,
-      shiftName: null,
-    });
-  };
+  const closeConfirmDialog = () =>
+    setConfirmDialog({ isOpen: false, type: null, shiftId: null, shiftName: null });
 
-  // ✅ NEW: Handle confirmed action
   const handleConfirmedAction = async () => {
     if (!confirmDialog.shiftId || !confirmDialog.type) return;
-
     try {
       switch (confirmDialog.type) {
         case "delete":
@@ -250,7 +529,7 @@ const stats = {
           break;
         case "activate":
           await activateShift(confirmDialog.shiftId);
-          toast.success("Shift activated! Staff can now login at any time.");
+          toast.success("Emergency activated — staff can log in immediately");
           break;
         case "deactivate":
           await deactivateShift(confirmDialog.shiftId);
@@ -263,52 +542,42 @@ const stats = {
     }
   };
 
-  // ✅ UPDATED: Trigger delete confirmation
-  const handleDeleteShift = (shiftId: string, shiftName: string) => {
-    openConfirmDialog("delete", shiftId, shiftName);
+  const confirmContent = {
+    delete:     { title: "Delete Shift",              actionText: "Delete",     cls: "bg-red-600 hover:bg-red-700",    desc: `Delete the shift for ${confirmDialog.shiftName}? This cannot be undone.` },
+    activate:   { title: "Emergency Activate",        actionText: "Activate",   cls: "bg-amber-600 hover:bg-amber-700", desc: `Emergency-activate shift for ${confirmDialog.shiftName}? They can log in immediately, bypassing scheduled hours.` },
+    deactivate: { title: "Remove Emergency Access",   actionText: "Remove",     cls: "bg-amber-600 hover:bg-amber-700", desc: `Remove emergency activation for ${confirmDialog.shiftName}? If outside shift hours, they will be logged out.` },
+  }[confirmDialog.type ?? "delete"] ?? { title: "", actionText: "", cls: "", desc: "" };
+
+  // ── Form handlers ─────────────────────────────────────────────────────────
+  const handleStaffSelection = (staffId: string) => {
+    const selected = staff.find((s) => s._id === staffId);
+    setFormData({ ...formData, userId: staffId, hotelId: selected?.hotelId?._id || user?.hotelId || formData.hotelId });
   };
 
-  // ✅ UPDATED: Trigger activate confirmation
-  const handleActivateShift = (shiftId: string, shiftName: string) => {
-    openConfirmDialog("activate", shiftId, shiftName);
-  };
+  const resetForm = () =>
+    setFormData({ userId: "", hotelId: user?.hotelId || "", startDate: format(new Date(), "yyyy-MM-dd"), startTime: "09:00", endDate: format(new Date(), "yyyy-MM-dd"), endTime: "17:00", shiftType: "custom", notes: "" });
 
-  // ✅ UPDATED: Trigger deactivate confirmation
-  const handleDeactivateShift = (shiftId: string, shiftName: string) => {
-    openConfirmDialog("deactivate", shiftId, shiftName);
+  const validateForm = (): boolean => {
+    if (!formData.userId || !formData.startDate || !formData.startTime || !formData.endDate || !formData.endTime) {
+      toast.error("Please fill all required fields");
+      return false;
+    }
+    if (!formData.hotelId) {
+      toast.error("Hotel ID is required. Please select a staff member with an assigned hotel.");
+      return false;
+    }
+    if (new Date(formData.endDate) < new Date(formData.startDate)) {
+      toast.error("End date cannot be before start date");
+      return false;
+    }
+    return true;
   };
 
   const handleCreateShift = async () => {
-    // Validation
-    if (
-      !formData.userId ||
-      !formData.startDate ||
-      !formData.startTime ||
-      !formData.endDate ||
-      !formData.endTime
-    ) {
-      toast.error("Please fill all required fields");
-      return;
-    }
-
-    // Validate hotelId
-    if (!formData.hotelId) {
-      toast.error("Hotel ID is required. Please select a staff member with an assigned hotel.");
-      return;
-    }
-
-    // Validate date range
-    const startDate = new Date(formData.startDate);
-    const endDate = new Date(formData.endDate);
-
-    if (endDate < startDate) {
-      toast.error("End date cannot be before start date");
-      return;
-    }
-
+    if (!validateForm()) return;
     try {
       await createShift(formData);
-      toast.success("Shift created successfully. It will auto-activate daily at start time.");
+      toast.success("Shift created — will auto-activate daily at start time.");
       setIsCreateDialogOpen(false);
       resetForm();
     } catch (error: any) {
@@ -317,35 +586,7 @@ const stats = {
   };
 
   const handleUpdateShift = async () => {
-    if (!selectedShift) return;
-
-    // Validation
-    if (
-      !formData.userId ||
-      !formData.startDate ||
-      !formData.startTime ||
-      !formData.endDate ||
-      !formData.endTime
-    ) {
-      toast.error("Please fill all required fields");
-      return;
-    }
-
-    // Validate hotelId
-    if (!formData.hotelId) {
-      toast.error("Hotel ID is required. Please select a staff member with an assigned hotel.");
-      return;
-    }
-
-    // Validate date range
-    const startDate = new Date(formData.startDate);
-    const endDate = new Date(formData.endDate);
-
-    if (endDate < startDate) {
-      toast.error("End date cannot be before start date");
-      return;
-    }
-
+    if (!selectedShift || !validateForm()) return;
     try {
       await updateShift(selectedShift._id, formData);
       toast.success("Shift updated successfully");
@@ -362,519 +603,269 @@ const stats = {
       toast.error("Cannot edit shift with invalid dates. Please delete and recreate.");
       return;
     }
-
     setSelectedShift(shift);
     setFormData({
-      userId: shift.userId?._id || "",
-      hotelId: shift.hotelId?._id || user?.hotelId || "",
+      userId:    shift.userId?._id || "",
+      hotelId:   shift.hotelId?._id || user?.hotelId || "",
       startDate: safeFormatDate(shift.startDate, "yyyy-MM-dd", format(new Date(), "yyyy-MM-dd")),
       startTime: shift.startTime || "09:00",
-      endDate: safeFormatDate(shift.endDate, "yyyy-MM-dd", format(new Date(), "yyyy-MM-dd")),
-      endTime: shift.endTime || "17:00",
+      endDate:   safeFormatDate(shift.endDate,   "yyyy-MM-dd", format(new Date(), "yyyy-MM-dd")),
+      endTime:   shift.endTime || "17:00",
       shiftType: shift.shiftType || "custom",
-      notes: shift.notes || "",
+      notes:     shift.notes || "",
     });
     setIsEditDialogOpen(true);
   };
 
-  const resetForm = () => {
-    setFormData({
-      userId: "",
-      hotelId: user?.hotelId || "",
-      startDate: format(new Date(), "yyyy-MM-dd"),
-      startTime: "09:00",
-      endDate: format(new Date(), "yyyy-MM-dd"),
-      endTime: "17:00",
-      shiftType: "custom",
-      notes: "",
-    });
+  const openDetailSheet = (shift: any, e: React.MouseEvent) => {
+    // Don't open sheet if the click was on an action button
+    if ((e.target as HTMLElement).closest("button")) return;
+    setSelectedShift(shift);
+    setDetailSheetOpen(true);
   };
 
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case "scheduled":
-        return "bg-blue-500";
-      case "in-progress":
-        return "bg-green-500 animate-pulse";
-      case "completed":
-        return "bg-gray-500";
-      case "cancelled":
-        return "bg-red-500";
-      default:
-        return "bg-gray-500";
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "scheduled":
-        return <Clock className="h-4 w-4" />;
-      case "in-progress":
-        return <CheckCircle className="h-4 w-4" />;
-      case "completed":
-        return <CheckCircle className="h-4 w-4" />;
-      case "cancelled":
-        return <XCircle className="h-4 w-4" />;
-      default:
-        return <AlertCircle className="h-4 w-4" />;
-    }
-  };
-
-  // Get staff users
-  const staffUsers = staff.filter((u) =>
-    ["receptionist", "cleaner", "waiter", "headWaiter"].includes(u.role)
-  );
-
-  // Check if shift is multi-day
-  const isMultiDayShift = (shift: any) => {
-    if (!hasValidDates(shift)) return false;
-    return safeFormatDate(shift.startDate, "yyyy-MM-dd", "") !== safeFormatDate(shift.endDate, "yyyy-MM-dd", "");
-  };
-
-  // Calculate shift duration
-  const getShiftDuration = (shift: any) => {
-    if (!hasValidDates(shift)) return "N/A";
-    
-    const start = new Date(shift.startDate);
-    const end = new Date(shift.endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0 || diffDays === 1) {
-      return "1 day";
-    }
-    return `${diffDays} days`;
-  };
-
-  // ✅ NEW: Get confirmation dialog content
-  const getConfirmDialogContent = () => {
-    switch (confirmDialog.type) {
-      case "delete":
-        return {
-          title: "Delete Shift",
-          description: `Are you sure you want to delete the shift for ${confirmDialog.shiftName}? This action cannot be undone.`,
-          actionText: "Delete",
-          actionClass: "bg-red-600 hover:bg-red-700",
-        };
-      case "activate":
-        return {
-          title: "Emergency Activate Shift",
-          description: `Emergency activate shift for ${confirmDialog.shiftName}? The staff member will be able to login immediately, bypassing the scheduled time restrictions. This is useful for urgent situations.`,
-          actionText: "Activate",
-          actionClass: "bg-orange-600 hover:bg-orange-700",
-        };
-      case "deactivate":
-        return {
-          title: "Remove Emergency Activation",
-          description: `Remove emergency activation for ${confirmDialog.shiftName}? The shift will return to normal schedule. If the current time is outside the scheduled hours, the staff member will be logged out.`,
-          actionText: "Deactivate",
-          actionClass: "bg-orange-600 hover:bg-orange-700",
-        };
-      default:
-        return {
-          title: "",
-          description: "",
-          actionText: "",
-          actionClass: "",
-        };
-    }
-  };
-
-  const dialogContent = getConfirmDialogContent();
+  // ── Skeleton ──────────────────────────────────────────────────────────────
+  if (isLoading && shifts.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <div className="grid grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24" />)}
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-24" />)}
+        </div>
+        <Skeleton className="h-12" />
+        <Skeleton className="h-96" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header with Nigerian Time */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 animate-in fade-in duration-500">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold">Shift Scheduler</h1>
-          <p className="text-muted-foreground">Manage staff shifts and schedules</p>
-          <div className="flex items-center gap-2 mt-2">
-            <Clock className="h-4 w-4 text-green-600" />
-            <span className="text-sm font-medium text-green-600">
-              Nigerian Time (WAT): {format(nigerianTime, "PPP p")}
-            </span>
-          </div>
+          <h1 className="text-2xl md:text-3xl font-bold">Shift Scheduler</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Manage staff shifts and schedules</p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Shift
-        </Button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            WAT {format(nigerianTime, "HH:mm:ss")}
+          </div>
+          <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Shift
+          </Button>
+        </div>
       </div>
 
-      {/* Show warning if there are invalid shifts */}
+      {/* Invalid shifts warning */}
       {shifts.length !== validShifts.length && (
-        <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-yellow-600" />
-              <div>
-                <p className="font-semibold text-yellow-700 dark:text-yellow-300">
-                  {shifts.length - validShifts.length} shift(s) have invalid dates
-                </p>
-                <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                  These are shifts with old data format. Please delete them and create new ones.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-sm text-yellow-700 dark:bg-yellow-900/20 dark:border-yellow-800 dark:text-yellow-300">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>
+            <strong>{shifts.length - validShifts.length}</strong> shift(s) have invalid dates and are hidden.
+            Delete and recreate them.
+          </span>
+        </div>
       )}
 
-      {/* ✅ NEW: Info card about automatic activation */}
-      <Card className="border-blue-500 bg-blue-50 dark:bg-blue-950">
-        <CardContent className="pt-6">
-          <div className="flex items-start gap-3">
-            <Clock className="h-5 w-5 text-blue-600 mt-0.5" />
-            <div>
-              <p className="font-semibold text-blue-700 dark:text-blue-300">
-                Automatic Daily Activation
-              </p>
-              <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                Shifts automatically activate and deactivate daily at the specified start/end times (Nigerian Time). 
-                For multi-day shifts, the times apply to each day in the duration. Emergency activation overrides this schedule.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-  <Card>
-    <CardHeader className="pb-2">
-      <CardTitle className="text-sm font-medium">Total Shifts</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="text-2xl font-bold">{stats.total}</div>
-    </CardContent>
-  </Card>
-  
-  <Card>
-    <CardHeader className="pb-2">
-      <CardTitle className="text-sm font-medium">Today's Shifts</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="text-2xl font-bold text-blue-500">{stats.today}</div>
-    </CardContent>
-  </Card>
-  
-  <Card>
-    <CardHeader className="pb-2">
-      <CardTitle className="text-sm font-medium">This Week</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="text-2xl font-bold text-purple-500">{stats.week}</div>
-    </CardContent>
-  </Card>
-  
-  {/* ✅ Shift Time status (Shift System) */}
-  <Card>
-    <CardHeader className="pb-2">
-      <CardTitle className="text-sm font-medium">Within Shift Time</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="text-2xl font-bold text-green-500">{stats.shiftTime}</div>
-      <p className="text-xs text-muted-foreground mt-1">Can login now</p>
-    </CardContent>
-  </Card>
-  
-  <Card>
-    <CardHeader className="pb-2">
-      <CardTitle className="text-sm font-medium">Emergency Active</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="text-2xl font-bold text-orange-500">{stats.emergencyActive}</div>
-    </CardContent>
-  </Card>
-  
-  {/* ✅ Off Shift (Shift System) */}
-  <Card>
-    <CardHeader className="pb-2">
-      <CardTitle className="text-sm font-medium">Off Shift</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="text-2xl font-bold text-red-500">{stats.offShift}</div>
-      <p className="text-xs text-muted-foreground mt-1">Outside shift hours</p>
-    </CardContent>
-  </Card>
-  
-  {/* ✅ NEW: Deactivated Accounts (Staff Management) */}
-  <Card>
-    <CardHeader className="pb-2">
-      <CardTitle className="text-sm font-medium">Deactivated</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="text-2xl font-bold text-red-600">{stats.deactivated}</div>
-      <p className="text-xs text-muted-foreground mt-1">Account disabled</p>
-    </CardContent>
-  </Card>
-</div>
-
-<Card className="border-blue-500 bg-blue-50 dark:bg-blue-950">
-  <CardContent className="pt-6">
-    <div className="flex items-start gap-3">
-      <Clock className="h-5 w-5 text-blue-600 mt-0.5" />
-      <div>
-        <p className="font-semibold text-blue-700 dark:text-blue-300">
-          Dual Status System
-        </p>
-        <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-          <strong>Account Status (isActive):</strong> Manually controlled by admins in Staff Management. 
-          When deactivated, staff cannot login at all.
-        </p>
-        <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">
-          <strong>Shift Time (isActive):</strong> Automatically controlled by the shift system. 
-          Staff can only login during their scheduled shift hours. Updates daily at start/end times.
-        </p>
-        <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">
-          <strong>Both must be true</strong> for staff to login (except superadmin/admin who are always allowed).
-        </p>
+      {/* Info banner */}
+      <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300">
+        <Info className="h-4 w-4 shrink-0 mt-0.5" />
+        <span>
+          Shifts auto-activate and deactivate at the scheduled WAT times each day. Emergency activation
+          bypasses the schedule. Staff need both an active account <em>and</em> an active shift to log in.
+        </span>
       </div>
-    </div>
-  </CardContent>
-</Card>
 
-      {/* Filters */}
+      {/* Primary stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard title="Total Shifts"       value={stats.total}     icon={CalendarDays}  color="bg-slate-500"   />
+        <StatCard title="Today's Shifts"     value={stats.today}     icon={CalendarCheck} color="bg-blue-500"    />
+        <StatCard title="This Week"          value={stats.week}      icon={CalendarRange} color="bg-violet-500"  />
+        <StatCard title="Within Shift Time"  value={stats.shiftTime} icon={Clock}         color="bg-emerald-500" sub="Can log in now" />
+      </div>
+
+      {/* Secondary stat cards */}
+      <div className="grid grid-cols-3 gap-4">
+        <StatCard title="Emergency Active" value={stats.emergency}   icon={Zap}      color="bg-amber-500" />
+        <StatCard title="Off Shift"        value={stats.offShift}    icon={UserX}    color="bg-rose-500"  sub="Outside hours" />
+        <StatCard title="Deactivated"      value={stats.deactivated} icon={ShieldOff} color="bg-red-600"  sub="Account disabled" />
+      </div>
+
+      {/* Filter bar */}
       <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label>Filter by Date</Label>
-              <Input
-                type="date"
-                value={filterDate ? format(filterDate, "yyyy-MM-dd") : ""}
-                onChange={(e) =>
-                  setFilterDate(e.target.value ? new Date(e.target.value) : null)
-                }
-              />
-            </div>
-            <div>
-              <Label>Filter by Staff</Label>
-              <Select value={filterStaff} onValueChange={setFilterStaff}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select staff" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Staff</SelectItem>
-                  {staffUsers.map((staff) => (
-                    <SelectItem key={staff._id} value={staff._id}>
-                      {staff.firstName} {staff.lastName} ({staff.role})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setFilterDate(null);
-                  setFilterStaff("all");
-                }}
-              >
-                Clear Filters
-              </Button>
-            </div>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              type="date"
+              className="h-8 text-xs w-[150px]"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+            />
+            <Select value={filterStaff} onValueChange={setFilterStaff}>
+              <SelectTrigger className="h-8 text-xs w-[210px]">
+                <SelectValue placeholder="All Staff" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Staff</SelectItem>
+                {staffUsers.map((s) => (
+                  <SelectItem key={s._id} value={s._id}>
+                    {s.firstName} {s.lastName} ({s.role})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs gap-1.5 ml-auto"
+              onClick={() => { setFilterDate(""); setFilterStaff("all"); }}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Clear
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Shifts List */}
+      {/* Shifts table */}
       <Card>
-        <CardHeader>
-          <CardTitle>All Shifts ({filteredShifts.length})</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">
+            Shifts
+            <span className="ml-2 text-sm font-normal text-muted-foreground">({filteredShifts.length})</span>
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8">Loading shifts...</div>
-          ) : filteredShifts.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No shifts found. Create your first shift to get started.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredShifts.map((shift) => (
-                <div
-                  key={shift._id}
-                  className={`p-4 border rounded-lg hover:shadow-md transition-shadow ${
-                    shift.emergencyActivated ? 'border-orange-500 bg-orange-50 dark:bg-orange-950' : ''
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold">
-                          {shift.userId?.firstName} {shift.userId?.lastName}
-                        </h3>
-                        <Badge variant="outline">{shift.userId?.role}</Badge>
-                      </div>
-                   <div className="flex items-center gap-2 flex-wrap">
-  <Badge className={getStatusBadgeColor(shift.status)}>
-    <span className="flex items-center gap-1">
-      {getStatusIcon(shift.status)}
-      {shift.status}
-    </span>
-  </Badge>
-  
-  {/* ✅ Show isActive badge (Shift System) */}
-  {shift.isActive ? (
-    <Badge className="bg-green-500 animate-pulse">
-      <Clock className="h-3 w-3 mr-1" />
-      Within Shift Time
-    </Badge>
-  ) : (
-    <Badge className="bg-gray-500">
-      <Clock className="h-3 w-3 mr-1" />
-      Off Shift
-    </Badge>
-  )}
-  
-  {shift.emergencyActivated && (
-    <Badge className="bg-orange-500">
-      <Zap className="h-3 w-3 mr-1" />
-      Emergency Activated
-    </Badge>
-  )}
-  
-  {/* ✅ NEW: Show user's account status (isActive - Staff Management) */}
-  {shift.userId?.isActive === false && (
-    <Badge className="bg-red-600">
-      <XCircle className="h-3 w-3 mr-1" />
-      Account Deactivated
-    </Badge>
-  )}
-  
-  {/* ✅ NEW: Show combined off-shift status */}
-  {!shift.userId?.isActive && shift.userId?.role !== 'superadmin' && shift.userId?.role !== 'admin' && (
-    <Badge className="bg-red-500">
-      <AlertCircle className="h-3 w-3 mr-1" />
-      User Off Shift
-    </Badge>
-  )}
-</div>
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      {/* ✅ UPDATED: Activate/Deactivate with modal confirmation */}
-                      {shift.emergencyActivated ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeactivateShift(
-                            shift._id, 
-                            `${shift.userId?.firstName} ${shift.userId?.lastName}`
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30">
+                <TableHead className="text-xs">Staff</TableHead>
+                <TableHead className="text-xs">Role</TableHead>
+                <TableHead className="text-xs">Hotel</TableHead>
+                <TableHead className="text-xs">Date Range</TableHead>
+                <TableHead className="text-xs">Time (WAT)</TableHead>
+                <TableHead className="text-xs">Type</TableHead>
+                <TableHead className="text-xs">Status</TableHead>
+                <TableHead className="text-xs text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredShifts.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                    <CalendarDays className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                    <p>No shifts match the current filters</p>
+                    <p className="text-xs mt-1">Click "New Shift" to schedule one</p>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredShifts.map((shift) => {
+                  const name = `${shift.userId?.firstName ?? ""} ${shift.userId?.lastName ?? ""}`.trim();
+                  const multiDay = isMultiDayShift(shift);
+                  return (
+                    <TableRow
+                      key={shift._id}
+                      className={`hover:bg-muted/50 cursor-pointer ${shift.emergencyActivated ? "bg-amber-50/60 dark:bg-amber-900/10" : ""}`}
+                      onClick={(e) => openDetailSheet(shift, e)}
+                    >
+                      <TableCell className="font-medium text-sm">{name || "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs capitalize">{shift.userId?.role ?? "—"}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{shift.hotelId?.name ?? "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {safeFormatDate(shift.startDate, "MMM d")}
+                        {multiDay && <> → {safeFormatDate(shift.endDate, "MMM d, yyyy")}</>}
+                        {!multiDay && <>, {safeFormatDate(shift.startDate, "yyyy")}</>}
+                        <span className="ml-1 text-muted-foreground/60">({getShiftDuration(shift)})</span>
+                      </TableCell>
+                      <TableCell className="text-xs font-mono whitespace-nowrap">
+                        {shift.startTime} – {shift.endTime}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {SHIFT_TYPE_LABEL[shift.shiftType] ?? shift.shiftType ?? "—"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge className={`text-xs ${STATUS_CLS[shift.status] ?? "bg-gray-100 text-gray-600 border"}`}>
+                            {shift.status}
+                          </Badge>
+                          {shift.emergencyActivated && (
+                            <Badge className="text-xs bg-amber-100 text-amber-700 border border-amber-200">
+                              <Zap className="h-2.5 w-2.5 mr-0.5" /> Emergency
+                            </Badge>
                           )}
-                          className="text-orange-600 border-orange-600 hover:bg-orange-50"
-                          title="Remove emergency activation"
-                        >
-                          <ZapOff className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleActivateShift(
-                            shift._id, 
-                            `${shift.userId?.firstName} ${shift.userId?.lastName}`
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {shift.emergencyActivated ? (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                              title="Remove emergency activation"
+                              onClick={(e) => { e.stopPropagation(); openConfirmDialog("deactivate", shift._id, name); }}>
+                              <ZapOff className="h-3.5 w-3.5" />
+                            </Button>
+                          ) : (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                              title="Emergency activate"
+                              onClick={(e) => { e.stopPropagation(); openConfirmDialog("activate", shift._id, name); }}>
+                              <Zap className="h-3.5 w-3.5" />
+                            </Button>
                           )}
-                          className="text-orange-600 border-orange-600 hover:bg-orange-50"
-                          title="Emergency activate (allow immediate login)"
-                        >
-                          <Zap className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openEditDialog(shift)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteShift(
-                          shift._id, 
-                          `${shift.userId?.firstName} ${shift.userId?.lastName}`
-                        )}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                    <span className="flex items-center gap-1">
-                      📅 {safeFormatDate(shift.startDate, "PPP", "Invalid Date")}
-                    </span>
-                    {isMultiDayShift(shift) && (
-                      <span className="flex items-center gap-1">
-                        → {safeFormatDate(shift.endDate, "PPP", "Invalid Date")}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1">
-                      ⏰ {shift.startTime} - {shift.endTime} (daily)
-                    </span>
-                    <span className="flex items-center gap-1">
-                      📆 Duration: {getShiftDuration(shift)}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      🏷️ {shift.shiftType}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      🏨 {shift.hotelId?.name || "Unknown Hotel"}
-                    </span>
-                  </div>
-
-                  {shift.emergencyActivated && shift.emergencyActivatedBy && (
-                    <div className="mt-3 p-2 bg-orange-100 dark:bg-orange-900 rounded-md">
-                      <p className="text-xs text-orange-700 dark:text-orange-300">
-                        <Zap className="h-3 w-3 inline mr-1" />
-                        Emergency activated by {shift.emergencyActivatedBy.firstName} {shift.emergencyActivatedBy.lastName}
-                        {shift.emergencyActivatedAt && ` on ${safeFormatDate(shift.emergencyActivatedAt, "PPP p", "")}`}
-                      </p>
-                    </div>
-                  )}
-
-                  {shift.notes && (
-                    <div className="mt-3 p-2 bg-muted rounded-md">
-                      <p className="text-sm text-muted-foreground">
-                        📝 {shift.notes}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            title="Edit shift"
+                            onClick={(e) => { e.stopPropagation(); openEditDialog(shift); }}>
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            title="Delete shift"
+                            onClick={(e) => { e.stopPropagation(); openConfirmDialog("delete", shift._id, name); }}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
 
-      {/* ✅ NEW: Confirmation Dialog */}
+      {/* Detail Sheet */}
+      <ShiftDetailSheet
+        shift={selectedShift}
+        open={detailSheetOpen}
+        onClose={() => setDetailSheetOpen(false)}
+        onEdit={openEditDialog}
+        onActivate={(id, name) => openConfirmDialog("activate", id, name)}
+        onDeactivate={(id, name) => openConfirmDialog("deactivate", id, name)}
+        onDelete={(id, name) => openConfirmDialog("delete", id, name)}
+        safeFormatDate={safeFormatDate}
+      />
+
+      {/* Confirmation AlertDialog */}
       <AlertDialog open={confirmDialog.isOpen} onOpenChange={closeConfirmDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-500" />
-              {dialogContent.title}
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              {confirmContent.title}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              {dialogContent.description}
-            </AlertDialogDescription>
+            <AlertDialogDescription>{confirmContent.desc}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={closeConfirmDialog}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmedAction}
-              className={dialogContent.actionClass}
-            >
-              {dialogContent.actionText}
+            <AlertDialogCancel onClick={closeConfirmDialog}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmedAction} className={confirmContent.cls}>
+              {confirmContent.actionText}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -886,137 +877,23 @@ const stats = {
           <DialogHeader>
             <DialogTitle>Create New Shift</DialogTitle>
             <DialogDescription>
-              Schedule a new shift for a staff member. Times in Nigerian Time (WAT). 
-              Shift will auto-activate daily at start time and deactivate at end time.
+              Schedule a new shift. Times are in Nigerian Time (WAT). The shift will
+              auto-activate and deactivate daily at the specified times.
             </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <Label>Staff Member *</Label>
-              <Select
-                value={formData.userId}
-                onValueChange={handleStaffSelection}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select staff member" />
-                </SelectTrigger>
-                <SelectContent>
-                  {staffUsers.map((staff) => (
-                    <SelectItem key={staff._id} value={staff._id}>
-                      {staff.firstName} {staff.lastName} ({staff.role})
-                      {staff.hotelId && ` - ${staff.hotelId.name}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {formData.userId && formData.hotelId && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Hotel: {staff.find(s => s._id === formData.userId)?.hotelId?.name || 'Unknown'}
-                </p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Start Date * (Shift begins)</Label>
-                <Input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) =>
-                    setFormData({ ...formData, startDate: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <Label>End Date * (Shift ends)</Label>
-                <Input
-                  type="date"
-                  value={formData.endDate}
-                  min={formData.startDate}
-                  onChange={(e) =>
-                    setFormData({ ...formData, endDate: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Start Time * (WAT - Daily activation)</Label>
-                <Input
-                  type="time"
-                  value={formData.startTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, startTime: e.target.value })
-                  }
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Staff can login from this time each day
-                </p>
-              </div>
-              <div>
-                <Label>End Time * (WAT - Daily deactivation)</Label>
-                <Input
-                  type="time"
-                  value={formData.endTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, endTime: e.target.value })
-                  }
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Staff will be logged out at this time each day
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <Label>Shift Type</Label>
-              <Select
-                value={formData.shiftType}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, shiftType: value as CreateShiftData["shiftType"] })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select shift type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="morning">Morning</SelectItem>
-                  <SelectItem value="afternoon">Afternoon</SelectItem>
-                  <SelectItem value="evening">Evening</SelectItem>
-                  <SelectItem value="night">Night</SelectItem>
-                  <SelectItem value="full-day">Full Day</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Notes</Label>
-              <Textarea
-                value={formData.notes}
-                onChange={(e) =>
-                  setFormData({ ...formData, notes: e.target.value })
-                }
-                placeholder="Add any additional notes..."
-                rows={3}
-              />
-            </div>
-          </div>
-
+          <ShiftForm
+            formData={formData}
+            setFormData={setFormData}
+            staffUsers={staffUsers}
+            staff={staff}
+            onStaffSelect={handleStaffSelection}
+          />
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsCreateDialogOpen(false);
-                resetForm();
-              }}
-            >
+            <Button variant="outline" onClick={() => { setIsCreateDialogOpen(false); resetForm(); }}>
               Cancel
             </Button>
             <Button onClick={handleCreateShift} disabled={isLoading}>
-              {isLoading ? "Creating..." : "Create Shift"}
+              {isLoading ? "Creating…" : "Create Shift"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1027,132 +904,21 @@ const stats = {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Shift</DialogTitle>
-            <DialogDescription>
-              Update shift details. Times in Nigerian Time (WAT).
-            </DialogDescription>
+            <DialogDescription>Update shift details. Times are in Nigerian Time (WAT).</DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <Label>Staff Member *</Label>
-              <Select
-                value={formData.userId}
-                onValueChange={handleStaffSelection}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select staff member" />
-                </SelectTrigger>
-                <SelectContent>
-                  {staffUsers.map((staff) => (
-                    <SelectItem key={staff._id} value={staff._id}>
-                      {staff.firstName} {staff.lastName} ({staff.role})
-                      {staff.hotelId && ` - ${staff.hotelId.name}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {formData.userId && formData.hotelId && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Hotel: {staff.find(s => s._id === formData.userId)?.hotelId?.name || 'Unknown'}
-                </p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Start Date *</Label>
-                <Input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) =>
-                    setFormData({ ...formData, startDate: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <Label>End Date *</Label>
-                <Input
-                  type="date"
-                  value={formData.endDate}
-                  min={formData.startDate}
-                  onChange={(e) =>
-                    setFormData({ ...formData, endDate: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Start Time * (WAT)</Label>
-                <Input
-                  type="time"
-                  value={formData.startTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, startTime: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <Label>End Time * (WAT)</Label>
-                <Input
-                  type="time"
-                  value={formData.endTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, endTime: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label>Shift Type</Label>
-              <Select
-                value={formData.shiftType}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, shiftType: value as CreateShiftData["shiftType"] })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select shift type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="morning">Morning</SelectItem>
-                  <SelectItem value="afternoon">Afternoon</SelectItem>
-                  <SelectItem value="evening">Evening</SelectItem>
-                  <SelectItem value="night">Night</SelectItem>
-                  <SelectItem value="full-day">Full Day</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Notes</Label>
-              <Textarea
-                value={formData.notes}
-                onChange={(e) =>
-                  setFormData({ ...formData, notes: e.target.value })
-                }
-                placeholder="Add any additional notes..."
-                rows={3}
-              />
-            </div>
-          </div>
-
+          <ShiftForm
+            formData={formData}
+            setFormData={setFormData}
+            staffUsers={staffUsers}
+            staff={staff}
+            onStaffSelect={handleStaffSelection}
+          />
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsEditDialogOpen(false);
-                setSelectedShift(null);
-                resetForm();
-              }}
-            >
+            <Button variant="outline" onClick={() => { setIsEditDialogOpen(false); setSelectedShift(null); resetForm(); }}>
               Cancel
             </Button>
             <Button onClick={handleUpdateShift} disabled={isLoading}>
-              {isLoading ? "Updating..." : "Update Shift"}
+              {isLoading ? "Updating…" : "Update Shift"}
             </Button>
           </DialogFooter>
         </DialogContent>
