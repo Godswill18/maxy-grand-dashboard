@@ -21,7 +21,7 @@ interface AuthState {
   error: string | null;
   login: (credentials: {email: string; password: string;}) => Promise<{ success: boolean; message: string; code?: string; retryAfter?: number }>;
   signup: (userData: any) => Promise<void>;
-  getMe: () => Promise<User>;
+  getMe: (silent?: boolean) => Promise<User>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
 }
@@ -186,8 +186,8 @@ export const useAuthStore = create<AuthState>()(
       },
 
       // ✅ FIXED: getMe with explicit admin skip
-      getMe: async () => {
-        set({ isLoading: true, error: null });
+      getMe: async (silent = false) => {
+        if (!silent) set({ isLoading: true, error: null });
         try {
           const currentToken = get().token || localStorage.getItem('token');
           const res = await fetch(`${VITE_API_URL}/api/users/get-user`, {
@@ -239,46 +239,59 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(data.message || data.error || 'Failed to fetch user');
           }
 
+          // Helper: only update user ref when something meaningful changed
+          const userChanged = (cur: any, next: any) =>
+            !cur
+            || cur._id         !== next._id
+            || cur.role        !== next.role
+            || cur.isActive    !== next.isActive
+            || cur.isShiftTime !== next.isShiftTime
+            || cur.firstName   !== next.firstName
+            || cur.lastName    !== next.lastName
+            || cur.email       !== next.email;
+
           // ✅ SKIP ALL CHECKS for superadmin/admin/guest
           if (data.role === 'superadmin' || data.role === 'admin' || data.role === 'guest') {
             console.log(`✅ ${data.role} access - skip all checks`);
-            set({ 
-              user: data, 
-              isAuthenticated: true 
-            });
-            
+            if (userChanged(get().user, data)) {
+              set({ user: data, isAuthenticated: true });
+            } else if (!get().isAuthenticated) {
+              set({ isAuthenticated: true });
+            }
+
             if (data.token) {
               localStorage.setItem('token', data.token);
               set({ token: data.token });
             }
-            
+
             return data;
           }
 
           // ✅ Check both isActive and isShiftTime (for staff only)
           if (data.isActive === false) {
             console.log('❌ Staff account deactivated');
-            set({ 
-              user: null, 
-              isAuthenticated: false, 
-              token: null, 
-              error: 'Account deactivated' 
+            set({
+              user: null,
+              isAuthenticated: false,
+              token: null,
+              error: 'Account deactivated'
             });
             localStorage.removeItem('token');
             throw new Error('Your account has been deactivated');
           }
 
           console.log('✅ Staff access allowed');
-          set({
-            user: data,
-            isAuthenticated: true
-          });
+          if (userChanged(get().user, data)) {
+            set({ user: data, isAuthenticated: true });
+          } else if (!get().isAuthenticated) {
+            set({ isAuthenticated: true });
+          }
 
           if (data.token) {
             localStorage.setItem('token', data.token);
             set({ token: data.token });
           }
-          
+
           return data;
         } catch (error: any) {
           const message = error instanceof Error ? error.message : 'A network or server error occurred.';
@@ -308,7 +321,7 @@ export const useAuthStore = create<AuthState>()(
           localStorage.removeItem('token');
           throw error;
         } finally {
-          set({ isLoading: false });
+          if (!silent) set({ isLoading: false });
         }
       },
 

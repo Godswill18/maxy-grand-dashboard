@@ -167,7 +167,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
 
     const interval = setInterval(async () => {
       try {
-        await getMe();
+        await getMe(true);
       } catch (err: any) {
         // Only redirect on confirmed auth failures — not on network errors.
         // A brief WiFi drop should not log the user out.

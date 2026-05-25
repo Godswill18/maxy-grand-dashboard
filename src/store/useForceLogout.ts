@@ -44,7 +44,6 @@ export const useForceLogout = () => {
             reason: data.reason,
           }
         });
-        setTimeout(() => window.location.reload(), 100);
       }, 2000);
     };
 
@@ -82,5 +81,5 @@ export const useForceLogout = () => {
       socket.off(`user:${user._id}:status:changed`);
       socket.disconnect();
     };
-  }, [user, logout, navigate]);
+  }, [user?._id]);
 };
