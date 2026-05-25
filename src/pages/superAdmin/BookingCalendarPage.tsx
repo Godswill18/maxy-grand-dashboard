@@ -26,8 +26,12 @@ export default function BookingCalendarPage() {
   }, [isSuperAdmin, fetchHotels]);
 
   useEffect(() => {
-    fetchBookings(selectedHotelId === "all" ? undefined : selectedHotelId);
-  }, [selectedHotelId, fetchBookings]);
+    if (isSuperAdmin) {
+      fetchBookings(selectedHotelId === "all" ? undefined : selectedHotelId);
+    } else {
+      fetchBookings(user?.hotelId);
+    }
+  }, [selectedHotelId, isSuperAdmin, user?.hotelId, fetchBookings]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
