@@ -461,7 +461,7 @@ export default function ManagerRequests() {
                       <Button variant="outline" size="sm" onClick={() => openRequestModal(request, "view")}>
                         <Eye className="h-4 w-4 mr-1.5" /> View
                       </Button>
-                      {isAdmin && request.status === "pending" && request.raisedBy._id === loggedInUserId && (
+                      {isAdmin && request.status === "pending" && request.raisedBy?._id === loggedInUserId && (
                         <Button variant="outline" size="sm" onClick={() => openRequestModal(request, "edit")}>
                           <Edit className="h-4 w-4 mr-1.5" /> Edit
                         </Button>

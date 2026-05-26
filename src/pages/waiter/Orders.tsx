@@ -225,12 +225,15 @@ export default function Orders() {
     }
   }, [orders, selectedOrder]);
 
-  const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: string, order?: Order) => {
     try {
       await updateOrderStatus(orderId, newStatus);
       toast.success(`Order status updated to ${newStatus}`);
       if (selectedOrder && selectedOrder._id === orderId) {
         setSelectedOrder({ ...selectedOrder, orderStatus: newStatus as Order['orderStatus'] });
+      }
+      if (newStatus === 'confirmed' && user?.role === 'headWaiter' && order) {
+        printReceipt(order, `${user.firstName} ${user.lastName}`);
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to update order status");
@@ -570,7 +573,11 @@ export default function Orders() {
                     {sortedOrders.map((order: Order) => (
                       <TableRow
                         key={order._id}
-                        className="cursor-pointer hover:bg-muted/40 transition-colors"
+                        className={`cursor-pointer hover:bg-muted/40 transition-colors ${
+                          user?.role === 'headWaiter' && order.orderStatus === 'pending'
+                            ? 'border-l-2 border-l-amber-500 bg-amber-50/40 dark:bg-amber-950/20'
+                            : ''
+                        }`}
                         onClick={() => { setSelectedOrder(order); setIsDetailOpen(true); }}
                       >
                         {/* Status color strip */}
@@ -637,7 +644,7 @@ export default function Orders() {
                               disabled={loading}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleUpdateOrderStatus(order._id, getNextStatus(order.orderStatus)!);
+                                handleUpdateOrderStatus(order._id, getNextStatus(order.orderStatus)!, order);
                               }}
                             >
                               {getNextStatusLabel(order.orderStatus)}
@@ -700,7 +707,7 @@ export default function Orders() {
                       <div className="flex items-center justify-between pt-2 border-t" onClick={(e) => e.stopPropagation()}>
                         <span className="text-lg font-bold text-primary">₦{order.totalAmount.toLocaleString()}</span>
                         {getNextStatus(order.orderStatus) ? (
-                          <Button size="sm" disabled={loading} onClick={(e) => { e.stopPropagation(); handleUpdateOrderStatus(order._id, getNextStatus(order.orderStatus)!); }}>
+                          <Button size="sm" disabled={loading} onClick={(e) => { e.stopPropagation(); handleUpdateOrderStatus(order._id, getNextStatus(order.orderStatus)!, order); }}>
                             {getNextStatusLabel(order.orderStatus)}
                           </Button>
                         ) : order.orderStatus === 'delivered' ? (
@@ -848,7 +855,7 @@ export default function Orders() {
                   {getNextStatus(selectedOrder.orderStatus) && (
                     <Button
                       className="flex-1 sm:flex-none"
-                      onClick={() => handleUpdateOrderStatus(selectedOrder._id, getNextStatus(selectedOrder.orderStatus)!)}
+                      onClick={() => handleUpdateOrderStatus(selectedOrder._id, getNextStatus(selectedOrder.orderStatus)!, selectedOrder)}
                       disabled={loading}
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />

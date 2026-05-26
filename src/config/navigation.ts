@@ -128,3 +128,4 @@ export const receptionistNav: NavItem[] = [
   { name: "Help & Guide", href: "/receptionist/help", icon: HelpCircle },
   // { name: "Payments", href: "/receptionist/payments", icon: CreditCard },
 ];
+

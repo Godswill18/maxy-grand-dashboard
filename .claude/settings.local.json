@@ -8,12 +8,15 @@
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\User\\\\OneDrive\\\\Documents\\\\maxy-grand-dashboard\" -Force)",
       "Bash(Select-Object Name)",
       "Bash(ls -la \"C:\\\\Users\\\\User\\\\OneDrive\\\\Documents\" | head -50)",
-      "Read(//c/Users/User/OneDrive/Documents/**)"
+      "Read(//c/Users/User/OneDrive/Documents/**)",
+      "Bash(npx tsc *)",
+      "Bash(npm install *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\User\\OneDrive\\Documents\\maxy-grand backend\\backend\\controllers",
       "c:\\Users\\User\\OneDrive\\Documents\\maxy-grand backend\\backend\\routes",
-      "c:\\Users\\User\\OneDrive\\Documents\\maxy-grand backend\\backend\\middleware"
+      "c:\\Users\\User\\OneDrive\\Documents\\maxy-grand backend\\backend\\middleware",
+      "C:\\Users\\User\\OneDrive\\Documents\\Maxy-grand\\src\\pages"
     ]
   }
 }

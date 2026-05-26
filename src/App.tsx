@@ -421,6 +421,7 @@ const App = () => (
                 <Route path="/receptionist/profile/change-password" element={<ChangePassword/>}/>
                 {/* <Route path="/receptionist/settings" element={<Settings />} /> */}
               </Route>
+
             </Route>
 
             {/* Catch-all 404 Route */}
