@@ -4,6 +4,8 @@ import { Users, DollarSign, ClipboardCheck, TrendingUp, AlertCircle, CheckCircle
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import useManagerDashboardStore from "@/store/managerDashboardStore";
+import { useBranchName } from "@/hooks/useBranchName";
+import { Building } from "lucide-react";
 
 export default function ManagerDashboard() {
   const {
@@ -14,6 +16,7 @@ export default function ManagerDashboard() {
     error,
     fetchDashboardData,
   } = useManagerDashboardStore();
+  const branchName = useBranchName();
 
   // Fetch dashboard data on component mount
   useEffect(() => {
@@ -60,7 +63,12 @@ export default function ManagerDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Branch Manager Dashboard</h1>
-          <p className="text-muted-foreground">Downtown Branch - Performance Overview</p>
+          {branchName && (
+            <p className="flex items-center gap-1.5 text-muted-foreground mt-1">
+              <Building size={14} />
+              {branchName} — Performance Overview
+            </p>
+          )}
         </div>
         {isLoading && (
           <div className="flex items-center gap-2 text-muted-foreground">

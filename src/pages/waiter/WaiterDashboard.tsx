@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { useDashboardStore } from "@/store/waiterDashboardStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useBranchName } from "@/hooks/useBranchName";
+import { Building } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -36,6 +38,7 @@ export default function WaiterDashboard() {
   } = useDashboardStore();
 
   const { user } = useAuthStore();
+  const branchName = useBranchName();
   const navigate = useNavigate();
 
   // Fetch data on mount
@@ -162,6 +165,12 @@ export default function WaiterDashboard() {
               ? 'Overview of hotel operations'
               : 'Overview of your daily activities'}
           </p>
+          {branchName && (
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+              <Building size={14} />
+              {branchName}
+            </p>
+          )}
         </div>
         <Button onClick={handleRefresh} variant="outline" disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />

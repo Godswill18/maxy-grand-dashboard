@@ -6,9 +6,12 @@ import useDashboardStore from "../../store/useCleanerDashboardStore";
 import { Button } from "@/components/ui/button";
 import DashboardSkeleton from "../../components/skeleton/Dashboardskeleton";
 import { format } from "date-fns";
+import { useBranchName } from "@/hooks/useBranchName";
+import { Building } from "lucide-react";
 
 export default function CleanerDashboard() {
   const { dashboardData, isLoading, error, fetchDashboardData, clearError } = useDashboardStore();
+  const branchName = useBranchName();
 
   useEffect(() => {
     fetchDashboardData();
@@ -82,6 +85,12 @@ export default function CleanerDashboard() {
         <div>
           <h1 className="text-3xl font-bold">Cleaner Dashboard</h1>
           <p className="text-muted-foreground">Overview of your cleaning tasks and performance</p>
+          {branchName && (
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+              <Building size={14} />
+              {branchName}
+            </p>
+          )}
         </div>
         <Button onClick={fetchDashboardData} variant="outline" size="sm">
           Refresh

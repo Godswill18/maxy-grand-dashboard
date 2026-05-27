@@ -4,6 +4,8 @@ import { UserCheck, Clock, BedDouble, CreditCard, AlertCircle } from "lucide-rea
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useReceptionistDashboardStore } from "@/store/usereceptionistdashboardStore";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useBranchName } from "@/hooks/useBranchName";
+import { Building } from "lucide-react";
 
 export default function ReceptionistDashboard() {
   const {
@@ -16,6 +18,7 @@ export default function ReceptionistDashboard() {
     error,
     fetchDashboardData,
   } = useReceptionistDashboardStore();
+  const branchName = useBranchName();
 
   useEffect(() => {
     fetchDashboardData();
@@ -88,6 +91,12 @@ export default function ReceptionistDashboard() {
         <div>
           <h1 className="text-3xl font-bold">Front Desk Dashboard</h1>
           <p className="text-muted-foreground">Manage guest check-ins, bookings, and payments</p>
+          {branchName && (
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+              <Building size={14} />
+              {branchName}
+            </p>
+          )}
         </div>
         {isLoading && (
           <div className="flex items-center gap-2 text-muted-foreground">

@@ -13,6 +13,8 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
+  Building,
+  MapPin,
 } from 'lucide-react';
 import axios from 'axios';
 import { getChangePasswordRoute, getProfileUpdateRoute, getSettingsRoute } from '@/components/utils/GetprofileRoute';
@@ -27,6 +29,14 @@ interface UserProfile {
   accountNumber?: string;
   bankName?: string;
   isActive: boolean;
+  hotelId?: {
+    _id: string;
+    name: string;
+    city: string;
+    address: string;
+    phoneNumber: string;
+    isActive: boolean;
+  } | null;
 }
 
 const API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
@@ -203,6 +213,49 @@ export const StaffProfile = () => {
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Branch of Operation Card */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building size={24} className="text-blue-600" />
+              Branch of Operation
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {user.hotelId ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="text-sm font-medium">Branch Name</label>
+                  <p className="text-lg font-semibold text-gray-400 mt-1">{user.hotelId.name}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <MapPin size={16} />
+                    City
+                  </label>
+                  <p className="text-lg font-semibold text-gray-400 mt-1">{user.hotelId.city}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <MapPin size={16} />
+                    Address
+                  </label>
+                  <p className="text-lg font-semibold text-gray-400 mt-1">{user.hotelId.address}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <Phone size={16} />
+                    Branch Phone
+                  </label>
+                  <p className="text-lg font-semibold text-gray-400 mt-1">{user.hotelId.phoneNumber}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-400 italic text-sm">Not assigned to a branch</p>
+            )}
           </CardContent>
         </Card>
 
