@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { formatCurrencyAxis, formatCountAxis } from "@/lib/chartFormatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -315,7 +316,7 @@ export default function Reports() {
                     tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`}
+                    tickFormatter={formatCurrencyAxis}
                     width={56}
                   />
                   <YAxis
@@ -477,9 +478,7 @@ export default function Reports() {
                       tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(v) =>
-                        branchMetric === "revenue" ? `₦${(v / 1000).toFixed(0)}k` : String(v)
-                      }
+                      tickFormatter={branchMetric === "revenue" ? formatCurrencyAxis : formatCountAxis}
                       width={52}
                     />
                     <Tooltip

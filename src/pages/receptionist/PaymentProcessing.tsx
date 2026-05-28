@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CreditCard, DollarSign, Search, Calendar, CheckCircle, Clock, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { formatCurrencyAxis } from "@/lib/chartFormatters";
 
 interface Payment {
   id: string;
@@ -322,7 +323,7 @@ export default function PaymentProcessing() {
             <BarChart data={dailyRevenue}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="day" />
-              <YAxis yAxisId="left" />
+              <YAxis yAxisId="left" tickFormatter={formatCurrencyAxis} width={60} />
               <YAxis yAxisId="right" orientation="right" />
               <Tooltip />
               <Legend />

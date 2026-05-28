@@ -38,6 +38,7 @@ import {
   useDashboardState,
   useDashboardActions,
 } from '@/store/useDashboardStore';
+import { formatCurrencyAxis } from '@/lib/chartFormatters';
 
 const calculateTrend = (current: number, previous: number) => {
   if (previous === 0) return { value: current > 0 ? 100 : 0, isPositive: current > 0 };
@@ -373,7 +374,7 @@ export default function Dashboard() {
                   <YAxis
                     className="text-xs"
                     tick={{ fontSize: 11 }}
-                    tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`}
+                    tickFormatter={formatCurrencyAxis}
                     width={55}
                   />
                   <Tooltip
@@ -419,7 +420,7 @@ export default function Dashboard() {
                     type="number"
                     className="text-xs"
                     tick={{ fontSize: 11 }}
-                    tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`}
+                    tickFormatter={formatCurrencyAxis}
                   />
                   <YAxis
                     type="category"

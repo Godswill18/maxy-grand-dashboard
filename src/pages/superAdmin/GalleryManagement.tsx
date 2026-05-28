@@ -474,14 +474,14 @@ const GalleryManagement = () => {
       />
 
       {/* Header with Add Button */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gallery Management</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Gallery Management</h1>
           <p className="text-muted-foreground">Manage and publish hotel images</p>
         </div>
         <Button
           onClick={() => setShowUploadModal(true)}
-          className="bg-primary hover:bg-primary/90 text-white"
+          className="bg-primary hover:bg-primary/90 text-white w-full sm:w-auto"
         >
           <Plus size={20} className="mr-2" />
           Add Images

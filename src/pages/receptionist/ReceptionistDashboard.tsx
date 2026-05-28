@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserCheck, Clock, BedDouble, CreditCard, AlertCircle } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { formatCurrencyAxis } from "@/lib/chartFormatters";
 import { useReceptionistDashboardStore } from "@/store/usereceptionistdashboardStore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBranchName } from "@/hooks/useBranchName";
@@ -209,8 +210,8 @@ export default function ReceptionistDashboard() {
                 <LineChart data={weeklyRevenue}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="day" className="text-xs" />
-                  <YAxis className="text-xs" />
-                  <Tooltip 
+                  <YAxis className="text-xs" tickFormatter={formatCurrencyAxis} width={60} />
+                  <Tooltip
                     formatter={(value: number) => formatCurrency(value)}
                     contentStyle={{ 
                       backgroundColor: 'hsl(var(--card))',

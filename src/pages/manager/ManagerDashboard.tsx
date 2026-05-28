@@ -3,6 +3,7 @@ import { StatCard } from "@/components/StatCard";
 import { Users, DollarSign, ClipboardCheck, TrendingUp, AlertCircle, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { formatPercentAxis } from "@/lib/chartFormatters";
 import useManagerDashboardStore from "@/store/managerDashboardStore";
 import { useBranchName } from "@/hooks/useBranchName";
 import { Building } from "lucide-react";
@@ -192,7 +193,7 @@ export default function ManagerDashboard() {
                 <LineChart data={occupancyData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="day" className="text-xs" />
-                  <YAxis className="text-xs" domain={[0, 100]} />
+                  <YAxis className="text-xs" domain={[0, 100]} tickFormatter={formatPercentAxis} />
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: 'hsl(var(--card))',

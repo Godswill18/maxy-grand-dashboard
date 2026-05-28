@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { formatCurrencyAxis } from "@/lib/chartFormatters";
 import { useAnalyticsStore } from "@/store/useAnalyticsStore";
 import { useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -197,7 +198,7 @@ export default function BranchAnalytics() {
                                         <LineChart data={monthlyRevenue}>
                                             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                                             <XAxis dataKey="month" className="text-xs" />
-                                            <YAxis yAxisId="left" className="text-xs" />
+                                            <YAxis yAxisId="left" className="text-xs" tickFormatter={formatCurrencyAxis} width={60} />
                                             <YAxis yAxisId="right" orientation="right" className="text-xs" />
                                             <Tooltip 
                                                 contentStyle={{ 

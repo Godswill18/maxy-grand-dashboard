@@ -1,8 +1,18 @@
-import { useLocation } from "react-router-dom";
-import { Moon, Sun, Menu } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Moon, Sun, Menu, LogOut, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { NotificationBell } from "@/components/NotificationBell";
 import { useEffect } from "react";
+import { useAuthStore } from "@/store/useAuthStore";
+import { getProfileRoute } from "@/components/utils/GetprofileRoute";
+import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // Define the type for a navigation item
 type NavItem = {
@@ -27,17 +37,30 @@ export function Header({
 }: HeaderProps) {
   const location = useLocation();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
 
-   useEffect(() => {
-      window.scrollTo(0, 0);
-      
-    }, [ pathname]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
 
   const getPageTitle = () => {
     return (
       navigation.find((item) => item.href === location.pathname)?.name ||
       "Dashboard"
     );
+  };
+
+  const userName = user ? `${user.firstName} ${user.lastName}` : "User";
+  const userRole = user?.role ?? "";
+
+  const handleLogout = async () => {
+    await logout();
+    toast.success("You have been logged out.");
+  };
+
+  const handleProfileNav = () => {
+    navigate(getProfileRoute(userRole));
   };
 
   return (
@@ -71,6 +94,33 @@ export function Header({
               <Moon className="h-5 w-5" />
             )}
           </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <UserCircle className="h-6 w-6" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel>
+                <p className="font-medium truncate">{userName}</p>
+                <p className="text-xs text-muted-foreground capitalize truncate">{userRole}</p>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleProfileNav}>
+                <UserCircle className="h-4 w-4 mr-2" />
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="text-destructive focus:text-destructive"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

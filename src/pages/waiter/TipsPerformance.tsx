@@ -11,6 +11,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { formatCurrencyAxis } from "@/lib/chartFormatters";
 import { usePerformanceStore } from "@/store/tipsStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
@@ -223,7 +224,7 @@ export default function Performance() {
                 <LineChart data={weeklyRevenue}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="day" />
-                  <YAxis />
+                  <YAxis tickFormatter={formatCurrencyAxis} width={60} />
                   <Tooltip
                     formatter={(value: number) => formatCurrency(value)}
                     contentStyle={{
@@ -261,7 +262,7 @@ export default function Performance() {
                 <BarChart data={monthlyPerformance}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
-                  <YAxis />
+                  <YAxis tickFormatter={formatCurrencyAxis} width={60} />
                   <Tooltip
                     formatter={(value: number) => formatCurrency(value)}
                     contentStyle={{

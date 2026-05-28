@@ -86,12 +86,12 @@ export default function Announcements() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Megaphone className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Announcements & Promotions</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Announcements & Promotions</h1>
         </div>
-        <Button onClick={handleCreate}>
+        <Button onClick={handleCreate} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           New Announcement
         </Button>
