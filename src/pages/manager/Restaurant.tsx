@@ -266,7 +266,11 @@ function OrderDetailSheet({
               <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Waiter</p>
               <div className="flex items-center gap-1.5">
                 <ChefHat className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>{order.waiterId?.name ?? "Unassigned"}</span>
+                <span>
+                  {order.waiterId?.firstName
+                    ? `${order.waiterId.firstName} ${order.waiterId.lastName}`
+                    : "Unassigned"}
+                </span>
               </div>
             </div>
             <div className="space-y-1">
@@ -532,7 +536,9 @@ export default function Restaurant() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {order.waiterId?.name ?? "—"}
+                        {order.waiterId?.firstName
+                          ? `${order.waiterId.firstName} ${order.waiterId.lastName}`
+                          : "—"}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                         {format(new Date(order.createdAt), "MMM d, HH:mm")}

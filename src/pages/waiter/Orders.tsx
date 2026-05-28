@@ -50,7 +50,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { io, Socket } from "socket.io-client";
+import { socket } from "@/lib/socket";
 import { printReceipt } from "@/utils/printReceipt";
 
 interface Order {
@@ -81,7 +81,6 @@ interface Order {
   updatedAt: string;
 }
 
-const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
 const STATUS_COLOR: Record<string, string> = {
   pending:   'bg-yellow-100 text-yellow-800',
@@ -162,58 +161,63 @@ export default function Orders() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [orderTypeFilter, setOrderTypeFilter] = useState<string>("all");
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"active" | "history">("active");
 
-  // Socket.IO connection
+  // Socket.IO real-time order updates
   useEffect(() => {
-    if (user && canPlaceOrder()) {
-      const newSocket = io(VITE_API_URL, {
-        transports: ['websocket', 'polling'],
-      });
+    if (!user) return;
 
-      newSocket.on('connect', () => {
-        console.log('Socket connected:', newSocket.id);
-        setIsConnected(true);
-      });
+    const handleConnect = () => {
+      setIsConnected(true);
+      socket.emit('join_hotel', user.hotelId);
+      socket.emit('join_role', user.role);
+    };
 
-      newSocket.on('disconnect', () => {
-        console.log('Socket disconnected');
-        setIsConnected(false);
-      });
+    const handleDisconnect = () => setIsConnected(false);
 
-      newSocket.on('orderCreated', (newOrder: Order) => {
-        if (newOrder.hotelId === user.hotelId) {
-          toast.success(`New order #${newOrder._id.slice(-6)} received!`, {
-            icon: <Bell className="h-4 w-4" />,
-          });
-          fetchOrders();
-        }
-      });
+    const handleOrderCreated = (newOrder: Order) => {
+      if (newOrder.hotelId === user.hotelId) {
+        toast.success(`New order #${newOrder._id.slice(-6)} received!`, {
+          icon: <Bell className="h-4 w-4" />,
+        });
+        fetchOrders();
+      }
+    };
 
-      newSocket.on('orderUpdated', (updatedOrder: Order) => {
-        if (updatedOrder.hotelId === user.hotelId) {
-          toast.info(`Order #${updatedOrder._id.slice(-6)} updated to ${updatedOrder.orderStatus}`);
-          fetchOrders();
-        }
-      });
+    const handleOrderUpdated = (updatedOrder: Order) => {
+      if (updatedOrder.hotelId === user.hotelId) {
+        toast.info(`Order #${updatedOrder._id.slice(-6)} status: ${updatedOrder.orderStatus}`);
+        fetchOrders();
+      }
+    };
 
-      setSocket(newSocket);
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('orderCreated', handleOrderCreated);
+    socket.on('orderUpdated', handleOrderUpdated);
 
-      return () => {
-        newSocket.close();
-      };
+    if (socket.connected) {
+      setIsConnected(true);
+      socket.emit('join_hotel', user.hotelId);
+      socket.emit('join_role', user.role);
     }
-  }, [user, canPlaceOrder, fetchOrders]);
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('orderCreated', handleOrderCreated);
+      socket.off('orderUpdated', handleOrderUpdated);
+    };
+  }, [user, fetchOrders]);
 
   useEffect(() => {
-    if (user && canPlaceOrder()) {
+    if (user) {
       fetchOrders();
     }
-  }, [user, canPlaceOrder, fetchOrders]);
+  }, [user]);
 
   // Keep selectedOrder in sync with live order updates
   useEffect(() => {

@@ -18,7 +18,7 @@ interface Order {
   orderStatus: string;
   paymentStatus: string;
   specialInstructions?: string;
-  waiterId?: { name: string };
+  waiterId?: { _id: string; firstName: string; lastName: string; email?: string };
   createdAt: string;
   updatedAt: string;
 }
