@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Mail, Phone, MapPin, Plus, Eye, AlertTriangle, UserCheck, UserX, Shield } from "lucide-react";
 import { useStaffStore } from "@/store/useStaffStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useBranchName } from "@/hooks/useBranchName";
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
@@ -78,6 +79,7 @@ export default function StaffManagement() {
   
   const { user } = useAuthStore();
   const hotelId = user?.hotelId;
+  const branchName = useBranchName();
   
   // State for Add Staff Dialog
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -206,7 +208,7 @@ export default function StaffManagement() {
 
   const confirmRoleChange = async () => {
     try {
-      await updateStaffRole(roleChangeDialog.staffId, roleChangeDialog.newRole.toLowerCase() as StaffRole);
+      await updateStaffRole(roleChangeDialog.staffId, roleChangeDialog.newRole as StaffRole);
       
       toast.success(`${roleChangeDialog.staffName}'s role has been updated to ${roleChangeDialog.newRole}!`);
       
@@ -419,7 +421,7 @@ export default function StaffManagement() {
           const isCurrentUser = user?._id === staffMember._id;
           const hotelName = typeof staffMember.hotelId === 'object' && staffMember.hotelId?.name
             ? staffMember.hotelId.name
-            : 'Downtown Branch';
+            : branchName ?? 'Branch';
 
           return (
             <Card
