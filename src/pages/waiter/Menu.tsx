@@ -33,7 +33,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Plus, Minus, X,
   ShoppingCart, Edit, Trash2, AlertCircle,
-  History, UtensilsCrossed, Clock, CheckCircle2, Printer,
+  History, UtensilsCrossed, Clock, CheckCircle2, Printer, Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useMenuStore } from "@/store/menuStore";
@@ -97,6 +97,7 @@ export default function Menu() {
   const [editItem, setEditItem] = useState<any | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isTrackedOrdersOpen, setIsTrackedOrdersOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     initializeCart();
@@ -201,7 +202,13 @@ export default function Menu() {
   };
 
   const total = currentOrder.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const filteredMenuItems = menuItems.filter((item) => item.category === selectedCategory);
+  const filteredMenuItems = menuItems.filter(
+    (item) =>
+      item.category === selectedCategory &&
+      (searchQuery === "" ||
+        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.description?.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   const VITE_BACKEND_IMAGE_URL = (import.meta as any).env?.VITE_BACKEND_IMAGE_URL ?? 'http://localhost:5000';
   const imgUrl = (path: string) =>
@@ -353,8 +360,19 @@ export default function Menu() {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search menu items..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
       {/* Category Tabs */}
-      <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="space-y-6">
+      <Tabs value={selectedCategory} onValueChange={(v) => { setSelectedCategory(v); setSearchQuery(""); }} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="restaurant">
             Restaurant

@@ -316,13 +316,12 @@ export default function Orders() {
   // ── Filtering ──────────────────────────────────────────────────────────────
 
   const hotelOrders = orders.filter((order: Order) => {
-    if (order.hotelId !== user?.hotelId) return false;
     if (['headWaiter', 'admin', 'superAdmin'].includes(user?.role || '')) return true;
     if (user?.role === 'waiter') {
-      const wid = typeof order.waiterId === 'object' ? order.waiterId?._id : order.waiterId;
-      return wid === user._id;
+      const wid = typeof order.waiterId === 'object' ? (order.waiterId as any)?._id : order.waiterId;
+      return wid === user?._id;
     }
-    if (String(user?.role) === 'guest') return order.guestId === user._id;
+    if (String(user?.role) === 'guest') return order.guestId === user?._id;
     return false;
   });
 
