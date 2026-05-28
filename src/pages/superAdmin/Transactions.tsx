@@ -350,9 +350,9 @@ export default function Transactions() {
               >
                 {s.icon}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 overflow-hidden">
                 <p className="text-xs text-muted-foreground leading-tight truncate">{s.label}</p>
-                <p className={cn("text-xl font-bold leading-tight", s.color)}>{s.value}</p>
+                <p className={cn("text-sm sm:text-base md:text-xl font-bold leading-tight truncate", s.color)}>{s.value}</p>
               </div>
             </CardContent>
           </Card>
