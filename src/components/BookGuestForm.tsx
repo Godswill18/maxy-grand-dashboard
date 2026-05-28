@@ -635,7 +635,7 @@ const totalAmount = calculateTotalAmount();
                         {format(checkInDate, "PPP")}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-50">
+                    <PopoverContent side="bottom" align="start" className="w-auto p-0 z-50">
                       <Calendar
                         mode="single"
                         selected={checkInDate}
@@ -655,7 +655,7 @@ const totalAmount = calculateTotalAmount();
                         {format(checkOutDate, "PPP")}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-50">
+                    <PopoverContent side="bottom" align="start" className="w-auto p-0 z-50">
                       <Calendar
                         mode="single"
                         selected={checkOutDate}

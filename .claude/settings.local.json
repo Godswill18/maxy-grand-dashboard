@@ -10,13 +10,18 @@
       "Bash(ls -la \"C:\\\\Users\\\\User\\\\OneDrive\\\\Documents\" | head -50)",
       "Read(//c/Users/User/OneDrive/Documents/**)",
       "Bash(npx tsc *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(claude mcp *)",
+      "PowerShell(claude mcp add hostinger-mcp --env API_TOKEN=QQAiu41IArB6BX6jZmLzk8ashwAx5nNqAU0mzViRfd8052a1 -- npx hostinger-api-mcp@latest)",
+      "Read(//c/Users/User/AppData/**)",
+      "Read(//c/Users/User/**)"
     ],
     "additionalDirectories": [
       "c:\\Users\\User\\OneDrive\\Documents\\maxy-grand backend\\backend\\controllers",
       "c:\\Users\\User\\OneDrive\\Documents\\maxy-grand backend\\backend\\routes",
       "c:\\Users\\User\\OneDrive\\Documents\\maxy-grand backend\\backend\\middleware",
-      "C:\\Users\\User\\OneDrive\\Documents\\Maxy-grand\\src\\pages"
+      "C:\\Users\\User\\OneDrive\\Documents\\Maxy-grand\\src\\pages",
+      "C:\\Users\\User\\.claude"
     ]
   }
 }
