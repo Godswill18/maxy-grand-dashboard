@@ -119,7 +119,7 @@ export const helpDocs: HelpDoc[] = [
   },
   {
     id: "receptionist-dashboard",
-    title: "Front Desk Dashboard",
+    title: "Receptionist Dashboard",
     description: "Track today's check-ins, check-outs, room availability, and guest requests.",
     roles: ["receptionist"],
     steps: [
@@ -639,7 +639,7 @@ export const helpDocs: HelpDoc[] = [
       "Communicate cancellations to housekeeping so they can reallocate resources.",
     ],
     faqs: [
-      { question: "Can I modify a booking's dates?", answer: "Booking date modifications should be coordinated with the front desk (receptionist)." },
+      { question: "Can I modify a booking's dates?", answer: "Booking date modifications should be coordinated with the Receptionist." },
     ],
   },
   {
@@ -1002,7 +1002,7 @@ export const helpDocs: HelpDoc[] = [
   {
     id: "receptionist-bookings",
     title: "Bookings",
-    description: "View, create, and manage guest reservations from the front desk.",
+    description: "View, create, and manage guest reservations from the Receptionist.",
     roles: ["receptionist"],
     steps: [
       { step: "Open Bookings page", description: "Click 'Bookings' in the sidebar." },

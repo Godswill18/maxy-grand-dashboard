@@ -90,7 +90,7 @@ export default function ReceptionistDashboard() {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Front Desk Dashboard</h1>
+          <h1 className="text-3xl font-bold">Receptionist Dashboard</h1>
           <p className="text-muted-foreground">Manage guest check-ins, bookings, and payments</p>
           {branchName && (
             <p className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">

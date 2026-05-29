@@ -44,7 +44,7 @@ export function ReceptionistDashboardLayout({ children }: { children: React.Reac
           <div className="flex items-center justify-between h-16 px-6 border-b border-border">
             <Link to="/receptionist" className="flex items-center gap-2">
               <DoorOpen className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold">Front Desk</span>
+              <span className="text-xl font-bold">Receptionist</span>
             </Link>
           </div>
           <ScrollArea className="flex-1 px-3 py-4">
@@ -89,7 +89,7 @@ export function ReceptionistDashboardLayout({ children }: { children: React.Reac
                 <div className="flex items-center h-16 px-6 border-b border-border">
                   <Link to="/receptionist" className="flex items-center gap-2">
                     <DoorOpen className="h-6 w-6 text-primary" />
-                    <span className="text-xl font-bold">Front Desk</span>
+                    <span className="text-xl font-bold">Receptionist</span>
                   </Link>
                 </div>
                 <ScrollArea className="flex-1 px-3 py-4">
@@ -111,7 +111,7 @@ export function ReceptionistDashboardLayout({ children }: { children: React.Reac
             </Sheet>
             <Link to="/receptionist" className="flex items-center gap-2">
               <DoorOpen className="h-6 w-6 text-primary" />
-              <span className="text-lg font-bold">Front Desk</span>
+              <span className="text-lg font-bold">Receptionist</span>
             </Link>
             <div className="flex items-center gap-2">
               <NotificationBell />

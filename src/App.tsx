@@ -128,7 +128,7 @@ const RoleBasedLayout = () => {
     case 'receptionist':
       nav = receptionistNav;
       userName = `${user.firstName} ${user.lastName}`;
-      userRole = 'Front Desk';
+      userRole = 'Receptionist';
       break;
     default:
       // Fallback for unknown roles
