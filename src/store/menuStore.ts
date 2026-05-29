@@ -535,7 +535,10 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   },
 
   prependOrder: (order) => {
-    set((state) => ({ orders: [order, ...state.orders] }));
+    set((state) => {
+      if (state.orders.some((o) => o._id === order._id)) return state;
+      return { orders: [order, ...state.orders] };
+    });
   },
 
   patchOrder: (order) => {

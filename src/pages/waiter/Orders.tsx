@@ -145,6 +145,21 @@ function StatCard({
   );
 }
 
+function playOrderSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+  } catch {}
+}
+
 export default function Orders() {
   const {
     orders,
@@ -175,6 +190,7 @@ export default function Orders() {
 
     const handleConnect = () => {
       setIsConnected(true);
+      if (user?._id) socket.emit('authenticate', user._id);
       socket.emit('join_hotel', user.hotelId);
       socket.emit('join_role', user.role);
     };
@@ -184,6 +200,7 @@ export default function Orders() {
     const handleOrderCreated = (newOrder: Order) => {
       if (newOrder.hotelId?.toString() === user?.hotelId?.toString()) {
         prependOrder(newOrder);
+        playOrderSound();
         setNewOrderIds((prev) => new Set([...prev, newOrder._id]));
         setTimeout(() => {
           setNewOrderIds((prev) => {
@@ -212,6 +229,7 @@ export default function Orders() {
 
     if (socket.connected) {
       setIsConnected(true);
+      if (user?._id) socket.emit('authenticate', user._id);
       socket.emit('join_hotel', user.hotelId);
       socket.emit('join_role', user.role);
     }

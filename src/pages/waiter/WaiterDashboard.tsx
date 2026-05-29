@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { socket } from "@/lib/socket";
 import { StatCard } from "@/components/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,33 @@ export default function WaiterDashboard() {
   useEffect(() => {
     return () => clearError();
   }, [clearError]);
+
+  // Real-time stats refresh via socket
+  useEffect(() => {
+    if (!user) return;
+
+    const handleConnect = () => {
+      socket.emit('join_hotel', user.hotelId);
+      socket.emit('join_role', user.role);
+    };
+
+    const refresh = () => refreshDashboard();
+
+    socket.on('connect', handleConnect);
+    socket.on('orderCreated', refresh);
+    socket.on('orderUpdated', refresh);
+
+    if (socket.connected) {
+      socket.emit('join_hotel', user.hotelId);
+      socket.emit('join_role', user.role);
+    }
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('orderCreated', refresh);
+      socket.off('orderUpdated', refresh);
+    };
+  }, [user, refreshDashboard]);
 
   const handleRefresh = async () => {
     try {
