@@ -406,79 +406,92 @@ export default function BookingHistory() {
                   style={{ animationDelay: `${idx * 30}ms` }}
                 >
                   <CardContent className="p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex items-start gap-3">
+                      {/* Avatar */}
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 font-bold text-sm text-primary">
+                        {getInitials(b.guestName)}
+                      </div>
 
-                      {/* Avatar + guest info */}
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 font-bold text-sm text-primary">
-                          {getInitials(b.guestName)}
+                      {/* Content — fills remaining width */}
+                      <div className="flex-1 min-w-0 space-y-2">
+
+                        {/* Row 1: Guest name + booking type badge | status badges */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-sm text-foreground leading-tight">{b.guestName}</span>
+                              {b.bookingType && (
+                                <span className={cn(
+                                  "text-[10px] px-2 py-0.5 rounded-full border font-medium",
+                                  b.bookingType === "walk-in"
+                                    ? "bg-violet-100 text-violet-700 border-violet-200"
+                                    : "bg-sky-100 text-sky-700 border-sky-200"
+                                )}>
+                                  {b.bookingType === "walk-in" ? "Walk-in" : "Online"}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">{b.guestEmail}</p>
+                          </div>
+                          {/* Badges — stacked on mobile, inline on sm+ */}
+                          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 shrink-0">
+                            <Badge className={cn("border text-[11px]", STATUS_BADGE[b.bookingStatus] ?? STATUS_BADGE.pending)}>
+                              {b.bookingStatus.replace("-", " ")}
+                            </Badge>
+                            <Badge className={cn("border text-[11px]", PAYMENT_BADGE[b.paymentStatus] ?? PAYMENT_BADGE.pending)}>
+                              {b.paymentStatus === "pending" ? "Unpaid" : b.paymentStatus}
+                            </Badge>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-sm text-foreground truncate">{b.guestName}</span>
-                            {b.bookingType && (
-                              <span className={cn(
-                                "text-[10px] px-2 py-0.5 rounded-full border font-medium",
-                                b.bookingType === "walk-in"
-                                  ? "bg-violet-100 text-violet-700 border-violet-200"
-                                  : "bg-sky-100 text-sky-700 border-sky-200"
-                              )}>
-                                {b.bookingType === "walk-in" ? "Walk-in" : "Online"}
-                              </span>
+
+                        {/* Row 2: Room · hotel · dates · amount · view button */}
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                          {/* Room — always visible */}
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <BedDouble className="h-3.5 w-3.5 shrink-0" />
+                            <span>Room {room}</span>
+                          </div>
+
+                          {/* Hotel — sm+ */}
+                          <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
+                            <Building2 className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate max-w-[140px]">{hotel}</span>
+                          </div>
+
+                          {/* Dates — sm+ */}
+                          <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
+                            <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                            <span>{fmtDate(b.checkInDate)}</span>
+                            <ArrowRight className="h-3 w-3 shrink-0" />
+                            <span>{fmtDate(b.checkOutDate)}</span>
+                            <span className="font-medium text-foreground ml-0.5">{nights}n</span>
+                          </div>
+
+                          {/* Amount — always visible */}
+                          <div className="text-xs">
+                            <span className="font-bold text-foreground">{fmtMoney(b.totalAmount)}</span>
+                            {balance > 0 ? (
+                              <span className="text-red-500 font-medium ml-1">(bal: {fmtMoney(balance)})</span>
+                            ) : (
+                              <span className="text-emerald-600 font-medium ml-1">· paid</span>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground truncate">{b.guestEmail}</p>
+
+                          {/* Spacer pushes button to the right */}
+                          <div className="flex-1" />
+
+                          {/* View button — always visible */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs shrink-0 h-7 px-3"
+                            onClick={() => openDetail(b)}
+                          >
+                            View
+                          </Button>
                         </div>
-                      </div>
 
-                      {/* Hotel + room */}
-                      <div className="hidden md:flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
-                        <Building2 className="h-3.5 w-3.5" />
-                        <span>{hotel}</span>
-                        <span className="text-border">·</span>
-                        <BedDouble className="h-3.5 w-3.5" />
-                        <span>Room {room}</span>
                       </div>
-
-                      {/* Dates + nights */}
-                      <div className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
-                        <CalendarDays className="h-3.5 w-3.5" />
-                        <span>{fmtDate(b.checkInDate)}</span>
-                        <ArrowRight className="h-3 w-3" />
-                        <span>{fmtDate(b.checkOutDate)}</span>
-                        <span className="ml-1 text-foreground font-medium">{nights}n</span>
-                      </div>
-
-                      {/* Amount */}
-                      <div className="hidden sm:block text-right shrink-0">
-                        <p className="text-sm font-bold text-foreground">{fmtMoney(b.totalAmount)}</p>
-                        {balance > 0 && (
-                          <p className="text-xs text-red-500 font-medium">Balance: {fmtMoney(balance)}</p>
-                        )}
-                        {balance <= 0 && (
-                          <p className="text-xs text-emerald-600 font-medium">Fully paid</p>
-                        )}
-                      </div>
-
-                      {/* Status badges */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge className={cn("border text-[11px]", STATUS_BADGE[b.bookingStatus] ?? STATUS_BADGE.pending)}>
-                          {b.bookingStatus.replace("-", " ")}
-                        </Badge>
-                        <Badge className={cn("border text-[11px]", PAYMENT_BADGE[b.paymentStatus] ?? PAYMENT_BADGE.pending)}>
-                          {b.paymentStatus === "pending" ? "Unpaid" : b.paymentStatus}
-                        </Badge>
-                      </div>
-
-                      {/* View Details */}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs shrink-0"
-                        onClick={() => openDetail(b)}
-                      >
-                        View Details
-                      </Button>
                     </div>
                   </CardContent>
                 </Card>

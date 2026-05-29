@@ -149,6 +149,15 @@ const hotelBookings = bookings.filter(booking => {
   const firstDay = getFirstDayOfMonth(currentDate);
   const calendarDays = Array.from({ length: 42 }, (_, i) => i - firstDay + 1);
 
+  // Agenda items: only days in the current month that have at least one booking
+  const agendaDays = Array.from({ length: daysInMonth }, (_, i) => i + 1)
+    .map(day => ({
+      day,
+      date: new Date(currentDate.getFullYear(), currentDate.getMonth(), day),
+      events: getEventsForDay(day),
+    }))
+    .filter(({ events }) => events.length > 0);
+
   const handleDateClick = (day: number) => {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
     setSelectedDate(date);
@@ -267,94 +276,169 @@ const hotelBookings = bookings.filter(booking => {
           </CardContent>
         </Card>
 
-        {/* Calendar Navigation */}
-        <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-2 border-slate-200/50 dark:border-slate-700/50 shadow-lg">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <Button
-                variant="outline"
-                onClick={goToPreviousMonth}
-                className="calendar-body border-2 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 dark:border-slate-700 dark:text-slate-200"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-
-              <h2 className="calendar-header text-3xl font-black text-slate-900 dark:text-slate-100">
-                {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-              </h2>
-
-              <Button
-                variant="outline"
-                onClick={goToNextMonth}
-                className="calendar-body border-2 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 dark:border-slate-700 dark:text-slate-200"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </Button>
-            </div>
-
-            {/* Calendar Grid */}
-            <div className="calendar-body">
-              {/* Day Headers */}
-              <div className="grid grid-cols-7 gap-2 mb-2">
-                {dayNames.map(day => (
-                  <div
-                    key={day}
-                    className="text-center font-bold text-slate-600 dark:text-slate-400 text-sm py-2 border-b-2 border-slate-200 dark:border-slate-700"
-                  >
-                    {day}
-                  </div>
-                ))}
+        {/* ── Mobile Agenda View (below md) ─────────────────────── */}
+        <div className="md:hidden">
+          <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-2 border-slate-200/50 dark:border-slate-700/50 shadow-lg">
+            <CardContent className="p-4">
+              {/* Sticky month navigation */}
+              <div className="flex items-center justify-between mb-5 sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm z-10 py-2 -mx-4 px-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToPreviousMonth}
+                  className="calendar-body border-2 hover:bg-slate-50 dark:hover:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <h2 className="calendar-header text-xl font-black text-slate-900 dark:text-slate-100">
+                  {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+                </h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToNextMonth}
+                  className="calendar-body border-2 hover:bg-slate-50 dark:hover:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
 
-              {/* Calendar Days */}
-              <div className="grid grid-cols-7 gap-2">
-                {calendarDays.map((day, index) => {
-                  const isValidDay = day > 0 && day <= daysInMonth;
-                  const dayEvents = isValidDay ? getEventsForDay(day) : [];
-                  const isTodayDate = isValidDay && isToday(day);
+              {/* Agenda list */}
+              {agendaDays.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-14 text-center gap-3">
+                  <Calendar className="h-12 w-12 text-slate-300 dark:text-slate-600" />
+                  <p className="font-semibold text-slate-500 dark:text-slate-400">No bookings this month</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Navigate to another month to view reservations</p>
+                </div>
+              ) : (
+                <div className="calendar-body space-y-5">
+                  {agendaDays.map(({ day, date, events: dayEvents }) => (
+                    <div key={day}>
+                      {/* Date header */}
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className={`text-sm font-bold shrink-0 ${isToday(day) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                          {format(date, "EEE, MMM d")}
+                          {isToday(day) && (
+                            <span className="ml-2 text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded-full align-middle">Today</span>
+                          )}
+                        </div>
+                        <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+                      </div>
 
-                  return (
-                    <div
-                      key={index}
-                      onClick={() => isValidDay && handleDateClick(day)}
-                      className={`
-                        day-cell min-h-[120px] p-2 border-2 rounded-lg select-none
-                        ${isValidDay ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-pointer' : 'bg-slate-50/30 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800'}
-                        ${isTodayDate ? 'ring-2 ring-blue-500 dark:ring-blue-400 ring-offset-2 dark:ring-offset-slate-900 border-blue-300 dark:border-blue-600' : ''}
-                      `}
-                    >
-                      {isValidDay && (
-                        <>
-                          <div className={`
-                            text-sm font-bold mb-2
-                            ${isTodayDate ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}
-                          `}>
-                            {day}
-                          </div>
-                          <div className="space-y-1 max-h-[80px] overflow-y-auto">
-                            {dayEvents.map(event => (
-                              <div
-                                key={event.id}
-                                className={`
-                                  event-card w-full text-left px-2 py-1 rounded text-xs font-medium
-                                  border pointer-events-none
-                                  ${getStatusColor(event.status)}
-                                `}
-                              >
-                                <div className="truncate font-semibold">{event.guestName}</div>
-                                <div className="text-xs opacity-90">Room {event.roomNumber}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
+                      {/* Events for this day */}
+                      <div className="space-y-2 pl-3 border-l-2 border-slate-200 dark:border-slate-700 ml-1">
+                        {dayEvents.map(event => (
+                          <button
+                            key={event.id}
+                            className={`w-full text-left px-3 py-2.5 rounded-lg border event-card ${getStatusColor(event.status)}`}
+                            onClick={() => {
+                              setSelectedDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), day));
+                              setDaySheetOpen(true);
+                            }}
+                          >
+                            <div className="font-semibold text-sm leading-tight">{event.guestName}</div>
+                            <div className="text-xs opacity-90 mt-0.5">Room {event.roomNumber}</div>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Desktop Calendar Grid (md+) ────────────────────────── */}
+        <div className="hidden md:block">
+          <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-2 border-slate-200/50 dark:border-slate-700/50 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <Button
+                  variant="outline"
+                  onClick={goToPreviousMonth}
+                  className="calendar-body border-2 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 dark:border-slate-700 dark:text-slate-200"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+
+                <h2 className="calendar-header text-3xl font-black text-slate-900 dark:text-slate-100">
+                  {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+                </h2>
+
+                <Button
+                  variant="outline"
+                  onClick={goToNextMonth}
+                  className="calendar-body border-2 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 dark:border-slate-700 dark:text-slate-200"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+
+              {/* Calendar Grid */}
+              <div className="calendar-body">
+                {/* Day Headers */}
+                <div className="grid grid-cols-7 gap-2 mb-2">
+                  {dayNames.map(day => (
+                    <div
+                      key={day}
+                      className="text-center font-bold text-slate-600 dark:text-slate-400 text-sm py-2 border-b-2 border-slate-200 dark:border-slate-700"
+                    >
+                      {day}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Calendar Days */}
+                <div className="grid grid-cols-7 gap-2">
+                  {calendarDays.map((day, index) => {
+                    const isValidDay = day > 0 && day <= daysInMonth;
+                    const dayEvents = isValidDay ? getEventsForDay(day) : [];
+                    const isTodayDate = isValidDay && isToday(day);
+
+                    return (
+                      <div
+                        key={index}
+                        onClick={() => isValidDay && handleDateClick(day)}
+                        className={`
+                          day-cell min-h-[120px] p-2 border-2 rounded-lg select-none
+                          ${isValidDay ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-pointer' : 'bg-slate-50/30 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800'}
+                          ${isTodayDate ? 'ring-2 ring-blue-500 dark:ring-blue-400 ring-offset-2 dark:ring-offset-slate-900 border-blue-300 dark:border-blue-600' : ''}
+                        `}
+                      >
+                        {isValidDay && (
+                          <>
+                            <div className={`
+                              text-sm font-bold mb-2
+                              ${isTodayDate ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}
+                            `}>
+                              {day}
+                            </div>
+                            <div className="space-y-1 max-h-[80px] overflow-y-auto">
+                              {dayEvents.map(event => (
+                                <div
+                                  key={event.id}
+                                  className={`
+                                    event-card w-full text-left px-2 py-1 rounded text-xs font-medium
+                                    border pointer-events-none
+                                    ${getStatusColor(event.status)}
+                                  `}
+                                >
+                                  <div className="truncate font-semibold">{event.guestName}</div>
+                                  <div className="text-xs opacity-90">Room {event.roomNumber}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Stats Overview */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
