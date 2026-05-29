@@ -78,6 +78,11 @@ interface BookingState {
 const getToken = () => localStorage.getItem('token');
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
+// Module-level handler refs so closeSocketListeners only removes THIS store's handlers
+let _bsCreatedHandler: ((data: Booking) => void) | null = null;
+let _bsUpdatedHandler: ((data: Booking) => void) | null = null;
+let _bsDeletedHandler: ((id: string) => void) | null = null;
+
 export const useBookingStore = create<BookingState>((set, get) => ({
   bookings: [],
   hotels: [],
@@ -126,7 +131,13 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       });
       // Discard response if a newer request has since been started
       if (get().requestId === myId) {
-        set({ bookings: response.data.data || [], isLoading: false, lastFetched: Date.now() });
+        const result = response.data;
+        // Only update bookings if response is valid — never clear on a malformed payload
+        if (result?.success && Array.isArray(result.data)) {
+          set({ bookings: result.data, isLoading: false, lastFetched: Date.now() });
+        } else {
+          set({ isLoading: false });
+        }
       }
     } catch (err) {
       if (get().requestId === myId) {
@@ -276,39 +287,45 @@ cancelBooking: async (id: string) => {
   // --- 2. SOCKET.IO LISTENERS (for real-time updates) ---
 
   initSocketListeners: () => {
-    // Ensure listeners are only set up once
-    socket.off('bookingCreated');
-    socket.off('bookingUpdated');
-    socket.off('bookingDeleted');
+    // Remove only THIS store's handlers (preserves other stores' listeners)
+    if (_bsCreatedHandler) socket.off('bookingCreated', _bsCreatedHandler);
+    if (_bsUpdatedHandler) socket.off('bookingUpdated', _bsUpdatedHandler);
+    if (_bsDeletedHandler) socket.off('bookingDeleted', _bsDeletedHandler);
 
-    // Listen for new bookings
-    socket.on('bookingCreated', (newBooking: Booking) => {
+    _bsCreatedHandler = (newBooking: Booking) => {
       const currentHotelId = get().currentHotelId;
       const hotelId = typeof newBooking.hotelId === 'string' ? newBooking.hotelId : newBooking.hotelId._id;
       if (currentHotelId === null || hotelId === currentHotelId) {
-        get().fetchBookings(currentHotelId || undefined, true); // force — bypass cache
+        get().fetchBookings(currentHotelId || undefined, true);
       }
       toast.info(`New booking created for ${newBooking.guestName}`);
-    });
+    };
 
-    socket.on('bookingUpdated', (updatedBooking: Booking) => {
+    _bsUpdatedHandler = (updatedBooking: Booking) => {
       const currentHotelId = get().currentHotelId;
       const hotelId = typeof updatedBooking.hotelId === 'string' ? updatedBooking.hotelId : updatedBooking.hotelId._id;
       if (currentHotelId === null || hotelId === currentHotelId) {
-        get().fetchBookings(currentHotelId || undefined, true); // force — bypass cache
+        get().fetchBookings(currentHotelId || undefined, true);
       }
       toast.info(`Booking for ${updatedBooking.guestName} was updated`);
-    });
+    };
 
-    socket.on('bookingDeleted', (_bookingId: string) => {
-      get().fetchBookings(get().currentHotelId || undefined, true); // force — bypass cache
+    _bsDeletedHandler = (_bookingId: string) => {
+      get().fetchBookings(get().currentHotelId || undefined, true);
       toast.warning('A booking was deleted');
-    });
+    };
+
+    socket.on('bookingCreated', _bsCreatedHandler);
+    socket.on('bookingUpdated', _bsUpdatedHandler);
+    socket.on('bookingDeleted', _bsDeletedHandler);
   },
 
   closeSocketListeners: () => {
-    socket.off('bookingCreated');
-    socket.off('bookingUpdated');
-    socket.off('bookingDeleted');
+    if (_bsCreatedHandler) socket.off('bookingCreated', _bsCreatedHandler);
+    if (_bsUpdatedHandler) socket.off('bookingUpdated', _bsUpdatedHandler);
+    if (_bsDeletedHandler) socket.off('bookingDeleted', _bsDeletedHandler);
+    _bsCreatedHandler = null;
+    _bsUpdatedHandler = null;
+    _bsDeletedHandler = null;
   },
 }));

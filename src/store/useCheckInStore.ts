@@ -37,6 +37,11 @@ const mapBookingStatusToFrontend = (status: string): Guest['status'] => {
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
+// Module-level handler refs so closeSocketListeners only removes THIS store's handlers
+let _ciCreatedHandler: ((data: any) => void) | null = null;
+let _ciUpdatedHandler: ((data: any) => void) | null = null;
+let _ciDeletedHandler: ((id: string) => void) | null = null;
+
 const formatDateTime = (dateString: string | undefined): string => {
   if (!dateString) return "N/A";
   try {
@@ -411,36 +416,29 @@ export const useCheckInStore = create<CheckInState>((set, get) => ({
 
   initSocketListeners: () => {
     if (!socket.connected) {
-      console.log('🔌 Socket connecting...');
       socket.connect();
     }
 
-    socket.off('bookingCreated');
-    socket.off('bookingUpdated');
-    socket.off('bookingDeleted');
+    // Remove only THIS store's handlers (preserves other stores' listeners)
+    if (_ciCreatedHandler) socket.off('bookingCreated', _ciCreatedHandler);
+    if (_ciUpdatedHandler) socket.off('bookingUpdated', _ciUpdatedHandler);
+    if (_ciDeletedHandler) socket.off('bookingDeleted', _ciDeletedHandler);
 
-    socket.on('bookingCreated', (newBooking: any) => {
-      console.log('✅ Socket: bookingCreated');
-      get().fetchGuests();
-    });
+    _ciCreatedHandler = (_newBooking: any) => { get().fetchGuests(); };
+    _ciUpdatedHandler = (_updatedBooking: any) => { get().fetchGuests(); };
+    _ciDeletedHandler = (_bookingId: string) => { get().fetchGuests(); };
 
-    socket.on('bookingUpdated', (updatedBooking: any) => {
-      console.log('✅ Socket: bookingUpdated');
-      get().fetchGuests();
-    });
-
-    socket.on('bookingDeleted', (bookingId: string) => {
-      console.log('✅ Socket: bookingDeleted');
-      get().fetchGuests();
-    });
-
-    console.log('✅ Socket listeners initialized');
+    socket.on('bookingCreated', _ciCreatedHandler);
+    socket.on('bookingUpdated', _ciUpdatedHandler);
+    socket.on('bookingDeleted', _ciDeletedHandler);
   },
 
   closeSocketListeners: () => {
-    console.log('❌ Removing socket listeners');
-    socket.off('bookingCreated');
-    socket.off('bookingUpdated');
-    socket.off('bookingDeleted');
+    if (_ciCreatedHandler) socket.off('bookingCreated', _ciCreatedHandler);
+    if (_ciUpdatedHandler) socket.off('bookingUpdated', _ciUpdatedHandler);
+    if (_ciDeletedHandler) socket.off('bookingDeleted', _ciDeletedHandler);
+    _ciCreatedHandler = null;
+    _ciUpdatedHandler = null;
+    _ciDeletedHandler = null;
   },
 }));

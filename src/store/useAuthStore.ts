@@ -210,7 +210,12 @@ export const useAuthStore = create<AuthState>()(
           }
 
           const data = await res.json();
-          
+
+          // Backend populates hotelId as { _id, name, city... } — normalize to string
+          if (data?.hotelId && typeof data.hotelId === 'object' && '_id' in data.hotelId) {
+            data.hotelId = (data.hotelId as any)._id;
+          }
+
           if (!res.ok) {
             // SHIFT_ENDED: backend confirmed staff is outside their shift — always enforce logout
             if (res.status === 403 && data.code === 'SHIFT_ENDED') {

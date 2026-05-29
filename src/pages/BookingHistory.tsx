@@ -166,7 +166,7 @@ const STATUS_FILTERS = [
 // ══════════════════════════════════════════════════════════════════════════
 export default function BookingHistory() {
   const { user }                           = useAuthStore();
-  const { bookings, isLoading, error, fetchBookings } = useBookingStore();
+  const { bookings, isLoading, error, fetchBookings, initSocketListeners, closeSocketListeners } = useBookingStore();
 
   const [search, setSearch]                 = useState("");
   const [statusFilter, setStatusFilter]     = useState("all");
@@ -180,6 +180,10 @@ export default function BookingHistory() {
   useEffect(() => {
     const hotelId = user?.role === "superadmin" ? undefined : user?.hotelId;
     fetchBookings(hotelId);
+    initSocketListeners();
+    return () => {
+      closeSocketListeners();
+    };
   }, [user?.hotelId, user?.role]);
 
   // ── Filtering ────────────────────────────────────────────────────────────

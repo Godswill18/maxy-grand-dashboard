@@ -25,7 +25,7 @@ interface BookingEvent {
 }
 
 export default function BookingCalendar() {
-  const { bookings, isLoading, fetchBookings } = useBookingStore();
+  const { bookings, isLoading, fetchBookings, initSocketListeners, closeSocketListeners } = useBookingStore();
   const { user } = useAuthStore();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -34,7 +34,11 @@ export default function BookingCalendar() {
   useEffect(() => {
     if (user?.hotelId) {
       fetchBookings(user.hotelId);
+      initSocketListeners();
     }
+    return () => {
+      closeSocketListeners();
+    };
   }, [user?.hotelId]);
 
   // Filter bookings by hotelId

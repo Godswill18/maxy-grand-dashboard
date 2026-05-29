@@ -85,7 +85,7 @@ interface AvailableRoom {
 }
 
 export default function BookingManagement() {
-  const { bookings, isLoading, fetchBookings, updateBooking, cancelBooking } = useBookingStore();
+  const { bookings, isLoading, fetchBookings, updateBooking, cancelBooking, initSocketListeners, closeSocketListeners } = useBookingStore();
   const { checkInWithRegistration } = useCheckInStore();
   const { user } = useAuthStore();
 
@@ -142,9 +142,13 @@ export default function BookingManagement() {
 
   useEffect(() => {
     if (user?.hotelId) {
-      fetchBookings();
+      fetchBookings(user.hotelId);
+      initSocketListeners();
     }
-  }, [user?.hotelId, fetchBookings]);
+    return () => {
+      closeSocketListeners();
+    };
+  }, [user?.hotelId]);
 
   useEffect(() => {
     if (editFormData.checkInDate && editFormData.checkOutDate && isEditDialogOpen) {
