@@ -151,6 +151,8 @@ export default function Orders() {
     loading,
     error,
     fetchOrders,
+    prependOrder,
+    patchOrder,
     updateOrderStatus,
     updateOrderPaymentStatus,
     canPlaceOrder,
@@ -162,6 +164,7 @@ export default function Orders() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [orderTypeFilter, setOrderTypeFilter] = useState<string>("all");
   const [isConnected, setIsConnected] = useState(false);
+  const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set());
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"active" | "history">("active");
@@ -179,18 +182,26 @@ export default function Orders() {
     const handleDisconnect = () => setIsConnected(false);
 
     const handleOrderCreated = (newOrder: Order) => {
-      if (newOrder.hotelId === user.hotelId) {
+      if (newOrder.hotelId?.toString() === user?.hotelId?.toString()) {
+        prependOrder(newOrder);
+        setNewOrderIds((prev) => new Set([...prev, newOrder._id]));
+        setTimeout(() => {
+          setNewOrderIds((prev) => {
+            const next = new Set(prev);
+            next.delete(newOrder._id);
+            return next;
+          });
+        }, 1500);
         toast.success(`New order #${newOrder._id.slice(-6)} received!`, {
           icon: <Bell className="h-4 w-4" />,
         });
-        fetchOrders();
       }
     };
 
     const handleOrderUpdated = (updatedOrder: Order) => {
-      if (updatedOrder.hotelId === user.hotelId) {
+      if (updatedOrder.hotelId?.toString() === user?.hotelId?.toString()) {
+        patchOrder(updatedOrder);
         toast.info(`Order #${updatedOrder._id.slice(-6)} status: ${updatedOrder.orderStatus}`);
-        fetchOrders();
       }
     };
 
@@ -577,6 +588,8 @@ export default function Orders() {
                       <TableRow
                         key={order._id}
                         className={`cursor-pointer hover:bg-muted/40 transition-colors ${
+                          newOrderIds.has(order._id) ? 'animate-in slide-in-from-top-4 duration-300' : ''
+                        } ${
                           user?.role === 'headWaiter' && order.orderStatus === 'pending'
                             ? 'border-l-2 border-l-amber-500 bg-amber-50/40 dark:bg-amber-950/20'
                             : ''
@@ -671,7 +684,7 @@ export default function Orders() {
                 {sortedOrders.map((order: Order) => (
                   <Card
                     key={order._id}
-                    className={`cursor-pointer group hover:shadow-md transition-all duration-200 overflow-hidden ${STATUS_BORDER[order.orderStatus] ?? ''}`}
+                    className={`cursor-pointer group hover:shadow-md transition-all duration-200 overflow-hidden ${STATUS_BORDER[order.orderStatus] ?? ''} ${newOrderIds.has(order._id) ? 'animate-in slide-in-from-top-4 duration-300' : ''}`}
                     onClick={() => { setSelectedOrder(order); setIsDetailOpen(true); }}
                   >
                     <CardHeader className="pb-2 pt-4 px-4">

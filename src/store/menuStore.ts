@@ -162,6 +162,8 @@ interface MenuState {
     specialInstructions?: string;
   }) => Promise<void>;
   fetchOrders: () => Promise<void>;
+  prependOrder: (order: Order) => void;
+  patchOrder: (order: Order) => void;
   updateOrderStatus: (orderId: string, status: string) => Promise<void>;
   updateOrderPaymentStatus: (orderId: string, paymentStatus: string) => Promise<void>;
   trackOrders: (orderIds: string[]) => Promise<Order[]>;
@@ -530,6 +532,16 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         loading: false 
       });
     }
+  },
+
+  prependOrder: (order) => {
+    set((state) => ({ orders: [order, ...state.orders] }));
+  },
+
+  patchOrder: (order) => {
+    set((state) => ({
+      orders: state.orders.map((o) => o._id === order._id ? order : o),
+    }));
   },
 
   // Update Order Status
