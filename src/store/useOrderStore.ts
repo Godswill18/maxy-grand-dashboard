@@ -3,7 +3,6 @@ import { create } from 'zustand';
 import axios, { AxiosError } from 'axios';
 import { socket } from '../lib/socket'; // Assume socket lib
 import { toast } from 'sonner';
-import { get } from 'http';
 import { useAuthStore } from './useAuthStore';
 
 interface Order {

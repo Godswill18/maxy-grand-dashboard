@@ -166,8 +166,6 @@ export default function Orders() {
     loading,
     error,
     fetchOrders,
-    prependOrder,
-    patchOrder,
     updateOrderStatus,
     updateOrderPaymentStatus,
     canPlaceOrder,
@@ -176,13 +174,12 @@ export default function Orders() {
   const { user } = useAuthStore();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [orderTypeFilter, setOrderTypeFilter] = useState<string>("all");
   const [isConnected, setIsConnected] = useState(false);
   const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set());
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"active" | "history">("active");
+  const [activeTab, setActiveTab] = useState<string>("all");
 
   // Socket.IO real-time order updates
   useEffect(() => {
@@ -198,28 +195,24 @@ export default function Orders() {
     const handleDisconnect = () => setIsConnected(false);
 
     const handleOrderCreated = (newOrder: Order) => {
-      if (newOrder.hotelId?.toString() === user?.hotelId?.toString()) {
-        prependOrder(newOrder);
-        playOrderSound();
-        setNewOrderIds((prev) => new Set([...prev, newOrder._id]));
-        setTimeout(() => {
-          setNewOrderIds((prev) => {
-            const next = new Set(prev);
-            next.delete(newOrder._id);
-            return next;
-          });
-        }, 1500);
-        toast.success(`New order #${newOrder._id.slice(-6)} received!`, {
-          icon: <Bell className="h-4 w-4" />,
+      fetchOrders();
+      playOrderSound();
+      setNewOrderIds((prev) => new Set([...prev, newOrder._id]));
+      setTimeout(() => {
+        setNewOrderIds((prev) => {
+          const next = new Set(prev);
+          next.delete(newOrder._id);
+          return next;
         });
-      }
+      }, 1500);
+      toast.success(`New order #${newOrder._id.slice(-6)} received!`, {
+        icon: <Bell className="h-4 w-4" />,
+      });
     };
 
     const handleOrderUpdated = (updatedOrder: Order) => {
-      if (updatedOrder.hotelId?.toString() === user?.hotelId?.toString()) {
-        patchOrder(updatedOrder);
-        toast.info(`Order #${updatedOrder._id.slice(-6)} status: ${updatedOrder.orderStatus}`);
-      }
+      fetchOrders();
+      toast.info(`Order #${updatedOrder._id.slice(-6)} status: ${updatedOrder.orderStatus}`);
     };
 
     socket.on('connect', handleConnect);
@@ -361,7 +354,17 @@ export default function Orders() {
   const activeOrders    = hotelOrders.filter((o: Order) => !['delivered', 'cancelled'].includes(o.orderStatus));
   const completedOrders = hotelOrders.filter((o: Order) =>  ['delivered', 'cancelled'].includes(o.orderStatus));
 
-  const filteredOrders = (activeTab === 'active' ? activeOrders : completedOrders).filter((o: Order) => {
+  const statusCounts: Record<string, number> = {
+    all:       hotelOrders.length,
+    pending:   hotelOrders.filter(o => o.orderStatus === 'pending').length,
+    confirmed: hotelOrders.filter(o => o.orderStatus === 'confirmed').length,
+    preparing: hotelOrders.filter(o => o.orderStatus === 'preparing').length,
+    ready:     hotelOrders.filter(o => o.orderStatus === 'ready').length,
+    delivered: hotelOrders.filter(o => o.orderStatus === 'delivered').length,
+    cancelled: hotelOrders.filter(o => o.orderStatus === 'cancelled').length,
+  };
+
+  const filteredOrders = hotelOrders.filter((o: Order) => {
     const q = searchQuery.toLowerCase();
     const matchSearch =
       o._id.toLowerCase().includes(q) ||
@@ -370,7 +373,7 @@ export default function Orders() {
       o.customerName?.toLowerCase().includes(q) ||
       o.items.some(i => i.name.toLowerCase().includes(q));
     return matchSearch
-      && (statusFilter === 'all' || o.orderStatus === statusFilter)
+      && (activeTab === 'all' || o.orderStatus === activeTab)
       && (orderTypeFilter === 'all' || o.orderType === orderTypeFilter);
   });
 
@@ -441,21 +444,6 @@ export default function Orders() {
           />
         </div>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[160px] bg-background">
-            <SelectValue placeholder="All Statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="confirmed">Confirmed</SelectItem>
-            <SelectItem value="preparing">Preparing</SelectItem>
-            <SelectItem value="ready">Ready</SelectItem>
-            <SelectItem value="delivered">Delivered</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
-
         <Select value={orderTypeFilter} onValueChange={setOrderTypeFilter}>
           <SelectTrigger className="w-full sm:w-[160px] bg-background">
             <SelectValue placeholder="All Types" />
@@ -471,20 +459,34 @@ export default function Orders() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="space-y-5">
-        <TabsList className="w-full sm:max-w-sm grid grid-cols-2">
-          <TabsTrigger value="active">
-            Active <span className="ml-1.5 text-xs opacity-70">({activeOrders.length})</span>
+        <TabsList className="flex flex-wrap gap-1 h-auto p-1">
+          <TabsTrigger value="all">
+            All <span className="ml-1.5 text-xs opacity-70">({statusCounts.all})</span>
           </TabsTrigger>
-          <TabsTrigger value="history">
-            History <span className="ml-1.5 text-xs opacity-70">({completedOrders.length})</span>
+          <TabsTrigger value="pending">
+            Pending <span className="ml-1.5 text-xs opacity-70">({statusCounts.pending})</span>
+          </TabsTrigger>
+          <TabsTrigger value="confirmed">
+            Confirmed <span className="ml-1.5 text-xs opacity-70">({statusCounts.confirmed})</span>
+          </TabsTrigger>
+          <TabsTrigger value="preparing">
+            Preparing <span className="ml-1.5 text-xs opacity-70">({statusCounts.preparing})</span>
+          </TabsTrigger>
+          <TabsTrigger value="ready">
+            Ready <span className="ml-1.5 text-xs opacity-70">({statusCounts.ready})</span>
+          </TabsTrigger>
+          <TabsTrigger value="delivered">
+            Delivered <span className="ml-1.5 text-xs opacity-70">({statusCounts.delivered})</span>
+          </TabsTrigger>
+          <TabsTrigger value="cancelled">
+            Cancelled <span className="ml-1.5 text-xs opacity-70">({statusCounts.cancelled})</span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="space-y-5">
 
-          {/* Stat cards (active tab only) */}
-          {activeTab === 'active' && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Stat cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <StatCard
                 label="Pending"
                 value={activeOrders.filter((o: Order) => o.orderStatus === 'pending').length}
@@ -518,7 +520,6 @@ export default function Orders() {
                 accentClass={STAT_CARD_BORDER.unpaid}
               />
             </div>
-          )}
 
           {/* ── Loading skeleton ─────────────────────────────────────── */}
           {loading && orders.length === 0 ? (
@@ -578,9 +579,9 @@ export default function Orders() {
               <ClipboardList className="h-14 w-14 opacity-25" />
               <p className="font-semibold text-foreground">No orders found</p>
               <p className="text-sm">
-                {searchQuery || statusFilter !== 'all' || orderTypeFilter !== 'all'
+                {searchQuery || activeTab !== 'all' || orderTypeFilter !== 'all'
                   ? 'Try adjusting your filters'
-                  : activeTab === 'active' ? 'No active orders at the moment' : 'No completed orders yet'}
+                  : 'No orders at the moment'}
               </p>
             </div>
 
