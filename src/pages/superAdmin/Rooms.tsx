@@ -532,16 +532,16 @@ export default function Rooms() {
                         </div>
                       )}
                       
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h3 className="font-semibold text-xl text-foreground">
+                      <div className="flex items-start justify-between gap-2 mb-4">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold text-xl text-foreground truncate">
                             Room {room.roomNumber}
                           </h3>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-sm text-muted-foreground truncate">
                             {room.name}
                           </p>
                         </div>
-                        <Badge className={`${statusColors[status] || "bg-secondary"} flex items-center gap-1`}>
+                        <Badge className={`${statusColors[status] || "bg-secondary"} flex items-center gap-1 shrink-0`}>
                           {status === 'occupied-needs-cleaning' && (
                             <AlertCircle className="h-3 w-3" />
                           )}
@@ -551,23 +551,23 @@ export default function Rooms() {
 
                       <div className="space-y-2 mb-4">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <p className="font-bold">₦</p>
-                          <span className="font-semibold text-foreground">₦ {room?.price?.toLocaleString()} / night</span>
+                          <span className="font-semibold text-foreground">₦{room?.price?.toLocaleString()} / night</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <MapPin className="h-4 w-4" />
-                          <span>{getBranchName()}</span>
+                          <span className="truncate min-w-0">{getBranchName()}</span>
                         </div>
 
                         {/* Availability Toggle */}
-                        <div className="flex items-center justify-between pt-2 border-t">
-                          <div className="flex flex-col">
+                        <div className="flex items-center justify-between gap-3 pt-2 border-t">
+                          <div className="flex flex-col min-w-0 flex-1">
                             <span className="text-sm font-medium">Available for Booking</span>
                             <span className="text-xs text-muted-foreground">
                               {room.isAvailable ? 'Visible to guests' : 'Hidden from guests'}
                             </span>
                           </div>
                           <Switch
+                            className="shrink-0"
                             checked={room.isAvailable}
                             onCheckedChange={() => handleAvailabilityToggle(room._id, room.isAvailable)}
                           />
