@@ -166,11 +166,11 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex-1">
-            <CardTitle className="text-lg">{guest.name}</CardTitle>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <CardTitle className="text-lg truncate">{guest.name}</CardTitle>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col items-end gap-1 shrink-0">
             {/* ✅ Booking Type Badge */}
             <Badge className={isWalkIn ? "bg-orange-100 text-orange-700 hover:bg-orange-200" : "bg-blue-100 text-blue-700 hover:bg-blue-200"}>
               {isWalkIn ? "🚶 Walk-in" : "💻 Online"}
@@ -204,9 +204,9 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span>{guest.checkInDate} - {guest.checkOutDate}</span>
           </div>
-          <div className="flex items-center justify-between pt-2 border-t">
-            <span className="text-muted-foreground">Booking ID:</span>
-            <span className="font-medium">{guest.bookingId}</span>
+          <div className="flex items-center justify-between gap-2 pt-2 border-t">
+            <span className="text-muted-foreground shrink-0">Booking ID:</span>
+            <span className="font-medium text-xs font-mono truncate text-right min-w-0">{guest.bookingId}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Guests:</span>

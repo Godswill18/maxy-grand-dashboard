@@ -1032,9 +1032,9 @@ export default function RoomReceptionist() {
           return (
             <Card key={room._id} className={getRoomCardStyle(room)}>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className={`text-lg ${colors.text}`}>Room {room.roomNumber}</CardTitle>
-                  {getStatusBadge(room)}
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className={`text-lg ${colors.text} min-w-0 truncate`}>Room {room.roomNumber}</CardTitle>
+                  <span className="shrink-0">{getStatusBadge(room)}</span>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1093,7 +1093,7 @@ export default function RoomReceptionist() {
                       : 'bg-white/70 border-gray-300'
                   }`}>
                     <p className={`text-sm font-medium ${colors.text}`}>Guest: {room.currentBookingId.guestName}</p>
-                    <p className={`text-xs ${colors.muted}`}>Booking: {room.currentBookingId._id}</p>
+                    <p className={`text-xs ${colors.muted} truncate`}>Booking: {room.currentBookingId._id}</p>
                   </div>
                 )}
 
