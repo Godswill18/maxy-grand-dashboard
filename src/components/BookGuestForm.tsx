@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -93,6 +93,7 @@ export default function BookGuestForm({
   const [currentTab, setCurrentTab] = useState<"guest" | "booking">("guest");
   const [isLoading, setIsLoading] = useState(false);
   const [isSearchingRooms, setIsSearchingRooms] = useState(false);
+  const isSubmittingRef = useRef(false);
   
   // Guest Form State
   const [isNewGuest, setIsNewGuest] = useState(true);
@@ -292,7 +293,11 @@ export default function BookGuestForm({
 
 
 const handleSubmit = async () => {
+  if (isSubmittingRef.current) return; // synchronous guard — blocks double-click before React re-renders
+  isSubmittingRef.current = true;
+
   if (selectedRooms.length === 0) {
+    isSubmittingRef.current = false;
     return toast.error("Please select at least one room");
   }
 
@@ -428,6 +433,7 @@ const totalAmount = calculateTotalAmount();
     toast.error(error.message || "Failed to create booking");
   } finally {
     setIsLoading(false);
+    isSubmittingRef.current = false;
   }
 };
 
