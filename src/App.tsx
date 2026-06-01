@@ -2,7 +2,7 @@ import { Toaster } from "./components/ui/toaster";
 import { Toaster as Sonner } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Outlet, Navigate, useNavigate } from "react-router-dom";
 
 // Import the ONE layout
@@ -190,17 +190,21 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
  * If no, it redirects to the /login page.
  */
 function ProtectedRoutes() {
-  const { user, isLoading, logout } = useAuthStore();
+  const { user, isLoading, checkAuth } = useAuthStore();
+  const [authChecked, setAuthChecked] = useState(false);
   const token = localStorage.getItem('token');
 
-  // If user is hydrated from localStorage but token is gone, clear auth state
+  // Validate token against the server on mount before showing any protected content.
+  // This catches: missing token, expired token, and Zustand persist hydration timing gaps.
   useEffect(() => {
-    if (user && !token) {
-      logout();
+    if (!token) {
+      setAuthChecked(true);
+      return;
     }
+    checkAuth().finally(() => setAuthChecked(true));
   }, []);
 
-  if (isLoading) {
+  if (!authChecked || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">Loading...</div>
@@ -208,7 +212,6 @@ function ProtectedRoutes() {
     );
   }
 
-  // Both user AND token must be present to access protected routes
   if (!user || !token) {
     return <Navigate to="/login" replace />;
   }
