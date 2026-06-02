@@ -19,23 +19,31 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { toast } from "sonner";
 
 const statusColors: Record<string, string> = {
-  available: "bg-success text-success-foreground",
-  occupied: "bg-destructive text-destructive-foreground",
+  // ── Spec-aligned ────────────────────────────────────────────────────────
+  ready:               "bg-success text-success-foreground",
+  occupied:            "bg-destructive text-destructive-foreground",
+  'cleaning-required': "bg-orange-500 text-white",
+  'being-cleaned':     "bg-info text-info-foreground",
+  maintenance:         "bg-yellow-500 text-white",
+  // ── Legacy aliases (backward compat) ─────────────────────────────────────
+  available:               "bg-success text-success-foreground",
   'occupied-needs-cleaning': "bg-orange-500 text-white",
-  booked: "bg-warning text-warning-foreground",
-  cleaning: "bg-info text-info-foreground",
-  maintenance: "bg-muted text-muted-foreground",
-  'out-of-service': "bg-gray-500 text-white",
+  cleaning:                "bg-info text-info-foreground",
+  'out-of-service':        "bg-muted text-muted-foreground",
 };
 
 const statusLabels: Record<string, string> = {
-  available: "Available",
-  occupied: "Occupied",
-  'occupied-needs-cleaning': "Needs Cleaning",
-  booked: "Booked",
-  cleaning: "Cleaning",
-  maintenance: "Maintenance",
-  'out-of-service': "Out of Service",
+  // ── Spec-aligned ────────────────────────────────────────────────────────
+  ready:               "Ready",
+  occupied:            "Occupied",
+  'cleaning-required': "Cleaning Required",
+  'being-cleaned':     "Being Cleaned",
+  maintenance:         "Maintenance",
+  // ── Legacy aliases ────────────────────────────────────────────────────────
+  available:               "Ready",
+  'occupied-needs-cleaning': "Cleaning Required",
+  cleaning:                "Cleaning Required",
+  'out-of-service':        "Out of Service",
 };
 
 const _imgBase = (import.meta as any).env?.VITE_BACKEND_IMAGE_URL ?? 'http://localhost:5000';
