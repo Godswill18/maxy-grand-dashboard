@@ -31,7 +31,7 @@ const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign,
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Room {room.roomNumber}</CardTitle>
+          <CardTitle className="text-lg">Room {room?.roomNumber ?? 'N/A'}</CardTitle>
           <Badge variant="secondary" className="bg-orange-100 text-orange-800">
             Needs Assignment
           </Badge>
@@ -41,7 +41,7 @@ const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign,
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
             <Bed className="h-4 w-4 text-muted-foreground" />
-            <span>{room.roomTypeId.name}</span>
+            <span>{room?.roomTypeId?.name ?? 'Unknown room type'}</span>
           </div>
         </div>
         <div className="space-y-2">
@@ -108,7 +108,7 @@ const AssignedTaskCard: React.FC<{ task: any }> = ({ task }) => {
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Room {task.roomId.roomNumber}</CardTitle>
+          <CardTitle className="text-lg">Room {task.roomId?.roomNumber ?? 'N/A'}</CardTitle>
           {getStatusBadge()}
         </div>
       </CardHeader>
@@ -116,7 +116,7 @@ const AssignedTaskCard: React.FC<{ task: any }> = ({ task }) => {
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
             <Bed className="h-4 w-4 text-muted-foreground" />
-            <span>{task.roomId.roomTypeId.name}</span>
+            <span>{task.roomId?.roomTypeId?.name ?? 'Unknown room type'}</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <User className="h-4 w-4 text-muted-foreground" />

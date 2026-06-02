@@ -99,7 +99,7 @@ export default function CleaningTasks() {
       <Card key={task._id} className="hover:shadow-lg transition-shadow border-l-4 border-l-primary">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Room {task.roomId.roomNumber}</CardTitle>
+            <CardTitle className="text-lg">Room {task.roomId?.roomNumber ?? 'N/A'}</CardTitle>
             <Badge variant="outline" className={getPriorityColor(priority)}>
               {priority}
             </Badge>
@@ -109,7 +109,7 @@ export default function CleaningTasks() {
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4" />
-              <span>{task.roomId.roomTypeId.name}</span>
+              <span>{task.roomId?.roomTypeId?.name ?? 'Unknown room type'}</span>
             </div>
             
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

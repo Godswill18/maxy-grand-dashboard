@@ -145,11 +145,11 @@ const getInitials = (name: string) =>
   name.split(" ").map((n) => n[0]).join("").substring(0, 2).toUpperCase();
 
 const hotelName  = (b: BookingWithHistory) =>
-  typeof b.hotelId   === "object" ? b.hotelId.name        : b.hotelId   ?? "—";
+  b.hotelId   && typeof b.hotelId   === "object" ? b.hotelId.name              : typeof b.hotelId   === "string" ? b.hotelId   : "—";
 const roomNumber = (b: BookingWithHistory) =>
-  typeof b.roomTypeId === "object" ? b.roomTypeId.roomNumber : b.roomTypeId ?? "—";
+  b.roomTypeId && typeof b.roomTypeId === "object" ? b.roomTypeId.roomNumber ?? "—" : typeof b.roomTypeId === "string" ? b.roomTypeId : "—";
 const roomName   = (b: BookingWithHistory) =>
-  typeof b.roomTypeId === "object" && b.roomTypeId.name ? b.roomTypeId.name : null;
+  b.roomTypeId && typeof b.roomTypeId === "object" && b.roomTypeId.name ? b.roomTypeId.name : null;
 
 const PAGE_SIZE = 15;
 
