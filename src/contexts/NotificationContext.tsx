@@ -1,19 +1,17 @@
-// ✅ UPDATED: NotificationContext.tsx with useStaffStore
-
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
 import axios from 'axios';
-import { useStaffStore } from '@/store/useUserStore'; // ✅ Using useStaffStore
+import { useAuthStore } from '@/store/useAuthStore';
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 
-export type NotificationType = 
-  | 'booking' 
-  | 'checkin' 
-  | 'checkout' 
-  | 'cleaning_task' 
+export type NotificationType =
+  | 'booking'
+  | 'checkin'
+  | 'checkout'
+  | 'cleaning_task'
   | 'cleaning_completed'
-  | 'payment' 
+  | 'payment'
   | 'order'
   | 'order_ready'
   | 'request'
@@ -51,143 +49,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  
-  // ✅ Get user from useStaffStore
-  // Assuming your auth state stores the current logged-in user
-  // You may need to adjust this based on your actual store structure
-  const staff = useStaffStore((state) => state.staff);
-  const guests = useStaffStore((state) => state.guests);
-  
-  // ✅ Get current user - adjust this based on how you store current user
-  // Option 1: If you have a separate auth store
-  // const currentUser = useAuthStore((state) => state.user);
-  
-  // Option 2: If you store current user ID somewhere and need to fetch
-  // For now, I'll assume you have a way to get current user
-  // You might need to add a currentUser field to useStaffStore
-  const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // ✅ Get current user from localStorage or auth context
-  useEffect(() => {
-    // This is a placeholder - adjust based on your auth implementation
-    const getUserFromAuth = () => {
-      try {
-        // Method 1: From localStorage
-        const userStr = localStorage.getItem('user');
-        if (userStr) {
-          return JSON.parse(userStr);
-        }
-        
-        // Method 2: From your auth context/store
-        // return authStore.user;
-        
-        return null;
-      } catch (error) {
-        console.error('Error getting user:', error);
-        return null;
-      }
-    };
-    
-    const user = getUserFromAuth();
-    setCurrentUser(user);
-  }, []);
+  // Source user reactively from auth store — updates automatically on login/logout
+  const currentUser = useAuthStore((state) => state.user);
 
-  // ✅ Initialize Socket.IO connection
-  useEffect(() => {
-    if (!currentUser?._id) return;
-
-    const newSocket = io(VITE_API_URL, {
-      withCredentials: true,
-      transports: ['websocket', 'polling'],
-    });
-
-    newSocket.on('connect', () => {
-      console.log('🔌 Connected to notification server');
-      setIsConnected(true);
-      
-      // ✅ Authenticate with user ID
-      newSocket.emit('authenticate', currentUser._id);
-      
-      // ✅ Join hotel room if user has hotelId
-      if (currentUser.hotelId) {
-        const hotelId = typeof currentUser.hotelId === 'string' 
-          ? currentUser.hotelId 
-          : currentUser.hotelId._id;
-        newSocket.emit('join_hotel', hotelId);
-      }
-      
-      // ✅ Join role room
-      if (currentUser.role) {
-        newSocket.emit('join_role', currentUser.role);
-      }
-    });
-
-    newSocket.on('disconnect', () => {
-      console.log('🔴 Disconnected from notification server');
-      setIsConnected(false);
-    });
-
-    newSocket.on('authenticated', (data) => {
-      console.log('✅ Authenticated:', data);
-    });
-
-    // ✅ Listen for new notifications
-    newSocket.on('new_notification', (notification: Notification) => {
-      console.log('🔔 New notification received:', notification);
-      
-      setNotifications(prev => [notification, ...prev]);
-      
-      // ✅ Show browser notification
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification(notification.title, {
-          body: notification.message,
-          icon: '/logo.png',
-          badge: '/logo.png',
-          tag: notification._id,
-        });
-      }
-      
-      // ✅ Play notification sound (optional)
-      try {
-        const audio = new Audio('/notification.mp3');
-        audio.volume = 0.5;
-        audio.play().catch(e => console.log('Could not play notification sound:', e));
-      } catch (error) {
-        console.log('Audio playback error:', error);
-      }
-    });
-
-    setSocket(newSocket);
-
-    // ✅ Cleanup on unmount
-    return () => {
-      newSocket.close();
-    };
-  }, [currentUser?._id, currentUser?.hotelId, currentUser?.role]);
-
-  // ✅ Fetch notifications from database on mount
-  useEffect(() => {
-    if (currentUser?._id) {
-      fetchNotifications();
-    }
-  }, [currentUser?._id]);
-
-  // ✅ Request browser notification permission
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().then(permission => {
-        console.log('Notification permission:', permission);
-      });
-    }
-  }, []);
-
-  // ✅ Fetch notifications from API
+  // Fetch notifications from API
   const fetchNotifications = useCallback(async () => {
     try {
       const response = await axios.get(`${VITE_API_URL}/api/notifications`, {
         withCredentials: true,
       });
-
       if (response.data.success) {
         setNotifications(response.data.data.notifications);
       }
@@ -196,7 +67,99 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, []);
 
-  // ✅ Mark notification as read
+  // Socket connection — recreated whenever the logged-in user changes
+  useEffect(() => {
+    if (!currentUser?._id) return;
+
+    const newSocket = io(VITE_API_URL, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: Infinity,
+      timeout: 20000,
+    });
+
+    newSocket.on('connect', () => {
+      console.log('🔌 Notification socket connected');
+      setIsConnected(true);
+
+      // Authenticate and join rooms
+      newSocket.emit('authenticate', currentUser._id);
+      if (currentUser.hotelId) {
+        const hotelId = typeof currentUser.hotelId === 'string'
+          ? currentUser.hotelId
+          : (currentUser.hotelId as any)._id;
+        newSocket.emit('join_hotel', hotelId);
+      }
+      if (currentUser.role) {
+        newSocket.emit('join_role', currentUser.role);
+      }
+
+      // Refetch to catch any notifications missed while disconnected
+      fetchNotifications();
+    });
+
+    newSocket.on('disconnect', () => {
+      console.log('🔴 Notification socket disconnected');
+      setIsConnected(false);
+    });
+
+    newSocket.on('authenticated', (data: any) => {
+      console.log('✅ Notification socket authenticated:', data);
+    });
+
+    newSocket.on('new_notification', (notification: Notification) => {
+      console.log('🔔 New notification received:', notification);
+      setNotifications(prev => [notification, ...prev]);
+
+      // Browser push notification
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(notification.title, {
+          body: notification.message,
+          icon: '/logo.png',
+          badge: '/logo.png',
+          tag: notification._id,
+        });
+      }
+
+      // Notification sound
+      try {
+        const audio = new Audio('/notification.mp3');
+        audio.volume = 0.5;
+        audio.play().catch(() => {});
+      } catch {
+        // audio not available — ignore
+      }
+    });
+
+    setSocket(newSocket);
+
+    // Polling fallback — refetch every 2 minutes to catch any missed events
+    const pollInterval = setInterval(fetchNotifications, 120_000);
+
+    // Refetch when the browser tab regains visibility
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') fetchNotifications();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      newSocket.close();
+      clearInterval(pollInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [currentUser?._id, currentUser?.hotelId, currentUser?.role, fetchNotifications]);
+
+  // Request browser notification permission once
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        console.log('Browser notification permission:', permission);
+      });
+    }
+  }, []);
+
   const markAsRead = useCallback(async (id: string) => {
     try {
       await axios.patch(
@@ -204,7 +167,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         {},
         { withCredentials: true }
       );
-
       setNotifications(prev =>
         prev.map(notif => notif._id === id ? { ...notif, read: true } : notif)
       );
@@ -213,7 +175,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, []);
 
-  // ✅ Mark all as read
   const markAllAsRead = useCallback(async () => {
     try {
       await axios.patch(
@@ -221,33 +182,28 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         {},
         { withCredentials: true }
       );
-
       setNotifications(prev => prev.map(notif => ({ ...notif, read: true })));
     } catch (error) {
       console.error('Error marking all as read:', error);
     }
   }, []);
 
-  // ✅ Clear notification
   const clearNotification = useCallback(async (id: string) => {
     try {
       await axios.delete(`${VITE_API_URL}/api/notifications/${id}`, {
         withCredentials: true,
       });
-
       setNotifications(prev => prev.filter(notif => notif._id !== id));
     } catch (error) {
       console.error('Error clearing notification:', error);
     }
   }, []);
 
-  // ✅ Clear all notifications
   const clearAll = useCallback(async () => {
     try {
       await axios.delete(`${VITE_API_URL}/api/notifications/clear-all`, {
         withCredentials: true,
       });
-
       setNotifications([]);
     } catch (error) {
       console.error('Error clearing all notifications:', error);

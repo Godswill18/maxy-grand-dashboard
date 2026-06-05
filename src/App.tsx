@@ -293,8 +293,7 @@ const RoleProtectedRoute = ({ allowedRoles }: { allowedRoles: string[] }) => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      {/* ✅ Wrap with NotificationProvider */}
-      {/* <NotificationProvider> */}
+      <NotificationProvider>
         <Toaster />
         <Sonner position="top-center" />
         <BrowserRouter>
@@ -432,8 +431,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-      {/* </NotificationProvider> */}
-      {/* ✅ End NotificationProvider */}
+      </NotificationProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

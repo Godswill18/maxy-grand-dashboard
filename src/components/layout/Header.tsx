@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { Moon, Sun, Menu, LogOut, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/NotificationBell";
 import { useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { getProfileRoute } from "@/components/utils/GetprofileRoute";
@@ -82,7 +83,7 @@ export function Header({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* <NotificationBell /> */}
+          <NotificationBell />
           <Button
             variant="ghost"
             size="icon"
