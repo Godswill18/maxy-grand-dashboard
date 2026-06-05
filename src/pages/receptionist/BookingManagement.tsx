@@ -489,9 +489,11 @@ export default function BookingManagement() {
   });
 
   const filteredBookings = hotelBookings.filter(booking =>
-    booking.guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    booking._id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    booking.guestEmail.toLowerCase().includes(searchQuery.toLowerCase())
+    booking.bookingStatus !== 'failed' && booking.bookingStatus !== 'pending' && booking.bookingStatus !== 'expired' && (
+      booking.guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      booking._id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      booking.guestEmail.toLowerCase().includes(searchQuery.toLowerCase())
+    )
   );
 
   const confirmed   = filteredBookings.filter(b => b.bookingStatus === "confirmed");

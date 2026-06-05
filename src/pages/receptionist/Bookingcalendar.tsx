@@ -55,8 +55,8 @@ const hotelBookings = bookings.filter(booking => {
     return false;
   });
 
-  // Convert bookings to calendar events
-  const events: BookingEvent[] = hotelBookings.map(booking => ({
+  // Convert bookings to calendar events (exclude failed bookings)
+  const events: BookingEvent[] = hotelBookings.filter(b => b.bookingStatus !== 'failed' && b.bookingStatus !== 'pending' && b.bookingStatus !== 'expired').map(booking => ({
     id: booking._id,
     title: booking.guestName,
     guestName: booking.guestName,

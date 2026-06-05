@@ -34,7 +34,6 @@ import {
 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, { bg: string; border: string; light: string }> = {
-  pending:       { bg: "#f59e0b", border: "#d97706", light: "bg-amber-50 border-amber-400" },
   confirmed:     { bg: "#22c55e", border: "#16a34a", light: "bg-green-50 border-green-400" },
   "checked-in":  { bg: "#3b82f6", border: "#2563eb", light: "bg-blue-50 border-blue-400" },
   "checked-out": { bg: "#9ca3af", border: "#6b7280", light: "bg-gray-50 border-gray-300" },
@@ -101,10 +100,11 @@ export default function BookingCalendar({ bookings }: BookingCalendarProps) {
 
   const bookingsForDay = useMemo(() => {
     const map = new Map<string, { booking: any; isStart: boolean; isEnd: boolean }[]>();
+    const visibleBookings = bookings.filter((b: any) => b.bookingStatus !== 'failed' && b.bookingStatus !== 'pending' && b.bookingStatus !== 'expired');
     calendarDays.forEach((day) => {
       const key = day.toDateString();
       const entries: { booking: any; isStart: boolean; isEnd: boolean }[] = [];
-      bookings.forEach((b) => {
+      visibleBookings.forEach((b) => {
         const { isActive, isStart, isEnd } = getBookingDayInfo(b, day);
         if (isActive) entries.push({ booking: b, isStart, isEnd });
       });

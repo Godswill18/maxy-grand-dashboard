@@ -8,7 +8,6 @@ import { useBookingStore } from "@/store/useBookingStore";
 import { useAuthStore } from "@/store/useAuthStore";
 
 const STATUS_BADGE: Record<string, string> = {
-  pending:       "bg-amber-100  text-amber-700  border border-amber-200",
   confirmed:     "bg-green-100  text-green-700  border border-green-200",
   "checked-in":  "bg-blue-100   text-blue-700   border border-blue-200",
   "checked-out": "bg-gray-100   text-gray-600   border border-gray-200",
@@ -72,7 +71,7 @@ export default function BookingCalendarPage() {
       {/* Calendar */}
       <Card>
         <CardContent className="p-4">
-          <BookingCalendar bookings={bookings} />
+          <BookingCalendar bookings={bookings.filter(b => b.bookingStatus !== 'failed' && b.bookingStatus !== 'pending' && b.bookingStatus !== 'expired')} />
         </CardContent>
       </Card>
     </div>

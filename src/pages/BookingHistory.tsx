@@ -204,7 +204,7 @@ export default function BookingHistory() {
         !dateRange?.from ||
         (cin >= dateRange.from && (!dateRange.to || cin <= dateRange.to));
 
-      return matchesSearch && matchesStatus && matchesDate;
+      return matchesSearch && matchesStatus && matchesDate && b.bookingStatus !== 'failed' && b.bookingStatus !== 'pending' && b.bookingStatus !== 'expired';
     });
   }, [bookings, search, statusFilter, dateRange]);
 

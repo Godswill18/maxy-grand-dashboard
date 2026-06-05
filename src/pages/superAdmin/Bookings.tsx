@@ -139,20 +139,24 @@ export default function Bookings() {
     setCurrentPage(1);
   }, [searchQuery, dateRange, statusFilter]);
 
-  const stats = useMemo(
-    () => ({
-      total:      bookings.length,
-      pending:    bookings.filter((b) => b.bookingStatus === "pending").length,
-      confirmed:  bookings.filter((b) => b.bookingStatus === "confirmed").length,
-      checkedIn:  bookings.filter((b) => b.bookingStatus === "checked-in").length,
-      checkedOut: bookings.filter((b) => b.bookingStatus === "checked-out").length,
-      cancelled:  bookings.filter((b) => b.bookingStatus === "cancelled").length,
-    }),
+  const baseFiltered = useMemo(
+    () => bookings.filter((b) => b.bookingStatus !== 'failed' && b.bookingStatus !== 'pending' && b.bookingStatus !== 'expired'),
     [bookings]
   );
 
+  const stats = useMemo(
+    () => ({
+      total:      baseFiltered.length,
+      confirmed:  baseFiltered.filter((b) => b.bookingStatus === "confirmed").length,
+      checkedIn:  baseFiltered.filter((b) => b.bookingStatus === "checked-in").length,
+      checkedOut: baseFiltered.filter((b) => b.bookingStatus === "checked-out").length,
+      cancelled:  baseFiltered.filter((b) => b.bookingStatus === "cancelled").length,
+    }),
+    [baseFiltered]
+  );
+
   const filteredBookings = useMemo(() => {
-    let filtered = [...bookings];
+    let filtered = baseFiltered;
 
     if (statusFilter) {
       filtered = filtered.filter((b) => b.bookingStatus === statusFilter);
@@ -178,7 +182,7 @@ export default function Bookings() {
 
     filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return filtered;
-  }, [bookings, statusFilter, searchQuery, dateRange]);
+  }, [baseFiltered, statusFilter, searchQuery, dateRange]);
 
   const totalPages = Math.ceil(filteredBookings.length / PAGE_SIZE);
   const paginatedBookings = useMemo(
@@ -209,7 +213,6 @@ export default function Bookings() {
 
   const statCards = [
     { label: "Total",       value: stats.total,      color: "text-foreground",  filter: null },
-    { label: "Pending",     value: stats.pending,    color: "text-amber-600",   filter: "pending" },
     { label: "Confirmed",   value: stats.confirmed,  color: "text-green-600",   filter: "confirmed" },
     { label: "Checked In",  value: stats.checkedIn,  color: "text-blue-600",    filter: "checked-in" },
     { label: "Checked Out", value: stats.checkedOut, color: "text-gray-500",    filter: "checked-out" },
