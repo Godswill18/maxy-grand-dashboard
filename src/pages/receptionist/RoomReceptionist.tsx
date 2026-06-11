@@ -710,7 +710,7 @@ function ReassignRoomDialog({ currentRoom, availableRooms, onReassign, open, onO
 
 // Main Component
 export default function RoomReceptionist() {
-  const { rooms, isLoading, error, fetchRooms, updateRoomStatus } = useRecepRoomStore();
+  const { rooms, isLoading, error, fetchRooms, updateRoomStatus, initSocketListeners, closeSocketListeners } = useRecepRoomStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -720,11 +720,14 @@ export default function RoomReceptionist() {
 
   useEffect(() => {
     fetchRooms();
-    
-    // Refresh every 30 seconds for real-time updates
-    const interval = setInterval(fetchRooms, 30000);
-    return () => clearInterval(interval);
-  }, [fetchRooms]);
+    initSocketListeners();
+    // 60-second fallback poll in case a socket event is missed
+    const interval = setInterval(fetchRooms, 60000);
+    return () => {
+      clearInterval(interval);
+      closeSocketListeners();
+    };
+  }, [fetchRooms, initSocketListeners, closeSocketListeners]);
 
   // ✅ Professional Color Scheme Function - DEEPER COLORS
   const getRoomCardStyle = (room: ReceptionistRoom) => {

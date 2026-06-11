@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
+import { socket } from '@/lib/socket';
 
 // Define the API base URL (consistent with useAuthStore)
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
@@ -49,6 +50,8 @@ interface RoomState {
   fetchRooms: () => Promise<void>;
   checkIn: (bookingId: string, confirmationCode: string) => Promise<{ success: boolean }>;
   updateRoomStatus: (roomId: string, newStatus: string) => Promise<void>;
+  initSocketListeners: () => void;
+  closeSocketListeners: () => void;
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
@@ -141,7 +144,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       }
 
       toast.success(`Room status updated to ${newStatus}`);
-      
+
       // Refresh the room list
       await get().fetchRooms();
     } catch (error) {
@@ -149,5 +152,26 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       toast.error(message);
       throw error;
     }
+  },
+
+  /**
+   * Subscribe to socket events that affect room availability/status.
+   * Call on component mount; pair with closeSocketListeners on unmount.
+   */
+  initSocketListeners: () => {
+    const refresh = () => get().fetchRooms();
+    socket.on('bookingCreated', refresh);
+    socket.on('bookingUpdated', refresh);
+    socket.on('bookingDeleted', refresh);
+    socket.on('holdCreated',    refresh);
+    socket.on('holdCancelled',  refresh);
+    socket.on('holdExpired',    refresh);
+    socket.on('roomUpdated',    refresh);
+  },
+
+  closeSocketListeners: () => {
+    const events = ['bookingCreated', 'bookingUpdated', 'bookingDeleted',
+                    'holdCreated', 'holdCancelled', 'holdExpired', 'roomUpdated'];
+    events.forEach(ev => socket.off(ev));
   },
 }));
