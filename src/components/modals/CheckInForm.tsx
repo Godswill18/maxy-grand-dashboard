@@ -266,7 +266,7 @@ export default function CheckInForm({
                   setVerificationError('');
                 }}
                 disabled={isLoading}
-                maxLength={10}
+                maxLength={13}
               />
               <p className="text-xs text-muted-foreground">
                 The confirmation code was sent to the guest's email when booking
