@@ -17,6 +17,7 @@ import { Link } from "react-router-dom";
 import { useBranchStore } from "../../store/useBranchStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { toast } from "sonner";
+import { resolveImageUrl } from "@/lib/utils";
 
 const statusColors: Record<string, string> = {
   // ── Spec-aligned ────────────────────────────────────────────────────────
@@ -45,9 +46,6 @@ const statusLabels: Record<string, string> = {
   cleaning:                "Cleaning Required",
   'out-of-service':        "Out of Service",
 };
-
-const _imgBase = (import.meta as any).env?.VITE_BACKEND_IMAGE_URL ?? 'http://localhost:5000';
-const VITE_BACKEND_IMAGE_URL = _imgBase.endsWith('/') ? _imgBase : `${_imgBase}/`;
 
 const StatCardSkeleton = () => (
   <Card>
@@ -530,7 +528,7 @@ export default function Rooms() {
                     <CardContent className="p-6">
                       {room.images?.length > 0 ? (
                         <img 
-                          src={`${VITE_BACKEND_IMAGE_URL}${room.images[0]}`}
+                          src={resolveImageUrl(room.images[0])}
                           alt={room.name} 
                           className="h-48 w-full object-cover rounded-md mb-4"
                         />

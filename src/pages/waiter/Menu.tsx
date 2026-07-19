@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { resolveImageUrl } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -210,9 +211,7 @@ export default function Menu() {
         item.description?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const VITE_BACKEND_IMAGE_URL = (import.meta as any).env?.VITE_BACKEND_IMAGE_URL ?? 'http://localhost:5000';
-  const imgUrl = (path: string) =>
-    `${VITE_BACKEND_IMAGE_URL.replace(/\/$/, '')}/${path.replace(/\\/g, '/')}`;
+  const imgUrl = (path: string) => resolveImageUrl(path.replace(/\\/g, '/'));
 
   // Derived state for cart and category counts
   const cartMap = new Map(currentOrder.map((item) => [item.menuItemId, item]));

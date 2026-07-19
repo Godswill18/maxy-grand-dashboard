@@ -266,12 +266,12 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       useRoomStore.getState().fetchRoomsAdmin();
       return { success: true };
     } catch (err) {
-      const error = err as AxiosError;
-      set({ error: error.message, isLoading: false });
+      const error = err as AxiosError<any>;
+      set({ error: error.response?.data?.error || error.message, isLoading: false });
       return { success: false };
     }
   },
-  
+
   // --- 👇 NEW FUNCTION IMPLEMENTATION ---
   
   // --- ADD IMAGES TO ROOM ---

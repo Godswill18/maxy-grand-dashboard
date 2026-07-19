@@ -37,11 +37,7 @@ import { toast } from 'sonner';
 import { formatMoney } from '@/components/utils/formatMoney';
 import { EditRoomModal } from '@/components/modals/EditRoomModal';
 import { useAuthStore } from '@/store/useAuthStore';
-
-const IMG_BASE = (() => {
-  const b = import.meta.env.VITE_BACKEND_IMAGE_URL ?? 'http://localhost:5000';
-  return b.endsWith('/') ? b : `${b}/`;
-})();
+import { resolveImageUrl } from '@/lib/utils';
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   available:              { label: 'Available',            className: 'bg-green-100 text-green-700 border-green-300' },
@@ -160,7 +156,7 @@ export default function RoomDetailPage() {
           {heroImage ? (
             <div className="w-full h-80 md:h-[440px] rounded-xl overflow-hidden">
               <img
-                src={`${IMG_BASE}${heroImage}`}
+                src={resolveImageUrl(heroImage)}
                 alt={`${currentRoom.name} — main`}
                 className="w-full h-full object-cover"
               />
@@ -178,7 +174,7 @@ export default function RoomDetailPage() {
               {thumbImages.slice(0, 3).map((img, i) => (
                 <div key={i} className="h-40 rounded-lg overflow-hidden">
                   <img
-                    src={`${IMG_BASE}${img}`}
+                    src={resolveImageUrl(img)}
                     alt={`${currentRoom.name} image ${i + 2}`}
                     className="w-full h-full object-cover"
                   />
@@ -360,7 +356,7 @@ export default function RoomDetailPage() {
                   {images.map((imagePath) => (
                     <div key={imagePath} className="relative group rounded-lg overflow-hidden border border-border">
                       <img
-                        src={`${IMG_BASE}${imagePath}`}
+                        src={resolveImageUrl(imagePath)}
                         alt={currentRoom.name}
                         className="w-full h-28 object-cover"
                       />

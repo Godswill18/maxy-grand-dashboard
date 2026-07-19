@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useGalleryStore } from '@/store/useGalleryStore';
+import { resolveImageUrl } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -585,7 +586,7 @@ const GalleryManagement = () => {
                   {/* Image */}
                   <div className="aspect-[4/3] overflow-hidden bg-slate-100">
                     <img
-                      src={`${(import.meta as any).env?.VITE_BACKEND_IMAGE_URL}${image.images[0]}` || 'https://via.placeholder.com/400x300?text=No+Image'}
+                      src={resolveImageUrl(image.images[0], 'https://via.placeholder.com/400x300?text=No+Image')}
                       alt={image.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       onError={(e) => {
