@@ -19,7 +19,7 @@ import { useBookingStore } from "@/store/useBookingStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import BookingManagementSkeleton from "../../components/skeleton/BookingManagementSkeleton";
 import BookGuestForm from "@/components/BookGuestForm";
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const STATUS_ROW: Record<string, string> = {
@@ -88,6 +88,7 @@ export default function BookingManagement() {
   const { bookings, isLoading, fetchBookings, updateBooking, cancelBooking, initSocketListeners, closeSocketListeners } = useBookingStore();
   const { checkInWithRegistration } = useCheckInStore();
   const { user } = useAuthStore();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isBookDialogOpen, setIsBookDialogOpen] = useState(false);
@@ -310,6 +311,21 @@ export default function BookingManagement() {
     setViewingBooking(booking);
     setIsViewDetailsOpen(true);
   };
+
+  // Deep-link support: clicking a "New Room Booking" notification lands here
+  // with ?bookingId=<id> — auto-open that booking's details once it's loaded.
+  useEffect(() => {
+    const bookingId = searchParams.get('bookingId');
+    if (!bookingId || bookings.length === 0) return;
+
+    const match = bookings.find((b: any) => b._id === bookingId);
+    if (match) {
+      handleViewDetails(match);
+      const next = new URLSearchParams(searchParams);
+      next.delete('bookingId');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, bookings]);
 
   const handleEdit = (booking: any) => {
     setEditingBookingId(booking._id);

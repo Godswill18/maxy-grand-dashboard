@@ -15,6 +15,7 @@ export const roleRoutes: Record<string, Record<string, string>> = {
     profileUpdate: '/profile/update',
     changePassword: '/profile/change-password',
     settings: '/settings',
+    notifications: '/notifications',
   },
   waiter: {
     dashboard: '/waiter',
@@ -22,6 +23,7 @@ export const roleRoutes: Record<string, Record<string, string>> = {
     profileUpdate: '/waiter/profile/update',
     changePassword: '/waiter/profile/change-password',
     settings: '/waiter/settings',
+    notifications: '/waiter/notifications',
   },
   headWaiter: {
     dashboard: '/waiter',
@@ -29,6 +31,7 @@ export const roleRoutes: Record<string, Record<string, string>> = {
     profileUpdate: '/waiter/profile/update',
     changePassword: '/waiter/profile/change-password',
     settings: '/waiter/settings',
+    notifications: '/waiter/notifications',
   },
   admin: {
     dashboard: '/manager',
@@ -36,6 +39,7 @@ export const roleRoutes: Record<string, Record<string, string>> = {
     profileUpdate: '/manager/profile/update',
     changePassword: '/manager/profile/change-password',
     settings: '/manager/settings',
+    notifications: '/manager/notifications',
   },
   cleaner: {
     dashboard: '/cleaner',
@@ -43,6 +47,7 @@ export const roleRoutes: Record<string, Record<string, string>> = {
     profileUpdate: '/cleaner/profile/update',
     changePassword: '/cleaner/profile/change-password',
     settings: '/cleaner/settings',
+    notifications: '/cleaner/notifications',
   },
   receptionist: {
     dashboard: '/receptionist',
@@ -50,6 +55,7 @@ export const roleRoutes: Record<string, Record<string, string>> = {
     profileUpdate: '/receptionist/profile/update',
     changePassword: '/receptionist/profile/change-password',
     settings: '/receptionist/settings',
+    notifications: '/receptionist/notifications',
   },
 };
 
@@ -66,7 +72,8 @@ export const getRoleRoute = (
     | 'profile'
     | 'profileUpdate'
     | 'changePassword'
-    | 'settings' = 'profile'
+    | 'settings'
+    | 'notifications' = 'profile'
 ): string => {
   const routes = roleRoutes[role];
   if (!routes) {
@@ -118,4 +125,13 @@ export const getSettingsRoute = (role: string): string => {
  */
 export const getDashboardRoute = (role: string): string => {
   return getRoleRoute(role, 'dashboard');
+};
+
+/**
+ * Get the full notification-center page route for a role
+ * @param role - The user's role
+ * @returns Notifications page route
+ */
+export const getNotificationsRoute = (role: string): string => {
+  return getRoleRoute(role, 'notifications');
 };

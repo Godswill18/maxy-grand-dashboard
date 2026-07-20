@@ -11,8 +11,10 @@ import { DashboardLayout } from "./components/DashboardLayout";
 import { useAuthStore } from "./store/useAuthStore";
 // ✅ Import force logout hook
 import { useForceLogout } from "./store/useForceLogout";
-// ✅ Import NotificationProvider
-import { NotificationProvider } from "./contexts/NotificationContext";
+// ✅ Notification socket + toasts/sound (Zustand store, not a Context — connects once here)
+import { useNotificationSocket } from "./store/useNotificationStore";
+import { useNotificationToastsAndSound } from "./store/useNotificationToastsAndSound";
+import { useAudioUnlock } from "./lib/notificationSound";
 
 // Import the navigation arrays
 import {
@@ -82,6 +84,7 @@ import ManagerAnnouncements from "./pages/manager/Announcements";
 import HelpPage from "./pages/HelpPage";
 import BookingHistory from "./pages/BookingHistory";
 import RestaurantOrders from "./pages/superAdmin/RestaurantOrders";
+import Notifications from "./pages/Notifications";
 
 const queryClient = new QueryClient();
 
@@ -154,6 +157,11 @@ const STAFF_ROLES = ['receptionist', 'cleaner', 'waiter', 'headWaiter'];
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   // ✅ Primary: Socket listener — reacts instantly when cron/admin emits force:logout
   useForceLogout();
+
+  // ✅ Connects once to the authenticated /notifications namespace, and drives
+  // the toast + sound side effects for every incoming notification.
+  useNotificationSocket();
+  useNotificationToastsAndSound();
 
   const { user, getMe } = useAuthStore();
   const navigate = useNavigate();
@@ -290,10 +298,15 @@ const RoleProtectedRoute = ({ allowedRoles }: { allowedRoles: string[] }) => {
   return <Navigate to="/" replace />;
 };
 
-const App = () => (
+const App = () => {
+  // Unlocks the Web Audio context on the first user gesture anywhere in the
+  // app — browsers block audio playback before that, so notification sounds
+  // would otherwise silently fail.
+  useAudioUnlock();
+
+  return (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <NotificationProvider>
         <Toaster />
         <Sonner position="top-center" />
         <BrowserRouter>
@@ -338,6 +351,7 @@ const App = () => (
                 <Route path="/room-categories" element={<CategoryManagement />} />
                 <Route path="/restaurant-orders" element={<RestaurantOrders />} />
                 <Route path="/announcements" element={<Announcements />} />
+                <Route path="/notifications" element={<Notifications />} />
                 <Route path="/help" element={<HelpPage />} />
                 <Route path="/profile" element={<StaffProfile/>}/>
                 <Route path="/profile/update" element={<ProfileUpdate/>}/>
@@ -356,6 +370,7 @@ const App = () => (
                 <Route path="/waiter/reservations" element={<Reservations />} />
                 <Route path="/waiter/performance" element={<TipsPerformance />} />
                 <Route path="/waiter/my-shift" element={<MySchedule />} />
+                <Route path="/waiter/notifications" element={<Notifications />} />
                 <Route path="/waiter/help" element={<HelpPage />} />
                 <Route path="/waiter/profile" element={<StaffProfile/>}/>
                 <Route path="/waiter/profile/update" element={<ProfileUpdate/>}/>
@@ -381,6 +396,7 @@ const App = () => (
                 <Route path="/manager/orders" element={<Restaurant />} />
                 <Route path="/manager/reviews" element={<Reviews />} />
                 <Route path="/manager/announcements" element={<ManagerAnnouncements />} />
+                <Route path="/manager/notifications" element={<Notifications />} />
                 <Route path="/manager/help" element={<HelpPage />} />
                 {/* <Route path="/manager/transactions" element={<Transactions />} /> */}
                 <Route path="/manager/rooms" element={<RoomReceptionist />} />
@@ -399,6 +415,7 @@ const App = () => (
                 <Route path="/cleaner/history" element={<TaskHistory />} />
                 <Route path="/cleaner/performance" element={<CleanerPerformance />} />
                 <Route path="/cleaner/my-shift" element={<MySchedule />} />
+                <Route path="/cleaner/notifications" element={<Notifications />} />
                 <Route path="/cleaner/help" element={<HelpPage />} />
                 <Route path="/cleaner/profile" element={<StaffProfile/>}/>
                 <Route path="/cleaner/profile/update" element={<ProfileUpdate/>}/>
@@ -417,6 +434,7 @@ const App = () => (
                 <Route path="/receptionist/booking-history" element={<BookingHistory />} />
                 <Route path="/receptionist/my-shift" element={<MySchedule />} />
                 <Route path="/receptionist/payments" element={<PaymentProcessing />} />
+                <Route path="/receptionist/notifications" element={<Notifications />} />
                 <Route path="/receptionist/help" element={<HelpPage />} />
                 <Route path="/receptionist/profile" element={<StaffProfile/>}/>
                 <Route path="/receptionist/profile/update" element={<ProfileUpdate/>}/>
@@ -431,9 +449,9 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-      </NotificationProvider>
     </TooltipProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;

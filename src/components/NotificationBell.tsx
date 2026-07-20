@@ -1,7 +1,12 @@
 // ✅ UPDATED: NotificationBell.tsx with enhanced features
 
-import { Bell, Check, Trash2, X, Wifi, WifiOff } from 'lucide-react';
-import { useNotifications } from '@/contexts/NotificationContext';
+import { Bell, Check, X, WifiOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useNotifications } from '@/store/useNotificationStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { getNotificationRoute } from '@/components/utils/getNotificationRoute';
+import { getNotificationsRoute } from '@/components/utils/GetprofileRoute';
+import { notificationIcons, priorityColors } from '@/lib/notificationIcons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -15,37 +20,28 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-const notificationIcons: Record<string, string> = {
-  booking: '📅',
-  checkin: '🔑',
-  checkout: '👋',
-  cleaning_task: '🧹',
-  cleaning_completed: '✨',
-  payment: '💳',
-  order: '🍽️',
-  order_ready: '✅',
-  request: '🔧',
-  request_completed: '🎉',
-  shift: '⏰',
-  general: '📢',
-};
-
-const priorityColors: Record<string, string> = {
-  low: 'text-blue-500',
-  medium: 'text-yellow-500',
-  high: 'text-orange-500',
-  urgent: 'text-red-500',
-};
-
 export const NotificationBell = () => {
-  const { 
-    notifications, 
-    unreadCount, 
+  const {
+    notifications,
+    unreadCount,
     isConnected,
-    markAsRead, 
-    markAllAsRead, 
-    clearNotification 
+    markAsRead,
+    markAllAsRead,
+    clearNotification
   } = useNotifications();
+  const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+
+  // Dropdown is a quick-glance preview; the full list/filter/search lives on
+  // the dedicated notification-center page (see Notifications.tsx).
+  const recent = notifications.slice(0, 5);
+
+  const handleItemClick = (notification: (typeof notifications)[number]) => {
+    if (!notification.read) markAsRead(notification._id);
+    if (!user) return;
+    const route = getNotificationRoute(user.role, notification.relatedEntityType, notification.relatedEntityId);
+    if (route) navigate(route);
+  };
 
   return (
     <DropdownMenu>
@@ -70,7 +66,7 @@ export const NotificationBell = () => {
           />
         </Button>
       </DropdownMenuTrigger>
-      
+
       <DropdownMenuContent align="end" className="w-80">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-2">
@@ -81,9 +77,9 @@ export const NotificationBell = () => {
             )}
           </div>
           {unreadCount > 0 && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={markAllAsRead}
               className="text-xs"
             >
@@ -92,31 +88,31 @@ export const NotificationBell = () => {
             </Button>
           )}
         </div>
-        
+
         <DropdownMenuSeparator />
-        
+
         {/* Notifications List */}
         <ScrollArea className="h-[400px]">
-          {notifications.length === 0 ? (
+          {recent.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
               <Bell className="h-12 w-12 mb-2 opacity-20" />
               <p className="text-sm">No notifications</p>
             </div>
           ) : (
-            notifications.map((notification) => (
+            recent.map((notification) => (
               <DropdownMenuItem
                 key={notification._id}
                 className={cn(
                   "flex gap-3 p-4 cursor-pointer transition-colors",
                   !notification.read && "bg-primary/5 hover:bg-primary/10"
                 )}
-                onClick={() => !notification.read && markAsRead(notification._id)}
+                onClick={() => handleItemClick(notification)}
               >
                 {/* Icon */}
                 <div className="text-2xl flex-shrink-0">
                   {notificationIcons[notification.type] || '📢'}
                 </div>
-                
+
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
@@ -136,16 +132,16 @@ export const NotificationBell = () => {
                       </span>
                     )}
                   </div>
-                  
+
                   <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
                     {notification.message}
                   </p>
-                  
+
                   <p className="text-xs text-muted-foreground mt-1">
                     {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
                   </p>
                 </div>
-                
+
                 {/* Delete button */}
                 <Button
                   variant="ghost"
@@ -162,7 +158,7 @@ export const NotificationBell = () => {
             ))
           )}
         </ScrollArea>
-        
+
         {/* Footer */}
         {notifications.length > 0 && (
           <>
@@ -172,10 +168,7 @@ export const NotificationBell = () => {
                 variant="ghost"
                 size="sm"
                 className="w-full text-xs"
-                onClick={() => {
-                  // Navigate to notifications page if you have one
-                  // window.location.href = '/notifications';
-                }}
+                onClick={() => user && navigate(getNotificationsRoute(user.role))}
               >
                 View all notifications
               </Button>

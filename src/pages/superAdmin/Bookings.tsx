@@ -1,5 +1,6 @@
 // src/pages/superAdmin/Bookings.tsx
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -109,6 +110,7 @@ export default function Bookings() {
   const { user } = useAuthStore();
   const role = user?.role;
   const defaultHotelId = user?.hotelId;
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -200,6 +202,21 @@ export default function Bookings() {
     setDetailBooking(booking);
     setDetailOpen(true);
   };
+
+  // Deep-link support: clicking a "New Room Booking" notification lands here
+  // with ?bookingId=<id> — auto-open that booking's detail panel once loaded.
+  useEffect(() => {
+    const bookingId = searchParams.get('bookingId');
+    if (!bookingId || bookings.length === 0) return;
+
+    const match = bookings.find((b: any) => b._id === bookingId);
+    if (match) {
+      openDetail(match);
+      const next = new URLSearchParams(searchParams);
+      next.delete('bookingId');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, bookings]);
 
   if (role !== "superadmin" && !defaultHotelId) {
     return (
