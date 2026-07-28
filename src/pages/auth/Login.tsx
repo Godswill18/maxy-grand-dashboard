@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Hotel, Mail, Lock, Loader2, ShieldAlert, Clock } from "lucide-react";
+import { Mail, Lock, Loader2, ShieldAlert, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "../../store/useAuthStore"; // Import the store
 
@@ -93,17 +93,14 @@ export default function Login() {
 
           <div className="flex justify-center">
 
-            <div className="p-3 bg-primary/10 rounded-lg">
-
-              <Hotel className="h-12 w-12 text-primary" />
-
-            </div>
+            <img src="/mxlogo-black.png" alt="Maxy Grand Hotel" className="h-36 w-auto" />
 
           </div>
 
-          <CardTitle className="text-3xl font-bold">Maxy Grand Hotel</CardTitle>
+          {/* <CardTitle className="text-3xl font-bold">Maxy Grand Hotel</CardTitle> */}
 
-          <CardDescription>Sign in to access your dashboard</CardDescription>
+          <CardDescription>Sign in to access your dashboard</CardDescription> 
+          <CardDescription className="text-red-600">Staffs Only</CardDescription> 
 
         </CardHeader>
         <CardContent>
