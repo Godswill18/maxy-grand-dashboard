@@ -3,6 +3,7 @@ import axios, { AxiosError } from 'axios';
 
 export interface Category {
     _id: string;
+    hotelId: string | { _id: string; name: string };
     name: string;
     slug: string;
     description: string;
@@ -18,7 +19,7 @@ interface CategoryState {
     error: string | null;
     fetchCategories: () => Promise<void>;
     fetchCategoriesAdmin: () => Promise<void>;
-    createCategory: (data: { name: string; description?: string }) => Promise<{ success: boolean; error?: string }>;
+    createCategory: (data: { name: string; description?: string; hotelId?: string }) => Promise<{ success: boolean; error?: string }>;
     updateCategory: (id: string, data: Partial<Pick<Category, 'name' | 'description' | 'isActive'>>) => Promise<{ success: boolean; error?: string }>;
     deleteCategory: (id: string, reassignTo?: string) => Promise<{ success: boolean; error?: string }>;
 }

@@ -394,6 +394,7 @@ const App = () => {
                 <Route path="/manager/rooms-type/:id" element={<RoomDetailPage />} />
                 <Route path="/manager/room-types-v2" element={<RoomTypes />} />
                 <Route path="/manager/room-types-v2/:id" element={<RoomTypeDetails />} />
+                <Route path="/manager/room-categories" element={<CategoryManagement />} />
                 <Route path="/manager/operations" element={<Operations />} />
                 <Route path="/manager/house-keeping" element={<Housekeeping />} />
                 <Route path="/manager/bookings" element={<BookingManagement />} />

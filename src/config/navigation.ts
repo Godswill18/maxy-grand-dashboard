@@ -91,6 +91,7 @@ export const managerNav: NavItem[] = [
   { name: "Requests", href: "/manager/requests", icon: FileText },
   { name: "Room Type", href: "/manager/rooms-type", icon: Bed },
   { name: "Room Types (New)", href: "/manager/room-types-v2", icon: BedDouble },
+  { name: "Room Categories", href: "/manager/room-categories", icon: Tag },
   { name: "Rooms", href: "/manager/rooms", icon: BedDouble },
   { name: "Bookings", href: "/manager/bookings", icon: Calendar },
   { name: "Booking Calendar", href: "/manager/booking-calendar", icon: Calendar1Icon },

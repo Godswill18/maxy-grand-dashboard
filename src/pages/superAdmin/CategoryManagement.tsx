@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+// Room Categories management. Used by both superadmin (/room-categories) and
+// manager (/manager/room-categories), same pattern as RoomTypes.tsx.
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +39,7 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Tag, BedDouble } from "lucide-react";
 import { useCategoryStore, type Category } from "@/store/useCategoryStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useBranchStore } from "@/store/useBranchStore";
 
 // ── Form Dialog (Create / Edit) ──────────────────────────────────────────────
 interface CategoryFormDialogProps {
@@ -47,29 +50,51 @@ interface CategoryFormDialogProps {
 
 function CategoryFormDialog({ isOpen, onClose, category }: CategoryFormDialogProps) {
     const { createCategory, updateCategory } = useCategoryStore();
+    const { branches, fetchBranches, isLoading: isBranchesLoading } = useBranchStore();
+    const { user } = useAuthStore();
+    const isAdmin = user?.role === "admin";
+    const isSuperAdmin = user?.role === "superadmin";
+
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [isActive, setIsActive] = useState(true);
+    const [hotelId, setHotelId] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const isEditing = !!category;
+
+    useEffect(() => {
+        fetchBranches();
+    }, [fetchBranches]);
 
     useEffect(() => {
         if (isOpen) {
             setName(category?.name ?? "");
             setDescription(category?.description ?? "");
             setIsActive(category?.isActive ?? true);
+            if (isAdmin && user?.hotelId) {
+                setHotelId(user.hotelId);
+            } else {
+                const existingHotelId = category?.hotelId
+                    ? (typeof category.hotelId === "object" ? category.hotelId._id : category.hotelId)
+                    : "";
+                setHotelId(existingHotelId);
+            }
         }
-    }, [isOpen, category]);
+    }, [isOpen, category, isAdmin, user?.hotelId]);
 
     const handleSubmit = async () => {
         if (!name.trim()) {
             toast.error("Category name is required");
             return;
         }
+        if (!isEditing && !hotelId) {
+            toast.error("A hotel branch is required");
+            return;
+        }
         setIsSubmitting(true);
         const result = isEditing
             ? await updateCategory(category!._id, { name, description, isActive })
-            : await createCategory({ name, description });
+            : await createCategory({ name, description, hotelId });
 
         if (result.success) {
             toast.success(isEditing ? "Category updated" : "Category created");
@@ -102,6 +127,29 @@ function CategoryFormDialog({ isOpen, onClose, category }: CategoryFormDialogPro
                             onChange={(e) => setName(e.target.value)}
                         />
                     </div>
+                    {!isEditing && (
+                        <div className="space-y-1">
+                            <Label htmlFor="cat-branch">Hotel Branch *</Label>
+                            <Select
+                                disabled={isAdmin}
+                                onValueChange={setHotelId}
+                                value={hotelId}
+                            >
+                                <SelectTrigger id="cat-branch" className={isAdmin ? "opacity-70 cursor-not-allowed bg-muted" : ""}>
+                                    <SelectValue placeholder={isBranchesLoading ? "Loading branches..." : "Select a hotel branch"} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {branches
+                                        .filter((branch) => isSuperAdmin || (isAdmin && branch._id === user?.hotelId))
+                                        .map((branch) => (
+                                            <SelectItem key={branch._id} value={branch._id}>
+                                                {branch.name}
+                                            </SelectItem>
+                                        ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
                     <div className="space-y-1">
                         <Label htmlFor="cat-desc">Description</Label>
                         <Textarea
@@ -149,7 +197,16 @@ function DeleteCategoryDialog({ isOpen, category, allCategories, onClose }: Dele
     const [reassignTo, setReassignTo] = useState<string>("");
     const [isDeleting, setIsDeleting] = useState(false);
     const hasRooms = (category?.roomCount ?? 0) > 0;
-    const otherCategories = allCategories.filter((c) => c._id !== category?._id);
+    const categoryHotelId = category?.hotelId
+        ? (typeof category.hotelId === "object" ? category.hotelId._id : category.hotelId)
+        : null;
+    // Reassignment target must be in the same branch — the backend rejects
+    // cross-branch reassignment.
+    const otherCategories = allCategories.filter((c) => {
+        if (c._id === category?._id) return false;
+        const cHotelId = typeof c.hotelId === "object" ? c.hotelId._id : c.hotelId;
+        return cHotelId === categoryHotelId;
+    });
 
     useEffect(() => {
         if (isOpen) setReassignTo("");
@@ -220,16 +277,27 @@ function DeleteCategoryDialog({ isOpen, category, allCategories, onClose }: Dele
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function CategoryManagement() {
     const { categories, isLoading, fetchCategoriesAdmin } = useCategoryStore();
+    const { branches, fetchBranches, isLoading: isBranchesLoading } = useBranchStore();
     const { user } = useAuthStore();
     const isSuperAdmin = user?.role === "superadmin";
 
     const [formOpen, setFormOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<Category | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
+    const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
 
     useEffect(() => {
         fetchCategoriesAdmin();
-    }, [fetchCategoriesAdmin]);
+        if (isSuperAdmin) fetchBranches();
+    }, [fetchCategoriesAdmin, isSuperAdmin, fetchBranches]);
+
+    const filteredCategories = useMemo(() => {
+        if (!isSuperAdmin || !selectedBranchId) return categories;
+        return categories.filter((c) => {
+            const hotelId = typeof c.hotelId === "object" ? c.hotelId._id : c.hotelId;
+            return hotelId === selectedBranchId;
+        });
+    }, [categories, isSuperAdmin, selectedBranchId]);
 
     const openCreate = () => {
         setEditingCategory(null);
@@ -254,8 +322,8 @@ export default function CategoryManagement() {
         fetchCategoriesAdmin();
     };
 
-    const totalRooms = categories.reduce((sum, c) => sum + (c.roomCount ?? 0), 0);
-    const activeCount = categories.filter((c) => c.isActive).length;
+    const totalRooms = filteredCategories.reduce((sum, c) => sum + (c.roomCount ?? 0), 0);
+    const activeCount = filteredCategories.filter((c) => c.isActive).length;
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -273,10 +341,34 @@ export default function CategoryManagement() {
                 </Button>
             </div>
 
+            {isSuperAdmin && !isBranchesLoading && branches.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                    <Button
+                        variant={selectedBranchId === null ? "default" : "outline"}
+                        onClick={() => setSelectedBranchId(null)}
+                        className="rounded-full"
+                        size="sm"
+                    >
+                        All Branches
+                    </Button>
+                    {branches.map((branch) => (
+                        <Button
+                            key={branch._id}
+                            variant={selectedBranchId === branch._id ? "default" : "outline"}
+                            onClick={() => setSelectedBranchId(branch._id)}
+                            className="rounded-full"
+                            size="sm"
+                        >
+                            {branch.name}
+                        </Button>
+                    ))}
+                </div>
+            )}
+
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {[
-                    { label: "Total Categories", value: categories.length, color: "text-foreground", bg: "bg-muted",    border: "border-l-gray-400",  icon: <Tag      className="h-5 w-5 text-muted-foreground" /> },
+                    { label: "Total Categories", value: filteredCategories.length, color: "text-foreground", bg: "bg-muted",    border: "border-l-gray-400",  icon: <Tag      className="h-5 w-5 text-muted-foreground" /> },
                     { label: "Active",           value: activeCount,        color: "text-green-600", bg: "bg-green-50", border: "border-l-green-400", icon: <Tag      className="h-5 w-5 text-green-500" /> },
                     { label: "Rooms Assigned",   value: totalRooms,         color: "text-blue-600",  bg: "bg-blue-50",  border: "border-l-blue-400",  icon: <BedDouble className="h-5 w-5 text-blue-500" /> },
                 ].map((s) => (
@@ -320,7 +412,7 @@ export default function CategoryManagement() {
                                 </div>
                             ))}
                         </div>
-                    ) : categories.length === 0 ? (
+                    ) : filteredCategories.length === 0 ? (
                         <Card className="border-dashed bg-muted/20">
                             <CardContent className="flex flex-col items-center justify-center py-14 text-center gap-3">
                                 <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
@@ -339,7 +431,7 @@ export default function CategoryManagement() {
                         </Card>
                     ) : (
                         <div className="space-y-2">
-                            {categories.map((cat) => (
+                            {filteredCategories.map((cat) => (
                                 <div
                                     key={cat._id}
                                     className={cn(
@@ -364,6 +456,11 @@ export default function CategoryManagement() {
                                                 >
                                                     {cat.isActive ? "Active" : "Inactive"}
                                                 </Badge>
+                                                {isSuperAdmin && (
+                                                    <Badge variant="outline" className="text-xs">
+                                                        {typeof cat.hotelId === "object" ? cat.hotelId.name : "Unknown Branch"}
+                                                    </Badge>
+                                                )}
                                             </div>
                                             {cat.description && (
                                                 <p className="text-sm text-muted-foreground mt-0.5">
