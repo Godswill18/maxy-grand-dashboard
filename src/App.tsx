@@ -67,6 +67,8 @@ import BookingManagement from "./pages/receptionist/BookingManagement";
 import BranchDetails from "./pages/superAdmin/BranchDetails";
 import Settings from "./pages/superAdmin/Settings";
 import RoomDetailPage from "./pages/superAdmin/RoomDetails";
+import RoomTypes from "./pages/superAdmin/RoomTypes";
+import RoomTypeDetails from "./pages/superAdmin/RoomTypeDetails";
 import Housekeeping from "./pages/manager/HouseKeeping";
 import Restaurant from "./pages/manager/Restaurant";
 import BookingCalendar from "./pages/receptionist/Bookingcalendar";
@@ -338,6 +340,8 @@ const App = () => {
                 <Route path="/branches/:id" element={<BranchDetails />} />
                 <Route path="/rooms" element={<Rooms />} />
                 <Route path="/rooms/:id" element={<RoomDetailPage />} />
+                <Route path="/room-types-v2" element={<RoomTypes />} />
+                <Route path="/room-types-v2/:id" element={<RoomTypeDetails />} />
                 <Route path="/bookings" element={<Bookings />} />
                 <Route path="/bookings/calendar" element={<BookingCalendarPage />} />
                 <Route path="/booking-history" element={<BookingHistory />} />
@@ -388,6 +392,8 @@ const App = () => {
                 <Route path="/manager/requests" element={<ManagerRequests />} />
                 <Route path="/manager/rooms-type" element={<Rooms />} />
                 <Route path="/manager/rooms-type/:id" element={<RoomDetailPage />} />
+                <Route path="/manager/room-types-v2" element={<RoomTypes />} />
+                <Route path="/manager/room-types-v2/:id" element={<RoomTypeDetails />} />
                 <Route path="/manager/operations" element={<Operations />} />
                 <Route path="/manager/house-keeping" element={<Housekeeping />} />
                 <Route path="/manager/bookings" element={<BookingManagement />} />
