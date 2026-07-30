@@ -12,10 +12,10 @@ interface Payment {
     checkInDate: string;
     checkOutDate: string;
     bookingType: string;
-    roomTypeId?: {
-      name: string;
-      roomNumber: string;
-    };
+    roomTypeId?: { name?: string; roomNumber?: string } | null;
+    roomId?: { roomNumber?: string } | null;
+    roomTypeV2Id?: { name: string; basePrice?: number } | null;
+    roomUnitId?: { roomNumber?: string } | null;
     totalAmount: number;
   };
   amount: number;

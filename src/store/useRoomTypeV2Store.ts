@@ -4,6 +4,7 @@
 // here touches the legacy /api/rooms/* endpoints.
 import { create } from 'zustand';
 import axios, { AxiosError } from 'axios';
+import { socket } from '../lib/socket';
 
 export interface RoomTypeV2 {
   _id: string;
@@ -26,14 +27,18 @@ export interface RoomTypeV2 {
 export interface RoomUnit {
   _id: string;
   hotelId: string;
-  roomTypeId: string;
+  roomTypeId: string | { _id: string; name: string; basePrice?: number };
   roomNumber: string;
   floor?: number;
-  status: 'ready' | 'occupied' | 'cleaning-required' | 'being-cleaned' | 'maintenance' | 'out-of-service';
+  status: 'available' | 'occupied' | 'cleaning' | 'maintenance';
   isActive: boolean;
   lastCleaned?: string;
   currentGuest?: string | null;
   currentBookingId?: string | null;
+  currentGuestName?: string | null;
+  checkOutAt?: string | null;
+  checkedInAt?: string | null;
+  maintenanceReason?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -42,7 +47,9 @@ interface RoomTypeV2State {
   roomTypes: RoomTypeV2[];
   currentRoomType: (RoomTypeV2 & { units?: RoomUnit[] }) | null;
   units: RoomUnit[];
+  unitsBoard: RoomUnit[];
   isLoading: boolean;
+  isBoardLoading: boolean;
   error: string | null;
   isCreateModalOpen: boolean;
   isAddUnitModalOpen: boolean;
@@ -65,9 +72,31 @@ interface RoomTypeV2State {
 
   addRoomUnit: (roomTypeId: string, data: { roomNumber: string; floor?: number }) => Promise<{ success: boolean; error?: string }>;
   updateRoomUnit: (unitId: string, data: Partial<Pick<RoomUnit, 'roomNumber' | 'floor' | 'isActive'>>) => Promise<{ success: boolean; error?: string }>;
-  updateRoomUnitStatus: (unitId: string, status: RoomUnit['status']) => Promise<{ success: boolean; error?: string }>;
+  updateRoomUnitStatus: (unitId: string, status: RoomUnit['status'], maintenanceReason?: string) => Promise<{ success: boolean; error?: string }>;
   deleteRoomUnit: (unitId: string) => Promise<{ success: boolean; error?: string }>;
+
+  // --- Rooms status board (hotel-wide, grouped client-side by category) ---
+  fetchUnitsBoard: (hotelId?: string) => Promise<void>;
+  checkInAndAssignRoom: (
+    bookingId: string,
+    unitId?: string,
+    guestDetails?: Record<string, any>,
+    preferences?: Record<string, any>
+  ) => Promise<{ success: boolean; data?: any; error?: string }>;
+  checkOutRoom: (bookingId: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+  reassignRoom: (
+    bookingId: string,
+    unitId: string,
+    reason: 'upgrade' | 'downgrade' | 'lateral' | 'other',
+    note?: string
+  ) => Promise<{ success: boolean; data?: any; error?: string }>;
+  initRoomUnitSocketListeners: () => void;
+  closeRoomUnitSocketListeners: () => void;
 }
+
+// Module-level handler ref so closeRoomUnitSocketListeners only removes THIS
+// store's handler (preserves other stores' listeners on the shared socket).
+let _rtuUpdatedHandler: ((unit: RoomUnit) => void) | null = null;
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
 const getToken = () => localStorage.getItem('token');
@@ -80,7 +109,9 @@ export const useRoomTypeV2Store = create<RoomTypeV2State>((set, get) => ({
   roomTypes: [],
   currentRoomType: null,
   units: [],
+  unitsBoard: [],
   isLoading: false,
+  isBoardLoading: false,
   error: null,
   isCreateModalOpen: false,
   isAddUnitModalOpen: false,
@@ -287,14 +318,17 @@ export const useRoomTypeV2Store = create<RoomTypeV2State>((set, get) => ({
     }
   },
 
-  updateRoomUnitStatus: async (unitId, status) => {
+  updateRoomUnitStatus: async (unitId, status, maintenanceReason) => {
     try {
-      const res = await axios.patch(`${VITE_API_URL}/api/room-types-v2/units/${unitId}/status`, { status }, {
+      const res = await axios.patch(`${VITE_API_URL}/api/room-types-v2/units/${unitId}/status`, { status, maintenanceReason }, {
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         withCredentials: true,
       });
       const updated = res.data.data as RoomUnit;
-      set((state) => ({ units: state.units.map((u) => (u._id === unitId ? updated : u)) }));
+      set((state) => ({
+        units: state.units.map((u) => (u._id === unitId ? updated : u)),
+        unitsBoard: state.unitsBoard.map((u) => (u._id === unitId ? { ...u, ...updated, roomTypeId: u.roomTypeId } : u)),
+      }));
       return { success: true };
     } catch (err) {
       const error = err as AxiosError<any>;
@@ -319,5 +353,92 @@ export const useRoomTypeV2Store = create<RoomTypeV2State>((set, get) => ({
       const error = err as AxiosError<any>;
       return { success: false, error: error.response?.data?.error || error.message };
     }
+  },
+
+  fetchUnitsBoard: async (hotelId) => {
+    set({ isBoardLoading: true, error: null });
+    try {
+      const res = await axios.get(`${VITE_API_URL}/api/room-types-v2/units/board`, {
+        params: hotelId ? { hotelId } : undefined,
+        headers: authHeaders(),
+        withCredentials: true,
+      });
+      set({ unitsBoard: res.data.data, isBoardLoading: false });
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      set({ error: error.response?.data?.error || error.message, isBoardLoading: false });
+    }
+  },
+
+  checkInAndAssignRoom: async (bookingId, unitId, guestDetails, preferences) => {
+    try {
+      const res = await axios.patch(
+        `${VITE_API_URL}/api/bookings/${bookingId}/check-in-v2`,
+        { unitId, guestDetails, preferences },
+        { headers: { 'Content-Type': 'application/json', ...authHeaders() }, withCredentials: true }
+      );
+      return { success: true, data: res.data.data };
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      return { success: false, error: error.response?.data?.error || error.message };
+    }
+  },
+
+  checkOutRoom: async (bookingId) => {
+    try {
+      const res = await axios.patch(
+        `${VITE_API_URL}/api/bookings/${bookingId}/check-out-v2`,
+        {},
+        { headers: authHeaders(), withCredentials: true }
+      );
+      return { success: true, data: res.data.data };
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      return { success: false, error: error.response?.data?.error || error.message };
+    }
+  },
+
+  reassignRoom: async (bookingId, unitId, reason, note) => {
+    try {
+      const res = await axios.patch(
+        `${VITE_API_URL}/api/bookings/${bookingId}/reassign-room-v2`,
+        { unitId, reason, note },
+        { headers: { 'Content-Type': 'application/json', ...authHeaders() }, withCredentials: true }
+      );
+      return { success: true, data: res.data.data };
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      return { success: false, error: error.response?.data?.error || error.message };
+    }
+  },
+
+  // Live board updates — pushed from checkInAndAssignRoom, checkOutRoom, and
+  // updateRoomUnitStatus on the backend (io.emitToHotel(..., 'roomUnitUpdated', unit)).
+  // Falls back to a 60s poll on the board page itself, same precedent as the
+  // legacy RoomReceptionist.tsx board (socket coverage isn't guaranteed complete).
+  initRoomUnitSocketListeners: () => {
+    if (_rtuUpdatedHandler) socket.off('roomUnitUpdated', _rtuUpdatedHandler);
+
+    _rtuUpdatedHandler = (updatedUnit: RoomUnit) => {
+      set((state) => {
+        const exists = state.unitsBoard.some((u) => u._id === updatedUnit._id);
+        // The socket payload's roomTypeId is a raw ObjectId (not populated) —
+        // preserve the already-populated {_id,name} shape already on the board.
+        const existing = state.unitsBoard.find((u) => u._id === updatedUnit._id);
+        const merged = { ...updatedUnit, roomTypeId: existing?.roomTypeId ?? updatedUnit.roomTypeId };
+        return {
+          unitsBoard: exists
+            ? state.unitsBoard.map((u) => (u._id === updatedUnit._id ? merged : u))
+            : [...state.unitsBoard, merged],
+        };
+      });
+    };
+
+    socket.on('roomUnitUpdated', _rtuUpdatedHandler);
+  },
+
+  closeRoomUnitSocketListeners: () => {
+    if (_rtuUpdatedHandler) socket.off('roomUnitUpdated', _rtuUpdatedHandler);
+    _rtuUpdatedHandler = null;
   },
 }));

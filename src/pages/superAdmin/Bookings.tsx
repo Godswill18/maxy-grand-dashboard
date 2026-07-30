@@ -50,6 +50,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuthStore } from "@/store/useAuthStore";
 import { cn } from "@/lib/utils";
+import { getBookingRoomDisplay } from "@/lib/bookingDisplay";
 
 const STATUS_ROW: Record<string, string> = {
   pending:       "border-l-amber-400  bg-amber-50/30  dark:bg-amber-900/10",
@@ -439,7 +440,14 @@ export default function Bookings() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-medium">{booking.roomTypeId?.roomNumber || "N/A"}</p>
+                      {(() => {
+                        const { category, roomNumber } = getBookingRoomDisplay(booking);
+                        return (
+                          <p className="font-medium">
+                            {roomNumber ? `Room ${roomNumber}` : `${category} — unassigned`}
+                          </p>
+                        );
+                      })()}
                       <p className="text-xs text-muted-foreground truncate max-w-[120px]">
                         {booking.hotelId?.name || "N/A"}
                       </p>
@@ -624,8 +632,16 @@ export default function Bookings() {
                     <p className="font-medium capitalize">{detailBooking.bookingType || "N/A"}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Room</p>
-                    <p className="font-medium">{detailBooking.roomTypeId?.roomNumber || "N/A"}</p>
+                    <p className="text-xs text-muted-foreground">Room Category</p>
+                    <p className="font-medium">{getBookingRoomDisplay(detailBooking).category}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Assigned Room</p>
+                    <p className="font-medium">
+                      {getBookingRoomDisplay(detailBooking).roomNumber
+                        ? `Room ${getBookingRoomDisplay(detailBooking).roomNumber}`
+                        : "Not assigned"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Hotel</p>

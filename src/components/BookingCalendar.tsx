@@ -32,6 +32,7 @@ import {
   ArrowRight,
   Calendar,
 } from "lucide-react";
+import { getBookingRoomDisplay } from "@/lib/bookingDisplay";
 
 const STATUS_COLORS: Record<string, { bg: string; border: string; light: string }> = {
   confirmed:     { bg: "#22c55e", border: "#16a34a", light: "bg-green-50 border-green-400" },
@@ -196,9 +197,9 @@ export default function BookingCalendar({ bookings }: BookingCalendarProps) {
                         <p className="text-[11px] text-white font-medium leading-tight truncate">
                           {bk.guestName}
                         </p>
-                        {bk.roomTypeId?.roomNumber && (
+                        {getBookingRoomDisplay(bk).roomNumber && (
                           <p className="text-[10px] text-white/80 leading-tight">
-                            Rm {bk.roomTypeId.roomNumber}
+                            Rm {getBookingRoomDisplay(bk).roomNumber}
                           </p>
                         )}
                       </>
@@ -288,10 +289,7 @@ export default function BookingCalendar({ bookings }: BookingCalendarProps) {
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1.5">
                           <BedDouble className="h-3.5 w-3.5 shrink-0" />
-                          <span>
-                            Room {bk.roomTypeId?.roomNumber ?? "N/A"}
-                            {bk.roomTypeId?.name ? ` · ${bk.roomTypeId.name}` : ""}
-                          </span>
+                          <span>{getBookingRoomDisplay(bk).label}</span>
                         </div>
                         {bk.hotelId?.name && (
                           <div className="flex items-center gap-1.5">

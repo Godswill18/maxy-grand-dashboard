@@ -17,7 +17,8 @@ interface RevenueData {
 interface PendingCheckIn {
   _id: string;
   guestName: string;
-  roomNumber: string;
+  category: string;
+  roomNumber: string | null;
   checkInDate: string;
   confirmationCode: string;
   guestPhone?: string;
@@ -27,7 +28,8 @@ interface PendingCheckIn {
 interface ExpectedCheckOut {
   _id: string;
   guestName: string;
-  roomNumber: string;
+  category: string;
+  roomNumber: string | null;
   checkOutDate: string;
   bookingStatus: string;
   amountPaid: number;

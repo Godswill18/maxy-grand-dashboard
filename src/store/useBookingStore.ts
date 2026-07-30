@@ -20,10 +20,14 @@ interface Booking {
     _id: string;
     name: string;
   };
-  roomTypeId: {
-    _id: string;
-    roomNumber: string;
-  };
+  // Booked category — the legacy pair (roomTypeId+roomId) or the new v2 pair
+  // (roomTypeV2Id+roomUnitId) is set, never both. roomTypeId/roomTypeV2Id is
+  // the immutable booked category; roomId/roomUnitId is the assigned
+  // physical room, null until staff assign one at check-in.
+  roomTypeId?: { _id: string; name?: string; roomNumber?: string } | null;
+  roomId?: { _id: string; roomNumber: string } | null;
+  roomTypeV2Id?: { _id: string; name: string; basePrice?: number } | null;
+  roomUnitId?: { _id: string; roomNumber: string; status?: string } | null;
   createdAt: string;
   guests?: number;
   numberOfGuests?: number;

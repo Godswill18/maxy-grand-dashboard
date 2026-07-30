@@ -32,6 +32,7 @@ import { useStaffStore } from "../../store/useUserStore";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { getBookingRoomDisplay } from "@/lib/bookingDisplay";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 12;
@@ -61,7 +62,10 @@ interface Booking {
   checkOutDate: string;
   bookingStatus: string;
   totalAmount: number;
-  roomTypeId?: { roomNumber: string; name: string };
+  roomTypeId?: { roomNumber?: string; name?: string } | null;
+  roomId?: { roomNumber?: string } | null;
+  roomTypeV2Id?: { name: string; basePrice?: number } | null;
+  roomUnitId?: { roomNumber?: string } | null;
   hotelId?: { name: string };
 }
 
@@ -597,7 +601,7 @@ export default function UsersPage() {
                               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-muted-foreground">
                                 <div>
                                   <span className="font-medium text-foreground">Room:</span>{" "}
-                                  {booking.roomTypeId?.roomNumber || "N/A"}
+                                  {getBookingRoomDisplay(booking).label}
                                 </div>
                                 <div>
                                   <span className="font-medium text-foreground">Check-in:</span>{" "}

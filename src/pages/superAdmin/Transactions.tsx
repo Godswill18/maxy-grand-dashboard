@@ -23,6 +23,7 @@ import { usePaymentStore } from "@/store/usePaymentStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { format, isWithinInterval, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
+import { getBookingRoomDisplay } from "@/lib/bookingDisplay";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const getInitials = (name?: string) =>
@@ -250,7 +251,7 @@ export default function Transactions() {
       p.amount,
       p.status,
       p.gatewayRef || "N/A",
-      p.bookingId?.roomTypeId?.name || "N/A",
+      p.bookingId ? getBookingRoomDisplay(p.bookingId).category : "N/A",
     ]);
     const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv" });
@@ -484,14 +485,7 @@ export default function Transactions() {
               <tbody>
                 {paginatedPayments.map((payment) => {
                   const isExpanded = expandedRows.has(payment._id);
-                  const roomLabel = [
-                    payment.bookingId?.roomTypeId?.name,
-                    payment.bookingId?.roomTypeId?.roomNumber
-                      ? `#${payment.bookingId.roomTypeId.roomNumber}`
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ");
+                  const roomLabel = payment.bookingId ? getBookingRoomDisplay(payment.bookingId).label : "N/A";
 
                   return (
                     <Fragment key={payment._id}>

@@ -257,7 +257,7 @@ export default function ReceptionistDashboard() {
                     <div>
                       <p className="font-semibold">{guest.guestName}</p>
                       <p className="text-sm text-muted-foreground">
-                        Room {guest.roomNumber} • {formatTime(guest.checkInDate)}
+                        {guest.roomNumber ? `Room ${guest.roomNumber}` : guest.category} • {formatTime(guest.checkInDate)}
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground">
@@ -292,7 +292,7 @@ export default function ReceptionistDashboard() {
                     <div>
                       <p className="font-semibold">{guest.guestName}</p>
                       <p className="text-sm text-muted-foreground">
-                        Room {guest.roomNumber} • {formatTime(guest.checkOutDate)}
+                        {guest.roomNumber ? `Room ${guest.roomNumber}` : guest.category} • {formatTime(guest.checkOutDate)}
                       </p>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded-full ${

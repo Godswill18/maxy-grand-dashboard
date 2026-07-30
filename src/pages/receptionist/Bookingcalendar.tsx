@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, User, Mail, Phone,
 import { useBookingStore } from "@/store/useBookingStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import CalendarSkeleton from "@/components/skeleton/CalendarSkeleton";
+import { getBookingRoomDisplay } from "@/lib/bookingDisplay";
 
 interface BookingEvent {
   id: string;
@@ -15,7 +16,7 @@ interface BookingEvent {
   guestName: string;
   guestEmail: string;
   guestPhone: string;
-  roomNumber: string;
+  roomLabel: string;
   checkInDate: Date;
   checkOutDate: Date;
   status: 'confirmed' | 'checked-in' | 'checked-out' | 'cancelled' | 'pending';
@@ -62,7 +63,7 @@ const hotelBookings = bookings.filter(booking => {
     guestName: booking.guestName,
     guestEmail: booking.guestEmail,
     guestPhone: booking.guestPhone,
-    roomNumber: booking.roomTypeId?.roomNumber || 'N/A',
+    roomLabel: getBookingRoomDisplay(booking).label,
     checkInDate: new Date(booking.checkInDate),
     checkOutDate: new Date(booking.checkOutDate),
     status: booking.bookingStatus,
@@ -337,7 +338,7 @@ const hotelBookings = bookings.filter(booking => {
                             }}
                           >
                             <div className="font-semibold text-sm leading-tight">{event.guestName}</div>
-                            <div className="text-xs opacity-90 mt-0.5">Room {event.roomNumber}</div>
+                            <div className="text-xs opacity-90 mt-0.5">{event.roomLabel}</div>
                           </button>
                         ))}
                       </div>
@@ -425,7 +426,7 @@ const hotelBookings = bookings.filter(booking => {
                                   `}
                                 >
                                   <div className="truncate font-semibold">{event.guestName}</div>
-                                  <div className="text-xs opacity-90">Room {event.roomNumber}</div>
+                                  <div className="text-xs opacity-90">{event.roomLabel}</div>
                                 </div>
                               ))}
                             </div>
@@ -514,7 +515,7 @@ const hotelBookings = bookings.filter(booking => {
                     <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
                       <div className="flex items-center gap-1.5">
                         <BedDouble className="h-3.5 w-3.5 shrink-0" />
-                        <span>Room {event.roomNumber}</span>
+                        <span>{event.roomLabel}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <User className="h-3.5 w-3.5 shrink-0" />

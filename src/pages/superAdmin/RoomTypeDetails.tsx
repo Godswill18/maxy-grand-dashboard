@@ -23,22 +23,28 @@ import { EditRoomTypeModal } from "@/components/modals/EditRoomTypeModal";
 import { AddRoomUnitModal } from "@/components/AddRoomUnitModal";
 import { resolveImageUrl } from "@/lib/utils";
 
+// 'occupied' is deliberately excluded — it can only be set by the check-in
+// flow (checkInAndAssignRoom), never manually here. While a unit IS occupied,
+// only 'maintenance' remains selectable (see the filter at the Select below);
+// 'available'/'cleaning' require checking the guest out first (backend-enforced).
 const UNIT_STATUS_OPTIONS: { value: RoomUnit['status']; label: string }[] = [
-  { value: 'ready', label: 'Ready' },
-  { value: 'occupied', label: 'Occupied' },
-  { value: 'cleaning-required', label: 'Cleaning Required' },
-  { value: 'being-cleaned', label: 'Being Cleaned' },
+  { value: 'available', label: 'Available' },
+  { value: 'cleaning', label: 'Cleaning' },
   { value: 'maintenance', label: 'Maintenance' },
-  { value: 'out-of-service', label: 'Out of Service' },
 ];
 
+const STATUS_LABELS: Record<string, string> = {
+  available: 'Available',
+  occupied: 'Occupied',
+  cleaning: 'Cleaning',
+  maintenance: 'Maintenance',
+};
+
 const statusColors: Record<string, string> = {
-  ready: "bg-success text-success-foreground",
+  available: "bg-success text-success-foreground",
   occupied: "bg-destructive text-destructive-foreground",
-  'cleaning-required': "bg-orange-500 text-white",
-  'being-cleaned': "bg-info text-info-foreground",
+  cleaning: "bg-orange-500 text-white",
   maintenance: "bg-yellow-500 text-white",
-  'out-of-service': "bg-muted text-muted-foreground",
 };
 
 export default function RoomTypeDetails() {
@@ -325,20 +331,23 @@ export default function RoomTypeDetails() {
                         )}
                       </div>
                       <Badge className={statusColors[unit.status] || "bg-secondary"}>
-                        {UNIT_STATUS_OPTIONS.find((o) => o.value === unit.status)?.label || unit.status}
+                        {STATUS_LABELS[unit.status] || unit.status}
                       </Badge>
                       {!unit.isActive && <Badge variant="outline">Inactive</Badge>}
 
                       <div className="flex items-center gap-2 ml-auto">
                         <Select
-                          value={unit.status}
+                          value={unit.status === 'occupied' ? undefined : unit.status}
                           onValueChange={(value) => handleStatusChange(unit._id, value as RoomUnit['status'])}
                         >
                           <SelectTrigger className="w-44">
-                            <SelectValue />
+                            <SelectValue placeholder={unit.status === 'occupied' ? 'Occupied — check out first' : undefined} />
                           </SelectTrigger>
                           <SelectContent>
-                            {UNIT_STATUS_OPTIONS.map((opt) => (
+                            {(unit.status === 'occupied'
+                              ? UNIT_STATUS_OPTIONS.filter((o) => o.value === 'maintenance')
+                              : UNIT_STATUS_OPTIONS
+                            ).map((opt) => (
                               <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                             ))}
                           </SelectContent>

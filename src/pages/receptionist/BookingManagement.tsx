@@ -16,6 +16,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Search, Phone, Mail, BedDouble, Edit, X, UserPlus, Calendar, Users2, CheckCircle, LogOut, Star, CreditCard, MapPin, AlertCircle, ArrowLeftRight } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
+import { useRoomTypeV2Store, type RoomUnit } from "@/store/useRoomTypeV2Store";
+import { getBookingRoomDisplay } from "@/lib/bookingDisplay";
 import { useAuthStore } from "@/store/useAuthStore";
 import BookingManagementSkeleton from "../../components/skeleton/BookingManagementSkeleton";
 import BookGuestForm from "@/components/BookGuestForm";
@@ -87,6 +89,7 @@ interface AvailableRoom {
 export default function BookingManagement() {
   const { bookings, isLoading, fetchBookings, updateBooking, cancelBooking, initSocketListeners, closeSocketListeners } = useBookingStore();
   const { checkInWithRegistration } = useCheckInStore();
+  const { checkInAndAssignRoom, checkOutRoom, reassignRoom } = useRoomTypeV2Store();
   const { user } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -106,12 +109,29 @@ export default function BookingManagement() {
   const [checkInSheetOpen, setCheckInSheetOpen] = useState(false);
   const [checkInBooking,   setCheckInBooking]   = useState<any>(null);
 
-  // Change Room Dialog
-  const [changeRoomOpen,     setChangeRoomOpen]     = useState(false);
-  const [changeRoomBooking,  setChangeRoomBooking]  = useState<any>(null);
-  const [changeRoomRooms,    setChangeRoomRooms]    = useState<AvailableRoom[]>([]);
-  const [changeRoomSelected, setChangeRoomSelected] = useState("");
-  const [changeRoomLoading,  setChangeRoomLoading]  = useState(false);
+  // Category-model (RoomTypeV2) check-in: CheckInForm (reused as-is) is
+  // followed by a room-assignment step, since a v2 booking has no physical
+  // room until check-in. pendingV2GuestData carries the form's output across
+  // to the assign-room step.
+  const [assignRoomOpen, setAssignRoomOpen] = useState(false);
+  const [assignRoomBooking, setAssignRoomBooking] = useState<any>(null);
+  const [assignRoomUnits, setAssignRoomUnits] = useState<RoomUnit[]>([]);
+  const [assignRoomSelected, setAssignRoomSelected] = useState("");
+  const [assignRoomLoading, setAssignRoomLoading] = useState(false);
+  const [pendingV2GuestData, setPendingV2GuestData] = useState<{ guestDetails: any; preferences: any } | null>(null);
+
+  // Reassign Room Dialog (v2/category-model bookings only — authorized
+  // upgrade/downgrade/lateral move via reassignRoomV2, atomic on the
+  // backend). The booked category is immutable, so unlike the legacy
+  // "Change Room" flow this replaces, this can move a guest across
+  // categories only through this explicit, price-delta-aware action.
+  const [reassignOpen,     setReassignOpen]     = useState(false);
+  const [reassignBooking,  setReassignBooking]  = useState<any>(null);
+  const [reassignUnits,    setReassignUnits]    = useState<RoomUnit[]>([]);
+  const [reassignSelected, setReassignSelected] = useState("");
+  const [reassignReason,   setReassignReason]   = useState<"upgrade" | "downgrade" | "lateral" | "other">("lateral");
+  const [reassignNote,     setReassignNote]     = useState("");
+  const [reassignLoading,  setReassignLoading]  = useState(false);
 
   const [earlyCheckInErrorOpen, setEarlyCheckInErrorOpen] = useState(false);
   const [earlyCheckInMessage, setEarlyCheckInMessage] = useState("");
@@ -419,47 +439,141 @@ export default function BookingManagement() {
 
   const handleCheckInConfirm = async (formData: CheckInFormData) => {
     if (!checkInBooking) return;
+
+    // Category-model booking: no physical room yet — collect guest details
+    // via the same form, then move to the room-assignment step instead of
+    // calling the legacy check-in endpoint (which would 500 on a v2 booking).
+    if (checkInBooking.roomTypeV2Id) {
+      const { confirmationCode, email, ...guestFields } = formData as any;
+      setPendingV2GuestData({
+        guestDetails: {
+          address: guestFields.address,
+          city: guestFields.city,
+          state: guestFields.state,
+          arrivingFrom: guestFields.arrivingFrom,
+          nextOfKinName: guestFields.nextOfKinName,
+          nextOfKinPhone: guestFields.nextOfKinPhone,
+        },
+        preferences: {
+          extraBedding: guestFields.extraBedding,
+          specialRequests: guestFields.specialRequests,
+        },
+      });
+      setCheckInSheetOpen(false);
+      await openAssignRoom(checkInBooking);
+      setCheckInBooking(null);
+      return;
+    }
+
     await checkInWithRegistration(checkInBooking._id, formData);
     setCheckInSheetOpen(false);
     setCheckInBooking(null);
     await fetchBookings();
   };
 
-  const handleOpenChangeRoom = async (booking: any) => {
-    setChangeRoomBooking(booking);
-    setChangeRoomSelected("");
-    setChangeRoomOpen(true);
-    setChangeRoomLoading(true);
+  const openAssignRoom = async (booking: any) => {
+    setAssignRoomBooking(booking);
+    setAssignRoomSelected("");
+    setAssignRoomOpen(true);
+    setAssignRoomLoading(true);
     try {
-      const hotelId = user?.hotelId;
-      const checkIn  = new Date(booking.checkInDate).toISOString().split("T")[0];
-      const checkOut = new Date(booking.checkOutDate).toISOString().split("T")[0];
-      const res = await fetch(
-        `${VITE_API_URL}/api/rooms/available_rooms?checkIn=${checkIn}&checkOut=${checkOut}&hotelId=${hotelId}`,
-        { credentials: "include" }
-      );
+      const roomTypeId = booking.roomTypeV2Id?._id || booking.roomTypeV2Id;
+      const res = await fetch(`${VITE_API_URL}/api/room-types-v2/${roomTypeId}/units`, {
+        credentials: "include",
+      });
       const data = await res.json();
-      setChangeRoomRooms(data.data || []);
+      const available = (data.data || []).filter((u: RoomUnit) => u.status === "available" && u.isActive);
+      setAssignRoomUnits(available);
     } catch {
       toast.error("Failed to load available rooms.");
     } finally {
-      setChangeRoomLoading(false);
+      setAssignRoomLoading(false);
     }
   };
 
-  const confirmChangeRoom = async () => {
-    if (!changeRoomBooking || !changeRoomSelected) return;
-    setChangeRoomLoading(true);
+  const confirmAssignRoom = async () => {
+    if (!assignRoomBooking || !assignRoomSelected) return;
+    setAssignRoomLoading(true);
     try {
-      await updateBooking(changeRoomBooking._id, { roomId: changeRoomSelected });
-      toast.success("Room changed successfully.");
-      setChangeRoomOpen(false);
-      setChangeRoomBooking(null);
-      await fetchBookings();
-    } catch {
-      toast.error("Failed to change room.");
+      const result = await checkInAndAssignRoom(
+        assignRoomBooking._id,
+        assignRoomSelected,
+        pendingV2GuestData?.guestDetails,
+        pendingV2GuestData?.preferences
+      );
+      if (result.success) {
+        toast.success(`${assignRoomBooking.guestName} checked in successfully!`);
+        setAssignRoomOpen(false);
+        setAssignRoomBooking(null);
+        setPendingV2GuestData(null);
+        await fetchBookings();
+      } else {
+        toast.error(result.error || "Failed to assign room — it may have just been taken. Pick another.");
+        // Refresh the candidate list — the one that failed is no longer available.
+        await openAssignRoom(assignRoomBooking);
+      }
     } finally {
-      setChangeRoomLoading(false);
+      setAssignRoomLoading(false);
+    }
+  };
+
+  const handleOpenReassignRoom = async (booking: any) => {
+    setReassignBooking(booking);
+    setReassignSelected("");
+    setReassignReason("lateral");
+    setReassignNote("");
+    setReassignOpen(true);
+    setReassignLoading(true);
+    try {
+      const res = await fetch(`${VITE_API_URL}/api/room-types-v2/units/board`, { credentials: "include" });
+      const data = await res.json();
+      const currentUnitId = booking.roomUnitId?._id;
+      const available = ((data.data || []) as RoomUnit[]).filter(
+        (u) => u.status === "available" && u.isActive && u._id !== currentUnitId
+      );
+      setReassignUnits(available);
+    } catch {
+      toast.error("Failed to load available rooms.");
+    } finally {
+      setReassignLoading(false);
+    }
+  };
+
+  // Price comparison baseline: the booked category's rate. (A guest who was
+  // already reassigned once would ideally compare against their most recent
+  // rate, but that history isn't populated on the booking object returned to
+  // this list — the backend's own delta calculation, which does use the
+  // correct baseline, is authoritative; this is just a client-side preview.)
+  const currentCategoryPrice = typeof reassignBooking?.roomTypeV2Id === "object"
+    ? reassignBooking.roomTypeV2Id.basePrice
+    : undefined;
+
+  const reassignSelectedUnit = reassignUnits.find((u) => u._id === reassignSelected);
+  const reassignNights = reassignBooking
+    ? Math.max(1, Math.round((new Date(reassignBooking.checkOutDate).getTime() - new Date(reassignBooking.checkInDate).getTime()) / 86400000))
+    : 1;
+  const reassignNewPrice = reassignSelectedUnit && typeof reassignSelectedUnit.roomTypeId === "object"
+    ? reassignSelectedUnit.roomTypeId.basePrice
+    : undefined;
+  const reassignPricePreview = reassignNewPrice !== undefined && currentCategoryPrice !== undefined
+    ? Math.round(reassignNights * (reassignNewPrice - currentCategoryPrice))
+    : null;
+
+  const confirmReassignRoom = async () => {
+    if (!reassignBooking || !reassignSelected) return;
+    setReassignLoading(true);
+    try {
+      const result = await reassignRoom(reassignBooking._id, reassignSelected, reassignReason, reassignNote || undefined);
+      if (result.success) {
+        toast.success("Room reassigned successfully.");
+        setReassignOpen(false);
+        setReassignBooking(null);
+        await fetchBookings();
+      } else {
+        toast.error(result.error || "Failed to reassign room.");
+      }
+    } finally {
+      setReassignLoading(false);
     }
   };
 
@@ -472,17 +586,25 @@ export default function BookingManagement() {
     if (!bookingToCheckOut) return;
 
     try {
-      const response = await fetch(
-        `${VITE_API_URL}/api/receptionist/${bookingToCheckOut._id}/check-out`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        }
-      );
+      // Category-model booking: the legacy /check-out endpoint never touches
+      // RoomUnit (only the legacy Room), which would leave the unit stuck
+      // 'occupied' forever. Route to the dedicated v2 endpoint instead.
+      if (bookingToCheckOut.roomTypeV2Id) {
+        const result = await checkOutRoom(bookingToCheckOut._id);
+        if (!result.success) throw new Error(result.error || "Check-out failed");
+      } else {
+        const response = await fetch(
+          `${VITE_API_URL}/api/receptionist/${bookingToCheckOut._id}/check-out`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+          }
+        );
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Check-out failed");
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Check-out failed");
+      }
 
       toast.success(`${bookingToCheckOut.guestName} checked out successfully!`);
       setCheckOutConfirmOpen(false);
@@ -517,6 +639,8 @@ export default function BookingManagement() {
   const cancelled   = filteredBookings.filter(b => b.bookingStatus === "cancelled");
   const checkedIn   = filteredBookings.filter(b => b.bookingStatus === "checked-in");
   const completed   = filteredBookings.filter(b => b.bookingStatus === "checked-out");
+  // Paid category-model bookings with no physical room assigned yet.
+  const arrivals    = filteredBookings.filter(b => b.bookingStatus === "confirmed" && !!b.roomTypeV2Id && !b.roomUnitId);
 
   const CheckoutCountdownTimer = ({ booking }: { booking: any }) => {
     const [timeLeft, setTimeLeft] = useState("");
@@ -611,12 +735,17 @@ export default function BookingManagement() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-medium">
-                        {booking.roomTypeId?.roomNumber || "N/A"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {booking.roomTypeId?.name || ""}
-                      </p>
+                      {(() => {
+                        const { category, roomNumber } = getBookingRoomDisplay(booking);
+                        return (
+                          <>
+                            <p className="font-medium">
+                              {roomNumber ? `Room ${roomNumber}` : "Not assigned"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{category}</p>
+                          </>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">{formatDate(booking.checkInDate)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{formatDate(booking.checkOutDate)}</td>
@@ -678,17 +807,17 @@ export default function BookingManagement() {
                             Out
                           </Button>
                         )}
-                        {(booking.bookingStatus === "confirmed" ||
-                          booking.bookingStatus === "pending" ||
-                          booking.bookingStatus === "checked-in") && (
+                        {!!booking.roomTypeV2Id &&
+                          (booking.bookingStatus === "confirmed" ||
+                            booking.bookingStatus === "checked-in") && (
                           <Button
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs px-2 text-purple-600 border-purple-300 hover:bg-purple-50"
-                            onClick={() => handleOpenChangeRoom(booking)}
+                            onClick={() => handleOpenReassignRoom(booking)}
                           >
                             <ArrowLeftRight className="h-3 w-3 mr-1" />
-                            Room
+                            Reassign
                           </Button>
                         )}
                         {(booking.bookingStatus === "confirmed" ||
@@ -1118,56 +1247,132 @@ export default function BookingManagement() {
         </SheetContent>
       </Sheet>
 
-      {/* Change Room Dialog */}
-      <Dialog open={changeRoomOpen} onOpenChange={setChangeRoomOpen}>
+      {/* Assign Room Dialog — category-model check-in, second step after CheckInForm */}
+      <Dialog open={assignRoomOpen} onOpenChange={(open) => { if (!open) { setAssignRoomOpen(false); setAssignRoomBooking(null); setPendingV2GuestData(null); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Change Room</DialogTitle>
+            <DialogTitle>Assign Room</DialogTitle>
             <DialogDescription>
-              Reassign {changeRoomBooking?.guestName} to a different available room.
+              Select an available room in {assignRoomBooking?.roomTypeV2Id?.name || "this category"} for{" "}
+              {assignRoomBooking?.guestName}.
+            </DialogDescription>
+          </DialogHeader>
+
+          {assignRoomLoading && assignRoomUnits.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">Loading available rooms...</p>
+          ) : assignRoomUnits.length === 0 ? (
+            <p className="text-sm text-destructive py-6 text-center">
+              No available room in this category right now.
+            </p>
+          ) : (
+            <Select value={assignRoomSelected} onValueChange={setAssignRoomSelected}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a room" />
+              </SelectTrigger>
+              <SelectContent>
+                {assignRoomUnits.map((unit) => (
+                  <SelectItem key={unit._id} value={unit._id}>
+                    Room {unit.roomNumber}{unit.floor !== undefined ? ` (Floor ${unit.floor})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => { setAssignRoomOpen(false); setAssignRoomBooking(null); setPendingV2GuestData(null); }}>
+              Cancel
+            </Button>
+            <Button onClick={confirmAssignRoom} disabled={!assignRoomSelected || assignRoomLoading}>
+              {assignRoomLoading ? "Checking In..." : "Confirm & Check In"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reassign Room Dialog — v2/category-model bookings only. The booked
+          category (roomTypeV2Id) is never changed; this records an
+          authorized move (possibly cross-category) with its price delta,
+          atomically on the backend. */}
+      <Dialog open={reassignOpen} onOpenChange={(open) => { if (!open) { setReassignOpen(false); setReassignBooking(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reassign Room</DialogTitle>
+            <DialogDescription>
+              Move {reassignBooking?.guestName} to a different available room — same or a different category.
             </DialogDescription>
           </DialogHeader>
 
           <div className="p-3 rounded-lg border bg-muted/40 text-sm">
-            <p className="text-muted-foreground">Current Room</p>
+            <p className="text-muted-foreground">Currently</p>
             <p className="font-medium mt-0.5">
-              {(changeRoomBooking?.roomId as any)?.roomNumber
-                ?? (changeRoomBooking?.roomTypeId as any)?.roomNumber
-                ?? (changeRoomBooking?.roomTypeId as any)?.name
-                ?? "Not yet assigned"}
+              {reassignBooking ? getBookingRoomDisplay(reassignBooking).label : ""}
             </p>
           </div>
 
-          {changeRoomLoading ? (
+          {reassignLoading && reassignUnits.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">Loading available rooms...</p>
-          ) : changeRoomRooms.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">No other rooms available for these dates.</p>
+          ) : reassignUnits.length === 0 ? (
+            <p className="text-sm text-destructive py-4 text-center">No other rooms available right now.</p>
           ) : (
             <div className="space-y-1.5">
               <Label>Select New Room</Label>
-              <Select value={changeRoomSelected} onValueChange={setChangeRoomSelected}>
+              <Select value={reassignSelected} onValueChange={setReassignSelected}>
                 <SelectTrigger><SelectValue placeholder="Choose a room" /></SelectTrigger>
                 <SelectContent>
-                  {changeRoomRooms.map((r) => (
-                    <SelectItem key={r._id} value={r._id}>
-                      Room {r.roomNumber} — {r.roomTypeId?.name} (₦{r.roomTypeId?.price?.toLocaleString()}/night)
-                    </SelectItem>
-                  ))}
+                  {reassignUnits.map((u) => {
+                    const catName = typeof u.roomTypeId === "object" ? u.roomTypeId.name : "";
+                    const catPrice = typeof u.roomTypeId === "object" ? u.roomTypeId.basePrice : undefined;
+                    return (
+                      <SelectItem key={u._id} value={u._id}>
+                        Room {u.roomNumber} — {catName}{catPrice !== undefined ? ` (₦${catPrice.toLocaleString()}/night)` : ""}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
           )}
 
+          <div className="space-y-1.5">
+            <Label>Reason</Label>
+            <Select value={reassignReason} onValueChange={(v) => setReassignReason(v as typeof reassignReason)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="upgrade">Upgrade</SelectItem>
+                <SelectItem value="downgrade">Downgrade</SelectItem>
+                <SelectItem value="lateral">Same category / lateral move</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Note (optional)</Label>
+            <Textarea rows={2} value={reassignNote} onChange={(e) => setReassignNote(e.target.value)} placeholder="e.g. guest requested a quieter room" />
+          </div>
+
+          {reassignSelected && reassignPricePreview !== null && reassignPricePreview !== 0 && (
+            <div className={cn(
+              "p-3 rounded-lg border text-sm font-medium",
+              reassignPricePreview > 0 ? "border-amber-300 bg-amber-50 text-amber-800" : "border-blue-300 bg-blue-50 text-blue-800"
+            )}>
+              {reassignPricePreview > 0
+                ? `Guest owes ₦${reassignPricePreview.toLocaleString()} more — recorded as due at desk.`
+                : `Guest overpaid by ₦${Math.abs(reassignPricePreview).toLocaleString()} — recorded for manual resolution.`}
+            </div>
+          )}
+
           <div className="flex gap-3 pt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setChangeRoomOpen(false)}>
+            <Button variant="outline" className="flex-1" onClick={() => { setReassignOpen(false); setReassignBooking(null); }}>
               Cancel
             </Button>
             <Button
               className="flex-1"
-              onClick={confirmChangeRoom}
-              disabled={!changeRoomSelected || changeRoomLoading}
+              onClick={confirmReassignRoom}
+              disabled={!reassignSelected || reassignLoading}
             >
-              {changeRoomLoading ? "Saving..." : "Change Room"}
+              {reassignLoading ? "Saving..." : "Confirm Reassignment"}
             </Button>
           </div>
         </DialogContent>
@@ -1183,7 +1388,7 @@ export default function BookingManagement() {
                 <div className="space-y-2 mt-4">
                   <p><strong>Guest:</strong> {bookingToCheckOut.guestName}</p>
                   <p>
-                    <strong>Room:</strong> {bookingToCheckOut.roomTypeId?.roomNumber || 'N/A'}
+                    <strong>Room:</strong> {getBookingRoomDisplay(bookingToCheckOut).label}
                   </p>
                   <p>
                     <strong>Check-out Date:</strong>{" "}
@@ -1299,14 +1504,16 @@ export default function BookingManagement() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-muted rounded">
                   <div>
-                    <p className="text-xs text-muted-foreground">Room Number</p>
+                    <p className="text-xs text-muted-foreground">Assigned Room</p>
                     <p className="font-medium text-lg">
-                      {viewingBooking.roomTypeId?.roomNumber || 'TBA'}
+                      {getBookingRoomDisplay(viewingBooking).roomNumber
+                        ? `Room ${getBookingRoomDisplay(viewingBooking).roomNumber}`
+                        : 'Not assigned'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Room Type</p>
-                    <p className="font-medium">{viewingBooking.roomTypeId?.name || 'N/A'}</p>
+                    <p className="text-xs text-muted-foreground">Room Category</p>
+                    <p className="font-medium">{getBookingRoomDisplay(viewingBooking).category}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Check-in Date</p>
@@ -1529,6 +1736,7 @@ export default function BookingManagement() {
       <Tabs defaultValue="all" className="space-y-4">
         <TabsList>
           <TabsTrigger value="all">All ({filteredBookings.length})</TabsTrigger>
+          <TabsTrigger value="arrivals">Arrivals ({arrivals.length})</TabsTrigger>
           <TabsTrigger value="confirmed">Confirmed ({confirmed.length})</TabsTrigger>
           <TabsTrigger value="checked-in">Checked In ({checkedIn.length})</TabsTrigger>
           <TabsTrigger value="pending">Pending ({pending.length})</TabsTrigger>
@@ -1537,6 +1745,7 @@ export default function BookingManagement() {
         </TabsList>
 
         <TabsContent value="all">{renderTable(filteredBookings)}</TabsContent>
+        <TabsContent value="arrivals">{renderTable(arrivals)}</TabsContent>
         <TabsContent value="confirmed">{renderTable(confirmed)}</TabsContent>
         <TabsContent value="checked-in">{renderTable(checkedIn)}</TabsContent>
         <TabsContent value="pending">{renderTable(pending)}</TabsContent>

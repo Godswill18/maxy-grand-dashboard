@@ -48,6 +48,7 @@ import { useBookingStore } from "@/store/useBookingStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { getBookingRoomDisplay } from "@/lib/bookingDisplay";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface PaymentEntry {
@@ -69,7 +70,13 @@ interface BookingWithHistory {
   bookingStatus: "confirmed" | "checked-in" | "checked-out" | "cancelled" | "pending";
   paymentStatus: "pending" | "partial" | "paid";
   hotelId: { _id: string; name: string } | string;
-  roomTypeId: { _id: string; roomNumber: string; name?: string } | string;
+  // Booked category — legacy pair (roomTypeId+roomId) or v2 pair
+  // (roomTypeV2Id+roomUnitId) is set, never both. roomTypeId/roomTypeV2Id is
+  // immutable; roomId/roomUnitId is the assigned room, null until check-in.
+  roomTypeId?: { _id: string; roomNumber?: string; name?: string } | string | null;
+  roomId?: { _id: string; roomNumber?: string } | string | null;
+  roomTypeV2Id?: { _id: string; name: string; basePrice?: number } | string | null;
+  roomUnitId?: { _id: string; roomNumber?: string; status?: string } | string | null;
   createdAt: string;
   updatedAt?: string;
   guests?: number;
@@ -146,10 +153,8 @@ const getInitials = (name: string) =>
 
 const hotelName  = (b: BookingWithHistory) =>
   b.hotelId   && typeof b.hotelId   === "object" ? b.hotelId.name              : typeof b.hotelId   === "string" ? b.hotelId   : "—";
-const roomNumber = (b: BookingWithHistory) =>
-  b.roomTypeId && typeof b.roomTypeId === "object" ? b.roomTypeId.roomNumber ?? "—" : typeof b.roomTypeId === "string" ? b.roomTypeId : "—";
-const roomName   = (b: BookingWithHistory) =>
-  b.roomTypeId && typeof b.roomTypeId === "object" && b.roomTypeId.name ? b.roomTypeId.name : null;
+const roomNumber = (b: BookingWithHistory) => getBookingRoomDisplay(b).roomNumber ?? "Not assigned";
+const roomName   = (b: BookingWithHistory) => getBookingRoomDisplay(b).category;
 
 const PAGE_SIZE = 15;
 
@@ -449,7 +454,7 @@ export default function BookingHistory() {
                           {/* Room — always visible */}
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
                             <BedDouble className="h-3.5 w-3.5 shrink-0" />
-                            <span>Room {room}</span>
+                            <span>{getBookingRoomDisplay(b).label}</span>
                           </div>
 
                           {/* Hotel — sm+ */}
@@ -669,8 +674,8 @@ function BookingDetailPanel({ booking: b }: { booking: BookingWithHistory }) {
         <Section icon={BedDouble} title="Booking Details">
           <DetailGrid>
             <DetailItem label="Hotel"       value={hotel}           icon={<Building2 className="h-3.5 w-3.5" />} />
-            <DetailItem label="Room Number" value={`Room ${room}`}  icon={<BedDouble className="h-3.5 w-3.5" />} />
-            {rName && <DetailItem label="Room Type" value={rName} />}
+            <DetailItem label="Assigned Room" value={room === "Not assigned" ? room : `Room ${room}`} icon={<BedDouble className="h-3.5 w-3.5" />} />
+            <DetailItem label="Room Category" value={rName} />
             <DetailItem label="Check-in"   value={fmtDate(b.checkInDate)} />
             <DetailItem label="Check-out"  value={fmtDate(b.checkOutDate)} />
             <DetailItem label="Duration"   value={`${nights} night${nights !== 1 ? "s" : ""}`} />
