@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "./NavLink";
 import { NotificationBell } from "@/components/NotificationBell";
+import { isDarkMode as getIsDarkMode, setDarkMode as applyDarkMode } from "@/lib/theme";
 // import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
 
 interface WaiterDashboardLayoutProps {
@@ -23,24 +24,18 @@ interface WaiterDashboardLayoutProps {
 }
 
 export function WaiterDashboardLayout({ children }: WaiterDashboardLayoutProps) {
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem("darkMode");
-    const isDark = saved === "true";
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    }
-    return isDark;
-  });
+  // theme.ts is the single source of truth (also applied synchronously
+  // pre-render in main.tsx); this just mirrors it for the toggle UI.
+  const [isDarkMode, setIsDarkMode] = useState(getIsDarkMode);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
-  
+
   // useSimulatedNotifications();
 
   const toggleDarkMode = () => {
     const newMode = !isDarkMode;
+    applyDarkMode(newMode);
     setIsDarkMode(newMode);
-    localStorage.setItem("darkMode", String(newMode));
-    document.documentElement.classList.toggle("dark");
   };
 
   const navItems = [

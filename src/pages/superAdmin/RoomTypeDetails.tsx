@@ -1,5 +1,5 @@
 // src/pages/superAdmin/RoomTypeDetails.tsx
-// A Room Type's category-level details plus the list of physical Room Units
+// A Room Category's details plus the list of physical Room Units
 // that belong to it. Used by both superadmin (/room-types-v2/:id) and
 // manager (/manager/room-types-v2/:id).
 import { useEffect, useRef, useState } from "react";
@@ -87,7 +87,7 @@ export default function RoomTypeDetails() {
       toast.success("Room type deleted successfully");
       navigate(backHref);
     } else {
-      toast.error(result.error || "Failed to delete room type");
+      toast.error(result.error || "Failed to delete room category");
     }
     setIsDeleteOpen(false);
   };
@@ -196,7 +196,7 @@ export default function RoomTypeDetails() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <Button variant="ghost" onClick={() => navigate(backHref)} className="pl-0">
-        <ArrowLeft className="h-4 w-4 mr-2" /> Back to Room Types
+        <ArrowLeft className="h-4 w-4 mr-2" /> Back to Room Categories
       </Button>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -292,7 +292,7 @@ export default function RoomTypeDetails() {
         <CardContent>
           {units.length === 0 ? (
             <p className="text-sm text-muted-foreground py-6 text-center">
-              No physical rooms yet — add the first unit for this room type.
+              No physical rooms yet — add the first unit for this room category.
             </p>
           ) : (
             <div className="space-y-2">
@@ -480,11 +480,11 @@ export default function RoomTypeDetails() {
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this room type?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this room category?</AlertDialogTitle>
             <AlertDialogDescription>
               {units.length > 0
-                ? `This room type still has ${units.length} room unit(s). Delete or reassign them first — this action will be blocked until then.`
-                : "This will permanently delete the room type and its images. This action cannot be undone."}
+                ? `This room category still has ${units.length} room unit(s). Delete or reassign them first — this action will be blocked until then.`
+                : "This will permanently delete the room category and its images. This action cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -501,7 +501,7 @@ export default function RoomTypeDetails() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Room {unitPendingDelete?.roomNumber}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove this physical room from the room type. Blocked while occupied.
+              This will permanently remove this physical room from the room category. Blocked while occupied.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

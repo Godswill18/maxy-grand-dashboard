@@ -4,8 +4,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRoomTypeV2Store } from "@/store/useRoomTypeV2Store";
-import { useCategoryStore } from "@/store/useCategoryStore";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -48,49 +46,45 @@ interface EditRoomTypeModalProps {
 }
 
 const formSchema = z.object({
-  name: z.string().min(1, "Room type name is required"),
   description: z.string().optional(),
   bedConfig: z.string().optional(),
   amenities: z.array(z.string()).default([]),
   basePrice: z.coerce.number().min(1, "Base price must be at least 1"),
   maxOccupancy: z.coerce.number().min(1, "Max occupancy must be at least 1"),
-  categoryId: z.string().optional(),
+  categoryTag: z.string().min(1, "Category tag is required"),
 });
 
 export function EditRoomTypeModal({ isOpen, onClose, roomType }: EditRoomTypeModalProps) {
-  const { updateRoomType, isLoading } = useRoomTypeV2Store();
-  const { categories, fetchCategories } = useCategoryStore();
+  const { updateRoomType, isLoading, roomTypes } = useRoomTypeV2Store();
 
-  useEffect(() => {
-    fetchCategories();
-  }, [fetchCategories]);
+  // Freeform tag suggestions drawn from whatever's already in use — not a
+  // separate managed list. See merge plan: RoomCategory folded into
+  // RoomTypeV2's own categoryTag field.
+  const existingCategoryTags = Array.from(
+    new Set(roomTypes.map((rt) => rt.categoryTag).filter((t): t is string => !!t))
+  ).sort();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
       description: "",
       bedConfig: "",
       amenities: [],
       basePrice: 0,
       maxOccupancy: 1,
-      categoryId: "",
+      categoryTag: "",
     },
   });
 
   useEffect(() => {
     if (roomType && isOpen) {
       form.reset({
-        name: roomType.name ?? "",
         description: roomType.description ?? "",
         bedConfig: roomType.bedConfig ?? "",
         amenities: Array.isArray(roomType.amenities) ? roomType.amenities : [],
         basePrice: roomType.basePrice ?? 0,
         maxOccupancy: roomType.maxOccupancy ?? 1,
-        categoryId:
-          typeof roomType.categoryId === "object"
-            ? roomType.categoryId?._id ?? ""
-            : roomType.categoryId ?? "",
+        categoryTag: roomType.categoryTag ?? "",
       });
     }
   }, [roomType?._id, isOpen]);
@@ -101,10 +95,10 @@ export function EditRoomTypeModal({ isOpen, onClose, roomType }: EditRoomTypeMod
     const result = await updateRoomType(roomType._id, values);
 
     if (result.success) {
-      toast.success("Room type updated successfully!");
+      toast.success("Room category updated successfully!");
       onClose();
     } else {
-      toast.error(result.error || "Failed to update room type.");
+      toast.error(result.error || "Failed to update room category.");
     }
   }
 
@@ -112,7 +106,7 @@ export function EditRoomTypeModal({ isOpen, onClose, roomType }: EditRoomTypeMod
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Room Type</DialogTitle>
+          <DialogTitle>Edit Room Category</DialogTitle>
           <DialogDescription>
             Update the category-level details. Physical units are managed separately below.
           </DialogDescription>
@@ -121,37 +115,23 @@ export function EditRoomTypeModal({ isOpen, onClose, roomType }: EditRoomTypeMod
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="name"
+              name="categoryTag"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Room Type Name</FormLabel>
+                  <FormLabel>Category Tag</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Deluxe King" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="categoryId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Category</FormLabel>
-                  <FormControl>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a category (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.filter((c) => c.isActive).map((cat) => (
-                          <SelectItem key={cat._id} value={cat._id}>
-                            {cat.name}
-                          </SelectItem>
+                    <>
+                      <Input
+                        list="category-tag-suggestions-edit"
+                        placeholder="e.g., Suites"
+                        {...field}
+                      />
+                      <datalist id="category-tag-suggestions-edit">
+                        {existingCategoryTags.map((tag) => (
+                          <option key={tag} value={tag} />
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </datalist>
+                    </>
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -64,6 +64,13 @@ interface EditBookingFormData {
   checkOutDate: string;
   roomId: string;
   roomTypeId: string;
+  // True for a category/v2-model booking (roomTypeV2Id set) — room changes
+  // for these go through the dedicated Reassign flow, never through Edit,
+  // so Edit must not require re-selecting a legacy room for them.
+  isV2Booking: boolean;
+  // Precomputed via getBookingRoomDisplay() at edit-open time, for the
+  // read-only category/room display shown in place of the room picker.
+  roomDisplayLabel: string;
   numberOfGuests: number;
   address: string;
   city: string;
@@ -147,6 +154,8 @@ export default function BookingManagement() {
     checkOutDate: "",
     roomId: "",
     roomTypeId: "",
+    isV2Booking: false,
+    roomDisplayLabel: "",
     numberOfGuests: 0,
     address: "",
     city: "",
@@ -172,10 +181,13 @@ export default function BookingManagement() {
   }, [user?.hotelId]);
 
   useEffect(() => {
-    if (editFormData.checkInDate && editFormData.checkOutDate && isEditDialogOpen) {
+    // Only legacy bookings need this — a v2 booking's room lives entirely
+    // outside this dialog (see Reassign), so there's no legacy availability
+    // list to fetch for one.
+    if (editFormData.checkInDate && editFormData.checkOutDate && isEditDialogOpen && !editFormData.isV2Booking) {
       fetchAvailableRoomsForEdit();
     }
-  }, [editFormData.checkInDate, editFormData.checkOutDate, isEditDialogOpen]);
+  }, [editFormData.checkInDate, editFormData.checkOutDate, isEditDialogOpen, editFormData.isV2Booking]);
 
   useEffect(() => {
     if (editFormData.roomTypeId && editFormData.checkInDate && editFormData.checkOutDate) {
@@ -196,7 +208,7 @@ export default function BookingManagement() {
     setLoadingRooms(true);
     try {
       const response = await fetch(
-        `${VITE_API_URL}/api/rooms/available_rooms?checkIn=${editFormData.checkInDate}&checkOut=${editFormData.checkOutDate}`,
+        `${VITE_API_URL}/api/rooms/available_rooms?checkIn=${editFormData.checkInDate}&checkOut=${editFormData.checkOutDate}&excludeBookingId=${editingBookingId ?? ''}`,
         {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
@@ -206,7 +218,21 @@ export default function BookingManagement() {
 
       if (response.ok) {
         const data = await response.json();
-        setAvailableRooms(data.data || []);
+        const rooms: AvailableRoom[] = data.data || [];
+        setAvailableRooms(rooms);
+
+        // The currently assigned/selected room genuinely conflicts with a
+        // DIFFERENT active booking for these dates — the backend now
+        // excludes this booking's own reservation from the conflict check,
+        // so if it's still missing here it's a real conflict, not a
+        // false positive. Surface a specific message and require a fresh
+        // choice instead of letting the generic step-2 validation fail
+        // silently.
+        const stillAvailable = !editFormData.roomTypeId || rooms.some((r) => r._id === editFormData.roomTypeId);
+        if (!stillAvailable) {
+          toast.error("The assigned room is no longer available for the selected dates. Please choose another room.");
+          setEditFormData(prev => ({ ...prev, roomTypeId: "", roomId: "" }));
+        }
       } else {
         const errorData = await response.json();
         toast.error(errorData.error || "Failed to fetch available rooms");
@@ -257,8 +283,15 @@ export default function BookingManagement() {
         }
         break;
       case 2:
-        if (!editFormData.checkInDate || !editFormData.checkOutDate || !editFormData.roomTypeId) {
-          toast.error("Please select check-in/out dates and room");
+        if (!editFormData.checkInDate || !editFormData.checkOutDate) {
+          toast.error("Please select check-in and check-out dates");
+          return false;
+        }
+        // Room re-selection is only required for legacy bookings — a v2
+        // booking's room changes go through the dedicated Reassign flow,
+        // never through Edit.
+        if (!editFormData.isV2Booking && !editFormData.roomTypeId) {
+          toast.error("The assigned room is no longer available for the selected dates. Please choose another room.");
           return false;
         }
         if (new Date(editFormData.checkOutDate) <= new Date(editFormData.checkInDate)) {
@@ -297,7 +330,11 @@ export default function BookingManagement() {
     try {
       const updateData = {
         hotelId: user.hotelId,
-        roomId: editFormData.roomId,
+        // roomId is a legacy-only concept — omitted for v2 bookings, whose
+        // room changes go through the separate Reassign flow. The backend
+        // doesn't read roomId/roomTypeId from this endpoint at all either
+        // way, but there's no reason to send a meaningless empty value.
+        ...(editFormData.isV2Booking ? {} : { roomId: editFormData.roomId }),
         guestName: editFormData.guestName,
         guestEmail: editFormData.guestEmail,
         guestPhone: editFormData.guestPhone,
@@ -349,14 +386,21 @@ export default function BookingManagement() {
 
   const handleEdit = (booking: any) => {
     setEditingBookingId(booking._id);
+    const isV2Booking = !!booking.roomTypeV2Id;
     setEditFormData({
       guestName: booking.guestName,
       guestEmail: booking.guestEmail,
       guestPhone: booking.guestPhone,
       checkInDate: new Date(booking.checkInDate).toISOString().split('T')[0],
       checkOutDate: new Date(booking.checkOutDate).toISOString().split('T')[0],
-      roomId: typeof booking.roomTypeId === 'string' ? booking.roomTypeId : (booking.roomTypeId as any)?._id ?? '',
-      roomTypeId: typeof booking.roomTypeId === 'string' ? booking.roomTypeId : (booking.roomTypeId as any)?._id ?? '',
+      // Legacy-only — room changes for a v2 booking go through Reassign,
+      // never through Edit, so these are left empty/unused for v2 bookings
+      // rather than force-derived from a field (roomTypeId) that's null by
+      // design on a v2 booking.
+      roomId: !isV2Booking ? (typeof booking.roomTypeId === 'string' ? booking.roomTypeId : (booking.roomTypeId as any)?._id ?? '') : '',
+      roomTypeId: !isV2Booking ? (typeof booking.roomTypeId === 'string' ? booking.roomTypeId : (booking.roomTypeId as any)?._id ?? '') : '',
+      isV2Booking,
+      roomDisplayLabel: getBookingRoomDisplay(booking).label,
       numberOfGuests: booking.numberOfGuests,
       address: booking.guestDetails?.address || "",
       city: booking.guestDetails?.city || "",
@@ -380,6 +424,8 @@ export default function BookingManagement() {
       checkOutDate: "",
       roomId: "",
       roomTypeId: "",
+      isV2Booking: false,
+      roomDisplayLabel: "",
       numberOfGuests: 2,
       address: "",
       city: "",
@@ -1020,39 +1066,52 @@ export default function BookingManagement() {
                     </div>
                   </div>
 
-                  <div>
-                    <Label htmlFor="edit-roomId">Select Room *</Label>
-                    <Select
-                      value={editFormData.roomTypeId}
-                      onValueChange={(value) =>
-                        setEditFormData(prev => ({ ...prev, roomTypeId: value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue
-                          placeholder={loadingRooms ? "Loading rooms..." : "Select a room"}
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableRooms.length > 0 ? (
-                          availableRooms.map(room => (
-                            <SelectItem key={room._id} value={room._id}>
-                              Room {room.roomNumber} - {room.roomTypeId?.name || 'Unknown'}
-                              {room.roomTypeId?.price
-                                ? ` (₦${room.roomTypeId.price.toLocaleString()}/night)`
-                                : ''}
+                  {editFormData.isV2Booking ? (
+                    <div>
+                      <Label>Assigned Room</Label>
+                      <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                        <BedDouble className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span>{editFormData.roomDisplayLabel}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        To move this guest to a different room or category, use the Reassign action instead.
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <Label htmlFor="edit-roomId">Select Room *</Label>
+                      <Select
+                        value={editFormData.roomTypeId}
+                        onValueChange={(value) =>
+                          setEditFormData(prev => ({ ...prev, roomTypeId: value }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={loadingRooms ? "Loading rooms..." : "Select a room"}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableRooms.length > 0 ? (
+                            availableRooms.map(room => (
+                              <SelectItem key={room._id} value={room._id}>
+                                Room {room.roomNumber} - {room.roomTypeId?.name || 'Unknown'}
+                                {room.roomTypeId?.price
+                                  ? ` (₦${room.roomTypeId.price.toLocaleString()}/night)`
+                                  : ''}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="no-rooms" disabled>
+                              {editFormData.checkInDate && editFormData.checkOutDate
+                                ? "No rooms available"
+                                : "Select dates first"}
                             </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="no-rooms" disabled>
-                            {editFormData.checkInDate && editFormData.checkOutDate
-                              ? "No rooms available"
-                              : "Select dates first"}
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   <div>
                     <Label htmlFor="edit-numberOfGuests">Number of Guests</Label>
@@ -1321,7 +1380,7 @@ export default function BookingManagement() {
                 <SelectTrigger><SelectValue placeholder="Choose a room" /></SelectTrigger>
                 <SelectContent>
                   {reassignUnits.map((u) => {
-                    const catName = typeof u.roomTypeId === "object" ? u.roomTypeId.name : "";
+                    const catName = (typeof u.roomTypeId === "object" ? u.roomTypeId.name : "") || "Unknown Category";
                     const catPrice = typeof u.roomTypeId === "object" ? u.roomTypeId.basePrice : undefined;
                     return (
                       <SelectItem key={u._id} value={u._id}>

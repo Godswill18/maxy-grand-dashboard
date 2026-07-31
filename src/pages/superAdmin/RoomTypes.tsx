@@ -1,5 +1,5 @@
 // src/pages/superAdmin/RoomTypes.tsx
-// Room Type (category) management for the new two-level room model.
+// Room Category management for the new two-level room model.
 // Used by both superadmin (/room-types-v2) and manager (/manager/room-types-v2),
 // same pattern as the legacy Rooms.tsx / /manager/rooms-type split.
 import { useEffect, useMemo, useState } from "react";
@@ -58,9 +58,9 @@ export default function RoomTypes() {
   const handleBookableToggle = async (id: string) => {
     const result = await toggleRoomTypeBookable(id);
     if (result.success) {
-      toast.success("Room type visibility updated");
+      toast.success("Room category visibility updated");
     } else {
-      toast.error(result.error || "Failed to update room type");
+      toast.error(result.error || "Failed to update room category");
     }
   };
 
@@ -95,12 +95,12 @@ export default function RoomTypes() {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Room Types</h1>
+          <h1 className="text-3xl font-bold text-foreground">Room Categories</h1>
           <p className="text-muted-foreground">
-            Manage sellable room categories — add physical units from a room type's detail page
+            Manage sellable room categories — add physical units from a room category's detail page
           </p>
         </div>
-        <Button onClick={openCreateModal}>Add Room Type</Button>
+        <Button onClick={openCreateModal}>Add Room Category</Button>
       </div>
 
       <Card>
@@ -108,7 +108,7 @@ export default function RoomTypes() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search room types..."
+              placeholder="Search room categories..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -121,7 +121,7 @@ export default function RoomTypes() {
         <Card>
           <CardContent className="p-6 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Room Types</p>
+              <p className="text-sm font-medium text-muted-foreground">Room Categories</p>
               <h2 className="text-3xl font-bold">{stats.total}</h2>
             </div>
             <div className="p-3 bg-primary/10 rounded-full">
@@ -183,7 +183,7 @@ export default function RoomTypes() {
 
       {error && !isLoading && (
         <div className="text-destructive-foreground bg-destructive p-4 rounded-md">
-          <p>Error fetching room types: {error}</p>
+          <p>Error fetching room categories: {error}</p>
         </div>
       )}
 
@@ -192,9 +192,9 @@ export default function RoomTypes() {
           <Card>
             <CardContent className="p-12 text-center">
               <DoorOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No room types found</h3>
+              <h3 className="text-lg font-semibold mb-2">No room categories found</h3>
               <p className="text-sm text-muted-foreground">
-                Get started by adding your first room type.
+                Get started by adding your first room category.
               </p>
             </CardContent>
           </Card>

@@ -15,6 +15,8 @@ import { useForceLogout } from "./store/useForceLogout";
 import { useNotificationSocket } from "./store/useNotificationStore";
 import { useNotificationToastsAndSound } from "./store/useNotificationToastsAndSound";
 import { useAudioUnlock } from "./lib/notificationSound";
+import { dismissShellLoader } from "./lib/shellLoader";
+import { GlobalLoader } from "./components/GlobalLoader";
 
 // Import the navigation arrays
 import {
@@ -78,7 +80,6 @@ import ShiftScheduler from "./pages/superAdmin/ShiftScheduler";
 import MySchedule from "./pages/Myschedule";
 import GalleryManagement from "./pages/superAdmin/GalleryManagement";
 import BlogManagement from "./pages/superAdmin/Blogmanagement";
-import CategoryManagement from "./pages/superAdmin/CategoryManagement";
 import StaffProfile from "./pages/StaffProfile";
 import ProfileUpdate from "./pages/Profileupdate";
 import ChangePassword from "./pages/Changepassword";
@@ -203,6 +204,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
 function ProtectedRoutes() {
   const { user, isLoading, checkAuth } = useAuthStore();
   const [authChecked, setAuthChecked] = useState(false);
+  const [showLoaderOverlay, setShowLoaderOverlay] = useState(true);
   const token = localStorage.getItem('token');
 
   // Validate token against the server on mount before showing any protected content.
@@ -215,12 +217,20 @@ function ProtectedRoutes() {
     checkAuth().finally(() => setAuthChecked(true));
   }, []);
 
-  if (!authChecked || isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">Loading...</div>
-      </div>
-    );
+  const isReady = authChecked && !isLoading;
+
+  // Once ready, the real content below mounts immediately (never delayed) —
+  // the overlay just fades out on top of it for one transition, then is
+  // removed, so the handoff looks smooth without holding up anything.
+  useEffect(() => {
+    if (isReady && showLoaderOverlay) {
+      const timer = setTimeout(() => setShowLoaderOverlay(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isReady, showLoaderOverlay]);
+
+  if (!isReady) {
+    return <GlobalLoader />;
   }
 
   if (!user || !token) {
@@ -228,9 +238,12 @@ function ProtectedRoutes() {
   }
 
   return (
-    <AuthenticatedLayout>
-      <RoleBasedLayout />
-    </AuthenticatedLayout>
+    <>
+      {showLoaderOverlay && <GlobalLoader fadingOut />}
+      <AuthenticatedLayout>
+        <RoleBasedLayout />
+      </AuthenticatedLayout>
+    </>
   );
 }
 
@@ -307,6 +320,13 @@ const App = () => {
   // would otherwise silently fail.
   useAudioUnlock();
 
+  // Dismiss the inline shell loader (index.html) now that App has actually
+  // mounted and committed — this is the real "React has taken over" signal,
+  // not a fixed delay, so it never holds up anything.
+  useEffect(() => {
+    dismissShellLoader();
+  }, []);
+
   return (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -354,7 +374,8 @@ const App = () => {
                 <Route path="/reviews" element={<Reviews />} />
                 <Route path="/blog-management" element={<BlogManagement />} />
                 <Route path="/gallery-management" element={<GalleryManagement />} />
-                <Route path="/room-categories" element={<CategoryManagement />} />
+                {/* RoomCategory folded into RoomTypeV2 — old link redirects, doesn't 404 */}
+                <Route path="/room-categories" element={<Navigate to="/room-types-v2" replace />} />
                 <Route path="/restaurant-orders" element={<RestaurantOrders />} />
                 <Route path="/announcements" element={<Announcements />} />
                 <Route path="/notifications" element={<Notifications />} />
@@ -397,7 +418,8 @@ const App = () => {
                 <Route path="/manager/room-types-v2" element={<RoomTypes />} />
                 <Route path="/manager/room-types-v2/:id" element={<RoomTypeDetails />} />
                 <Route path="/manager/room-status-v2" element={<RoomStatusBoard />} />
-                <Route path="/manager/room-categories" element={<CategoryManagement />} />
+                {/* RoomCategory folded into RoomTypeV2 — old link redirects, doesn't 404 */}
+                <Route path="/manager/room-categories" element={<Navigate to="/manager/room-types-v2" replace />} />
                 <Route path="/manager/operations" element={<Operations />} />
                 <Route path="/manager/house-keeping" element={<Housekeeping />} />
                 <Route path="/manager/bookings" element={<BookingManagement />} />

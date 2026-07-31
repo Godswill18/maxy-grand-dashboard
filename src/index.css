@@ -116,6 +116,38 @@ All colors MUST be HSL.
   }
 }
 
+/* ── GlobalLoader's progress bar ────────────────────────────────────────────
+   Static by default; the sliding animation is only added under
+   prefers-reduced-motion: no-preference, so reduced-motion users still see
+   a visible (non-flashy, non-shimmering) indicator rather than a moving one. */
+@keyframes global-loader-slide {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(140%); }
+  100% { transform: translateX(140%); }
+}
+
+.global-loader-bar-fill {
+  animation: none;
+}
+
+/* ── Skeleton placeholders (components/ui/skeleton.tsx) ─────────────────────
+   Tailwind's animate-pulse doesn't respect prefers-reduced-motion on its
+   own — this override fixes all ~55 usages at once, centrally, rather than
+   touching every call site. Reduced-motion users still see a static,
+   visibly-dimmed placeholder, just not a pulsing one. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .global-loader-bar-fill {
+    animation: global-loader-slide 1.3s ease-in-out infinite;
+  }
+}
+
 .rbc-today {
   background-color: rgba(47, 146, 125, 0.15) !important; /* subtle tint */
   border: 1px solid #2F927D !important; /* your accent color */

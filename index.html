@@ -13,10 +13,89 @@
     <meta property="og:type" content="website" />
 
     <meta name="twitter:card" content="summary_large_image" />
+
+    <!--
+      Hardcoded dark background + inline shell loader, painted before any
+      JS/CSS bundle loads or executes — this is what eliminates the white
+      flash between the HTML being served and React mounting, since no
+      React component exists yet at that moment to cover it. Color mirrors
+      --background: 210 20% 8% in src/index.css; keep in sync if that value
+      changes. Dismissed by src/lib/shellLoader.ts once App has mounted.
+    -->
+    <style>
+      html, body {
+        background: #101418;
+        margin: 0;
+      }
+      #shell-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        background: #101418;
+        transition: opacity 0.3s ease;
+      }
+      #shell-loader.shell-loader-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #shell-loader .shell-loader-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 20px 28px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+      }
+      #shell-loader .shell-loader-card img {
+        display: block;
+        width: 96px;
+        height: auto;
+      }
+      #shell-loader .shell-loader-bar {
+        width: 160px;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        overflow: hidden;
+      }
+      #shell-loader .shell-loader-bar-fill {
+        height: 100%;
+        width: 40%;
+        border-radius: 999px;
+        background: #2f927d;
+      }
+      /* Reduced motion: the bar stays static (no slide) — still a visible,
+         non-flashy loading indicator, per prefers-reduced-motion guidance. */
+      @media (prefers-reduced-motion: no-preference) {
+        #shell-loader .shell-loader-bar-fill {
+          animation: shell-loader-slide 1.3s ease-in-out infinite;
+        }
+      }
+      @keyframes shell-loader-slide {
+        0% { transform: translateX(-100%); }
+        50% { transform: translateX(140%); }
+        100% { transform: translateX(140%); }
+      }
+    </style>
   </head>
 
   <body>
     <div id="root"></div>
+    <div
+      id="shell-loader"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label="Loading Maxy Grand Hotel dashboard"
+    >
+      <div class="shell-loader-card">
+        <img src="/mxlogo-black.png" alt="Maxy Grand Hotel" />
+      </div>
+      <div class="shell-loader-bar"><div class="shell-loader-bar-fill"></div></div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -14,6 +14,7 @@
 // only ones whose data actually changed re-paint; the per-card countdown
 // still ticks independently every second regardless (isolated interval).
 import { useEffect, useMemo, useState, memo } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,10 +30,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { BedDouble, Clock, Sparkles, Wrench, CheckCircle2, User, UserCheck, DoorOpen } from "lucide-react";
+import { BedDouble, Clock, Sparkles, Wrench, CheckCircle2, User, UserCheck, DoorOpen, AlertTriangle } from "lucide-react";
 import { useRoomTypeV2Store, type RoomUnit } from "@/store/useRoomTypeV2Store";
 import { useBranchStore } from "@/store/useBranchStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { socket } from "@/lib/socket";
 import { cn } from "@/lib/utils";
 
 const STATUS_LABELS: Record<RoomUnit["status"], string> = {
@@ -42,11 +44,24 @@ const STATUS_LABELS: Record<RoomUnit["status"], string> = {
   maintenance: "Maintenance",
 };
 
-// Whole-card theming per status — background + border + accent all reflect
-// status, not just a thin strip. Available/Occupied reuse the app's actual
-// success/destructive design tokens (dark-mode-safe); Cleaning/Maintenance
-// have no dedicated token in this design system, so they use Tailwind's
-// blue/slate palettes with explicit dark: variants for parity.
+type IconType = ComponentType<{ className?: string }>;
+
+// Icon shown in every card's status badge alongside the color and text —
+// color is never the only signal. Occupied's icon varies by time band
+// (see OCCUPIED_BAND_ICON below), not used from this map.
+const STATUS_ICONS: Record<RoomUnit["status"], IconType> = {
+  available: CheckCircle2,
+  occupied: Clock,
+  cleaning: Sparkles,
+  maintenance: Wrench,
+};
+
+// Whole-card theming per BASE status — background + border + accent all
+// reflect status, not just a thin strip. Occupied is NOT driven from here;
+// it progresses through OCCUPIED_BAND_THEME below as checkout approaches.
+// Cleaning uses amber/yellow (vacant, awaiting turnover) — kept distinct
+// from occupied's "calm" blue band so the two states can never be confused
+// at a glance.
 const STATUS_THEME: Record<RoomUnit["status"], {
   card: string;
   badge: string;
@@ -66,10 +81,10 @@ const STATUS_THEME: Record<RoomUnit["status"], {
     iconBg: "bg-destructive/15",
   },
   cleaning: {
-    card: "bg-blue-50 border-blue-300 dark:bg-blue-950/30 dark:border-blue-800",
-    badge: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800",
-    accent: "text-blue-600 dark:text-blue-400",
-    iconBg: "bg-blue-100 dark:bg-blue-900/40",
+    card: "bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-800",
+    badge: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800",
+    accent: "text-amber-600 dark:text-amber-400",
+    iconBg: "bg-amber-100 dark:bg-amber-900/40",
   },
   maintenance: {
     card: "bg-slate-100 border-slate-300 dark:bg-slate-800/40 dark:border-slate-700",
@@ -79,28 +94,63 @@ const STATUS_THEME: Record<RoomUnit["status"], {
   },
 };
 
-const URGENCY_CLASS: Record<"calm" | "warning" | "critical", string> = {
-  calm: "text-foreground",
-  warning: "text-warning",
-  critical: "text-destructive animate-pulse",
+// How soon before checkOutAt the "approaching" (orange) band begins. Single
+// tunable constant — discrete bands, not a continuous gradient.
+const APPROACHING_MINS = 60;
+
+type OccupiedBand = "calm" | "approaching" | "overdue";
+
+// Pure, no side effects — shared by the card's background theme AND the
+// countdown text (both driven by the same `now`) so they can never disagree.
+function getOccupiedBand(checkOutAt: string, now: number): OccupiedBand {
+  const distance = new Date(checkOutAt).getTime() - now;
+  if (distance <= 0) return "overdue";
+  if (distance <= APPROACHING_MINS * 60000) return "approaching";
+  return "calm";
+}
+
+const OCCUPIED_BAND_THEME: Record<OccupiedBand, {
+  card: string;
+  badge: string;
+  accent: string;
+  iconBg: string;
+}> = {
+  calm: {
+    card: "bg-blue-50 border-blue-300 dark:bg-blue-950/30 dark:border-blue-800",
+    badge: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800",
+    accent: "text-blue-600 dark:text-blue-400",
+    iconBg: "bg-blue-100 dark:bg-blue-900/40",
+  },
+  approaching: {
+    card: "bg-orange-50 border-orange-300 dark:bg-orange-950/30 dark:border-orange-800",
+    badge: "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-800",
+    accent: "text-orange-600 dark:text-orange-400",
+    iconBg: "bg-orange-100 dark:bg-orange-900/40",
+  },
+  // Reuses the same destructive tokens the old always-red "occupied" theme
+  // used — the worst case still looks like today's occupied card.
+  overdue: {
+    card: "bg-destructive/5 border-destructive/30 dark:bg-destructive/10",
+    badge: "bg-destructive/15 text-destructive border-destructive/30",
+    accent: "text-destructive",
+    iconBg: "bg-destructive/15",
+  },
+};
+
+const OCCUPIED_BAND_ICON: Record<OccupiedBand, IconType> = {
+  calm: Clock,
+  approaching: Clock,
+  overdue: AlertTriangle,
 };
 
 const formatDateTime = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
-// Live checkout countdown — the visual focal point of an occupied card.
-// Derived entirely from checkOutAt on every 1s tick (never a stored ticking
-// value). Format: HH:MM:SS under 24h remaining, "Dd HH:MM" at 1+ day.
-// Gradual urgency staging (calm -> warning -> critical+pulse) rather than an
-// abrupt color snap, and the pulse only kicks in for the last, most urgent stage.
-function CheckoutCountdown({ checkOutAt }: { checkOutAt: string }) {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
+// Live checkout countdown text — the visual focal point of an occupied
+// card. `now`/`band` are passed down from OccupiedRoomFrame's single shared
+// tick (not owned here) so the countdown text and the card's background
+// band can never drift out of sync from two independent timers.
+function CheckoutCountdown({ checkOutAt, now, band }: { checkOutAt: string; now: number; band: OccupiedBand }) {
   const distance = new Date(checkOutAt).getTime() - now;
   const isOverdue = distance <= 0;
   const abs = Math.abs(distance);
@@ -114,23 +164,66 @@ function CheckoutCountdown({ checkOutAt }: { checkOutAt: string }) {
     ? `${days}d ${pad(hours)}:${pad(minutes)}`
     : `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 
-  const urgency: "calm" | "warning" | "critical" =
-    isOverdue || distance <= 30 * 60000 ? "critical"
-      : distance <= 2 * 3600000 ? "warning"
-        : "calm";
-
   return (
     <div className="rounded-lg bg-background/70 dark:bg-background/30 px-4 py-3 text-center">
       <div className="flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground mb-1">
-        <Clock className="h-3.5 w-3.5" />
+        {isOverdue ? <AlertTriangle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
         <span>{isOverdue ? "Overdue" : "Checkout in"}</span>
       </div>
       <p className={cn(
         "text-4xl sm:text-5xl font-black tabular-nums tracking-tight leading-none transition-colors duration-500",
-        URGENCY_CLASS[urgency]
+        OCCUPIED_BAND_THEME[band].accent,
+        band === "overdue" && "animate-pulse"
       )}>
         {formatted}
       </p>
+    </div>
+  );
+}
+
+// Owns the single 1s tick driving an occupied card's time-based color band
+// and its countdown text together — kept out of the memoized RoomCard so
+// non-occupied cards never pay a per-second re-render cost, and so an
+// occupied card's OWN tick never forces sibling cards to re-render.
+function OccupiedRoomFrame({
+  checkOutAt,
+  housekeepingInProgress,
+  children,
+}: {
+  checkOutAt: string;
+  housekeepingInProgress?: boolean;
+  children: (band: OccupiedBand, now: number) => ReactNode;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const band = getOccupiedBand(checkOutAt, now);
+  const theme = OCCUPIED_BAND_THEME[band];
+
+  return (
+    <div className={cn(
+      "relative overflow-hidden rounded-xl border-2 p-6 space-y-4 shadow-sm hover:shadow-md transition-colors duration-500",
+      theme.card
+    )}>
+      {/* Stayover housekeeping overlay — layered on top of the occupied
+          band color, never replaces it. Decorative only; the actual signal
+          is the "Housekeeping" badge below, on its own solid chip. */}
+      {housekeepingInProgress && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none opacity-20 dark:opacity-25"
+          style={{
+            backgroundImage: "repeating-linear-gradient(45deg, rgb(217 119 6) 0px, rgb(217 119 6) 10px, transparent 10px, transparent 20px)",
+          }}
+        />
+      )}
+      <div className="relative z-10 space-y-4">
+        {children(band, now)}
+      </div>
     </div>
   );
 }
@@ -139,20 +232,28 @@ interface RoomCardProps {
   unit: RoomUnit;
   roomTypeName: string;
   isMarkingClean: boolean;
+  isTogglingHousekeeping: boolean;
   onMarkClean: (unit: RoomUnit) => void;
   onFlagMaintenance: (unit: RoomUnit) => void;
+  onToggleHousekeeping: (unit: RoomUnit) => void;
 }
 
-const RoomCard = memo(function RoomCard({ unit, roomTypeName, isMarkingClean, onMarkClean, onFlagMaintenance }: RoomCardProps) {
-  const theme = STATUS_THEME[unit.status];
-
-  return (
-    <div className={cn(
-      "rounded-xl border-2 p-6 space-y-4 shadow-sm hover:shadow-md transition-all duration-300",
-      theme.card
-    )}>
+const RoomCard = memo(function RoomCard({
+  unit, roomTypeName, isMarkingClean, isTogglingHousekeeping, onMarkClean, onFlagMaintenance, onToggleHousekeeping,
+}: RoomCardProps) {
+  // Shared body — rendered either directly (static statuses) or once per
+  // second from inside OccupiedRoomFrame's tick (occupied), so the exact
+  // same markup/behavior applies either way; only the surrounding
+  // color/frame differs.
+  const renderBody = (
+    theme: { card: string; badge: string; accent: string; iconBg: string },
+    StatusIcon: IconType,
+    band?: OccupiedBand,
+    now?: number,
+  ) => (
+    <>
       {/* Room number + status — identifiable at a glance */}
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-3 min-w-0">
           <div className={cn("w-11 h-11 rounded-lg flex items-center justify-center shrink-0", theme.iconBg)}>
             <BedDouble className={cn("h-6 w-6", theme.accent)} />
@@ -162,14 +263,26 @@ const RoomCard = memo(function RoomCard({ unit, roomTypeName, isMarkingClean, on
             {unit.floor !== undefined && <p className="text-xs text-muted-foreground">Floor {unit.floor}</p>}
           </div>
         </div>
-        <Badge className={cn("text-xs font-semibold border shrink-0", theme.badge)}>
-          {STATUS_LABELS[unit.status]}
-        </Badge>
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          <Badge className={cn("text-xs font-semibold border shrink-0 gap-1", theme.badge)}>
+            <StatusIcon className="h-3 w-3" />
+            {STATUS_LABELS[unit.status]}
+          </Badge>
+          {/* Combined state — occupied AND being cleaned (stayover). Its
+              own solid chip so the stripe overlay behind it never reduces
+              its contrast. */}
+          {unit.status === "occupied" && unit.housekeepingInProgress && (
+            <Badge className="text-xs font-semibold border shrink-0 gap-1 bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800">
+              <Sparkles className="h-3 w-3" />
+              Housekeeping
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Countdown — the dominant element on an occupied card */}
-      {unit.status === "occupied" && unit.checkOutAt && (
-        <CheckoutCountdown checkOutAt={unit.checkOutAt} />
+      {unit.status === "occupied" && unit.checkOutAt && band && now !== undefined && (
+        <CheckoutCountdown checkOutAt={unit.checkOutAt} now={now} band={band} />
       )}
 
       {/* Guest / check-in / check-out details */}
@@ -217,11 +330,38 @@ const RoomCard = memo(function RoomCard({ unit, roomTypeName, isMarkingClean, on
             {isMarkingClean ? "Marking..." : "Mark Clean"}
           </Button>
         )}
+        {unit.status === "occupied" && (
+          <Button size="sm" variant="outline" onClick={() => onToggleHousekeeping(unit)} disabled={isTogglingHousekeeping}>
+            <Sparkles className="h-4 w-4 mr-1.5" />
+            {isTogglingHousekeeping
+              ? "Saving..."
+              : unit.housekeepingInProgress ? "Finish Housekeeping" : "Start Housekeeping"}
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={() => onFlagMaintenance(unit)}>
           <Wrench className="h-4 w-4 mr-1.5" />
           {unit.status === "maintenance" ? "Restore" : unit.status === "occupied" ? "Flag Issue" : "Maintenance"}
         </Button>
       </div>
+    </>
+  );
+
+  if (unit.status === "occupied" && unit.checkOutAt) {
+    return (
+      <OccupiedRoomFrame checkOutAt={unit.checkOutAt} housekeepingInProgress={unit.housekeepingInProgress}>
+        {(band, now) => renderBody(OCCUPIED_BAND_THEME[band], OCCUPIED_BAND_ICON[band], band, now)}
+      </OccupiedRoomFrame>
+    );
+  }
+
+  const theme = STATUS_THEME[unit.status];
+  const StatusIcon = STATUS_ICONS[unit.status];
+  return (
+    <div className={cn(
+      "rounded-xl border-2 p-6 space-y-4 shadow-sm hover:shadow-md transition-all duration-300",
+      theme.card
+    )}>
+      {renderBody(theme, StatusIcon)}
     </div>
   );
 }, (prev, next) =>
@@ -231,10 +371,12 @@ const RoomCard = memo(function RoomCard({ unit, roomTypeName, isMarkingClean, on
   prev.unit.checkedInAt === next.unit.checkedInAt &&
   prev.unit.currentGuestName === next.unit.currentGuestName &&
   prev.unit.maintenanceReason === next.unit.maintenanceReason &&
+  prev.unit.housekeepingInProgress === next.unit.housekeepingInProgress &&
   prev.unit.roomNumber === next.unit.roomNumber &&
   prev.unit.floor === next.unit.floor &&
   prev.roomTypeName === next.roomTypeName &&
-  prev.isMarkingClean === next.isMarkingClean
+  prev.isMarkingClean === next.isMarkingClean &&
+  prev.isTogglingHousekeeping === next.isTogglingHousekeeping
 );
 
 // Maintenance-reason dialog (create) / confirm (restore to available)
@@ -294,7 +436,7 @@ function MaintenanceDialog({
 }
 
 export default function RoomStatusBoard() {
-  const { unitsBoard, isBoardLoading, fetchUnitsBoard, updateRoomUnitStatus, initRoomUnitSocketListeners, closeRoomUnitSocketListeners } = useRoomTypeV2Store();
+  const { unitsBoard, isBoardLoading, fetchUnitsBoard, updateRoomUnitStatus, toggleHousekeeping, initRoomUnitSocketListeners, closeRoomUnitSocketListeners } = useRoomTypeV2Store();
   const { branches, fetchBranches, isLoading: isBranchesLoading } = useBranchStore();
   const { user } = useAuthStore();
   const isSuperAdmin = user?.role === "superadmin";
@@ -302,6 +444,7 @@ export default function RoomStatusBoard() {
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [maintenanceTarget, setMaintenanceTarget] = useState<RoomUnit | null>(null);
   const [markingCleanId, setMarkingCleanId] = useState<string | null>(null);
+  const [togglingHousekeepingId, setTogglingHousekeepingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -316,29 +459,43 @@ export default function RoomStatusBoard() {
   }, [isSuperAdmin, selectedBranchId, fetchUnitsBoard]);
 
   useEffect(() => {
+    const hotelId = isSuperAdmin ? selectedBranchId : user?.hotelId;
+    if (!hotelId) return;
+
+    // Without this, roomUnitUpdated broadcasts (emitToHotel) never reach this
+    // tab — the server only routes them to sockets that have joined
+    // hotel_{hotelId}, and nothing does that automatically on connect. Same
+    // join_hotel/'connect' pattern as WaiterDashboard.tsx.
+    const handleConnect = () => socket.emit('join_hotel', hotelId);
+    socket.on('connect', handleConnect);
+    if (socket.connected) socket.emit('join_hotel', hotelId);
+
     initRoomUnitSocketListeners();
     // 60s poll fallback — same precedent as the legacy board, since socket
-    // coverage isn't guaranteed complete.
+    // coverage isn't guaranteed complete. Silent: this is a background
+    // safety net, not a user-initiated load, so it must not flash the
+    // skeleton over an already-rendered board.
     const interval = setInterval(() => {
       if (isSuperAdmin) {
-        if (selectedBranchId) fetchUnitsBoard(selectedBranchId);
+        if (selectedBranchId) fetchUnitsBoard(selectedBranchId, { silent: true });
       } else {
-        fetchUnitsBoard();
+        fetchUnitsBoard(undefined, { silent: true });
       }
     }, 60000);
     return () => {
+      socket.off('connect', handleConnect);
       closeRoomUnitSocketListeners();
       clearInterval(interval);
     };
-  }, [isSuperAdmin, selectedBranchId, fetchUnitsBoard, initRoomUnitSocketListeners, closeRoomUnitSocketListeners]);
+  }, [isSuperAdmin, selectedBranchId, user?.hotelId, fetchUnitsBoard, initRoomUnitSocketListeners, closeRoomUnitSocketListeners]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, { name: string; units: RoomUnit[] }>();
+    const map = new Map<string, { id: string; name: string; units: RoomUnit[] }>();
     for (const unit of unitsBoard) {
       const category = typeof unit.roomTypeId === "object" ? unit.roomTypeId : null;
       const key = category?._id || "unknown";
       const name = category?.name || "Unassigned";
-      if (!map.has(key)) map.set(key, { name, units: [] });
+      if (!map.has(key)) map.set(key, { id: key, name, units: [] });
       map.get(key)!.units.push(unit);
     }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -360,6 +517,18 @@ export default function RoomStatusBoard() {
       toast.error(result.error || "Failed to update room status");
     }
     setMarkingCleanId(null);
+  };
+
+  const handleToggleHousekeeping = async (unit: RoomUnit) => {
+    setTogglingHousekeepingId(unit._id);
+    const nextInProgress = !unit.housekeepingInProgress;
+    const result = await toggleHousekeeping(unit._id, nextInProgress);
+    if (result.success) {
+      toast.success(nextInProgress ? `Housekeeping started in Room ${unit.roomNumber}` : `Housekeeping finished in Room ${unit.roomNumber}`);
+    } else {
+      toast.error(result.error || "Failed to update housekeeping status");
+    }
+    setTogglingHousekeepingId(null);
   };
 
   const showBoard = !isSuperAdmin || selectedBranchId;
@@ -428,7 +597,7 @@ export default function RoomStatusBoard() {
             </Card>
           ) : (
             grouped.map((group) => (
-              <Card key={group.name}>
+              <Card key={group.id}>
                 <CardHeader>
                   <CardTitle className="text-lg">{group.name}</CardTitle>
                 </CardHeader>
@@ -440,8 +609,10 @@ export default function RoomStatusBoard() {
                         unit={unit}
                         roomTypeName={group.name}
                         isMarkingClean={markingCleanId === unit._id}
+                        isTogglingHousekeeping={togglingHousekeepingId === unit._id}
                         onMarkClean={handleMarkClean}
                         onFlagMaintenance={setMaintenanceTarget}
+                        onToggleHousekeeping={handleToggleHousekeeping}
                       />
                     ))}
                   </div>

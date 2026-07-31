@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Moon, Sun, Menu, LayoutDashboard, UserCheck, DoorOpen, BedDouble, Calendar, CreditCard } from "lucide-react";
 import { NavLink } from "./NavLink";
 import { NotificationBell } from "@/components/NotificationBell";
+import { isDarkMode, setDarkMode as applyDarkMode } from "@/lib/theme";
 // import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
 
 const navigation = [
@@ -17,23 +18,17 @@ const navigation = [
 ];
 
 export function ReceptionistDashboardLayout({ children }: { children: React.ReactNode }) {
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem("darkMode");
-    const isDark = saved === "true";
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    }
-    return isDark;
-  });
+  // theme.ts is the single source of truth (also applied synchronously
+  // pre-render in main.tsx); this just mirrors it for the toggle UI.
+  const [darkMode, setLocalDarkMode] = useState(isDarkMode);
   const location = useLocation();
-  
+
   // useSimulatedNotifications();
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;
-    setDarkMode(newMode);
-    localStorage.setItem("darkMode", String(newMode));
-    document.documentElement.classList.toggle("dark");
+    applyDarkMode(newMode);
+    setLocalDarkMode(newMode);
   };
 
   return (

@@ -3,6 +3,7 @@ import { NavLink } from "./NavLink";
 import { LayoutDashboard, Users, TrendingUp, FileText, Settings, Moon, Sun, Menu, X, ClipboardList } from "lucide-react";
 import { Button } from "./ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
+import { isDarkMode, setDarkMode as applyDarkMode } from "@/lib/theme";
 // import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
 
 interface BranchManagerDashboardLayoutProps {
@@ -10,23 +11,17 @@ interface BranchManagerDashboardLayoutProps {
 }
 
 export function BranchManagerDashboardLayout({ children }: BranchManagerDashboardLayoutProps) {
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem("darkMode");
-    const isDark = saved === "true";
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    }
-    return isDark;
-  });
+  // theme.ts is the single source of truth (also applied synchronously
+  // pre-render in main.tsx); this just mirrors it for the toggle UI.
+  const [darkMode, setLocalDarkMode] = useState(isDarkMode);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
+
   // useSimulatedNotifications();-
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;
-    setDarkMode(newMode);
-    localStorage.setItem("darkMode", String(newMode));
-    document.documentElement.classList.toggle("dark");
+    applyDarkMode(newMode);
+    setLocalDarkMode(newMode);
   };
 
   const menuItems = [

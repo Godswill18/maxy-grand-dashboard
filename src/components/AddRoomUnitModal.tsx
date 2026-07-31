@@ -1,6 +1,6 @@
 // src/components/AddRoomUnitModal.tsx
-// Adds a physical Room Unit (e.g. "204") to an existing Room Type. Opened
-// from within a room type's detail page — roomTypeId comes from that page,
+// Adds a physical Room Unit (e.g. "204") to an existing Room Category. Opened
+// from within a room category's detail page — roomTypeId comes from that page,
 // not from global state, since it only makes sense in that context.
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";

@@ -16,7 +16,11 @@ export interface RoomTypeV2 {
   bedConfig?: string;
   amenities: string[];
   images: string[];
+  // Deprecated — superseded by categoryTag below. Kept readable, no longer
+  // written by create/edit forms. RoomCategory folded into this model.
   categoryId?: string | null;
+  categoryTag?: string | null;
+  slug?: string | null;
   isBookable: boolean;
   unitCount?: number;
   activeUnitCount?: number;
@@ -39,6 +43,10 @@ export interface RoomUnit {
   checkOutAt?: string | null;
   checkedInAt?: string | null;
   maintenanceReason?: string | null;
+  // Stayover housekeeping — guest still checked in, cleaning happening
+  // during the stay. Only meaningful while status is 'occupied'; distinct
+  // from status 'cleaning', which is vacant post-checkout turnover.
+  housekeepingInProgress?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -73,10 +81,11 @@ interface RoomTypeV2State {
   addRoomUnit: (roomTypeId: string, data: { roomNumber: string; floor?: number }) => Promise<{ success: boolean; error?: string }>;
   updateRoomUnit: (unitId: string, data: Partial<Pick<RoomUnit, 'roomNumber' | 'floor' | 'isActive'>>) => Promise<{ success: boolean; error?: string }>;
   updateRoomUnitStatus: (unitId: string, status: RoomUnit['status'], maintenanceReason?: string) => Promise<{ success: boolean; error?: string }>;
+  toggleHousekeeping: (unitId: string, inProgress: boolean) => Promise<{ success: boolean; error?: string }>;
   deleteRoomUnit: (unitId: string) => Promise<{ success: boolean; error?: string }>;
 
   // --- Rooms status board (hotel-wide, grouped client-side by category) ---
-  fetchUnitsBoard: (hotelId?: string) => Promise<void>;
+  fetchUnitsBoard: (hotelId?: string, opts?: { silent?: boolean }) => Promise<void>;
   checkInAndAssignRoom: (
     bookingId: string,
     unitId?: string,
@@ -336,6 +345,24 @@ export const useRoomTypeV2Store = create<RoomTypeV2State>((set, get) => ({
     }
   },
 
+  toggleHousekeeping: async (unitId, inProgress) => {
+    try {
+      const res = await axios.patch(`${VITE_API_URL}/api/room-types-v2/units/${unitId}/housekeeping`, { inProgress }, {
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        withCredentials: true,
+      });
+      const updated = res.data.data as RoomUnit;
+      set((state) => ({
+        units: state.units.map((u) => (u._id === unitId ? updated : u)),
+        unitsBoard: state.unitsBoard.map((u) => (u._id === unitId ? { ...u, ...updated, roomTypeId: u.roomTypeId } : u)),
+      }));
+      return { success: true };
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      return { success: false, error: error.response?.data?.error || error.message };
+    }
+  },
+
   deleteRoomUnit: async (unitId) => {
     try {
       await axios.delete(`${VITE_API_URL}/api/room-types-v2/units/${unitId}`, {
@@ -355,8 +382,8 @@ export const useRoomTypeV2Store = create<RoomTypeV2State>((set, get) => ({
     }
   },
 
-  fetchUnitsBoard: async (hotelId) => {
-    set({ isBoardLoading: true, error: null });
+  fetchUnitsBoard: async (hotelId, opts) => {
+    if (!opts?.silent) set({ isBoardLoading: true, error: null });
     try {
       const res = await axios.get(`${VITE_API_URL}/api/room-types-v2/units/board`, {
         params: hotelId ? { hotelId } : undefined,

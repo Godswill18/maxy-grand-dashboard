@@ -1,5 +1,5 @@
 // src/components/CreateRoomTypeModal.tsx
-// Creates a Room Type (sellable category) — no roomNumber here, that's added
+// Creates a Room Category (sellable category) — no roomNumber here, that's added
 // separately per physical unit via AddRoomUnitModal.
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,7 +7,6 @@ import * as z from "zod";
 import { useRoomTypeV2Store } from "@/store/useRoomTypeV2Store";
 import { useBranchStore } from "@/store/useBranchStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useCategoryStore } from "@/store/useCategoryStore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -48,13 +47,12 @@ const ROOM_AMENITIES = [
 
 const formSchema = z.object({
   hotelId: z.string().min(1, "Hotel ID is required"),
-  name: z.string().min(1, "Room type name is required"),
   description: z.string().optional(),
   bedConfig: z.string().optional(),
   amenities: z.array(z.string()).default([]),
   basePrice: z.coerce.number().min(1, "Base price must be at least 1"),
   maxOccupancy: z.coerce.number().min(1, "Max occupancy must be at least 1"),
-  categoryId: z.string().optional(),
+  categoryTag: z.string().min(1, "Category tag is required"),
   isBookable: z.boolean().default(true),
   images: z.instanceof(FileList).refine((files) => files.length > 0, "At least one image is required"),
 });
@@ -64,12 +62,18 @@ interface CreateRoomTypeModalProps {
 }
 
 export function CreateRoomTypeModal({ onCreated }: CreateRoomTypeModalProps = {}) {
-  const { isCreateModalOpen, closeCreateModal, createRoomType, isLoading, error } = useRoomTypeV2Store();
+  const { isCreateModalOpen, closeCreateModal, createRoomType, isLoading, error, roomTypes } = useRoomTypeV2Store();
   const { branches, fetchBranches, isLoading: isBranchesLoading } = useBranchStore();
   const { user } = useAuthStore();
-  const { categories, fetchCategories } = useCategoryStore();
 
   const [fileInputKey, setFileInputKey] = useState(Date.now().toString());
+
+  // Freeform tag suggestions drawn from whatever's already in use — not a
+  // separate managed list. See merge plan: RoomCategory folded into
+  // RoomTypeV2's own categoryTag field.
+  const existingCategoryTags = Array.from(
+    new Set(roomTypes.map((rt) => rt.categoryTag).filter((t): t is string => !!t))
+  ).sort();
 
   const isAdmin = user?.role === 'admin';
   const isSuperAdmin = user?.role === 'superadmin';
@@ -78,13 +82,12 @@ export function CreateRoomTypeModal({ onCreated }: CreateRoomTypeModalProps = {}
     resolver: zodResolver(formSchema),
     defaultValues: {
       hotelId: "",
-      name: "",
       description: "",
       bedConfig: "",
       amenities: [],
       basePrice: 0,
       maxOccupancy: 1,
-      categoryId: "",
+      categoryTag: "",
       isBookable: true,
       images: undefined,
     },
@@ -92,8 +95,7 @@ export function CreateRoomTypeModal({ onCreated }: CreateRoomTypeModalProps = {}
 
   useEffect(() => {
     fetchBranches();
-    fetchCategories();
-  }, [fetchBranches, fetchCategories]);
+  }, [fetchBranches]);
 
   useEffect(() => {
     if (isAdmin && user?.hotelId) {
@@ -104,14 +106,13 @@ export function CreateRoomTypeModal({ onCreated }: CreateRoomTypeModalProps = {}
   async function onSubmit(values: z.infer<typeof formSchema>) {
     const formData = new FormData();
     formData.append("hotelId", values.hotelId);
-    formData.append("name", values.name);
     if (values.description) formData.append("description", values.description);
     if (values.bedConfig) formData.append("bedConfig", values.bedConfig);
     values.amenities.forEach((a) => formData.append("amenities", a));
     formData.append("basePrice", values.basePrice.toString());
     formData.append("maxOccupancy", values.maxOccupancy.toString());
     formData.append("isBookable", values.isBookable.toString());
-    if (values.categoryId) formData.append("categoryId", values.categoryId);
+    formData.append("categoryTag", values.categoryTag);
     if (values.images) {
       for (let i = 0; i < values.images.length; i++) {
         formData.append("images", values.images[i]);
@@ -121,7 +122,7 @@ export function CreateRoomTypeModal({ onCreated }: CreateRoomTypeModalProps = {}
     const result = await createRoomType(formData);
 
     if (result.success) {
-      toast.success("Room type created successfully!");
+      toast.success("Room category created successfully!");
       form.reset();
       if (isAdmin && user?.hotelId) {
         form.setValue("hotelId", user.hotelId);
@@ -130,7 +131,7 @@ export function CreateRoomTypeModal({ onCreated }: CreateRoomTypeModalProps = {}
       closeCreateModal();
       onCreated?.();
     } else {
-      toast.error(`Failed to create room type: ${result.error || error}`);
+      toast.error(`Failed to create room category: ${result.error || error}`);
     }
   }
 
@@ -138,27 +139,13 @@ export function CreateRoomTypeModal({ onCreated }: CreateRoomTypeModalProps = {}
     <Dialog open={isCreateModalOpen} onOpenChange={(o) => (o ? undefined : closeCreateModal())}>
       <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Room Type</DialogTitle>
+          <DialogTitle>Add New Room Category</DialogTitle>
           <DialogDescription>
-            Create a sellable category (e.g. "Deluxe King"). Add physical rooms to it afterward.
+            Create a sellable category, tagged by group (e.g. "Suites"). Add physical rooms to it afterward.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Room Type Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Deluxe King" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             <FormField
               control={form.control}
               name="hotelId"
@@ -201,23 +188,23 @@ export function CreateRoomTypeModal({ onCreated }: CreateRoomTypeModalProps = {}
 
             <FormField
               control={form.control}
-              name="categoryId"
+              name="categoryTag"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Category</FormLabel>
+                  <FormLabel>Category Tag</FormLabel>
                   <FormControl>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a category (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.filter((c) => c.isActive).map((cat) => (
-                          <SelectItem key={cat._id} value={cat._id}>
-                            {cat.name}
-                          </SelectItem>
+                    <>
+                      <Input
+                        list="category-tag-suggestions"
+                        placeholder="e.g., Suites"
+                        {...field}
+                      />
+                      <datalist id="category-tag-suggestions">
+                        {existingCategoryTags.map((tag) => (
+                          <option key={tag} value={tag} />
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </datalist>
+                    </>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -328,7 +315,7 @@ export function CreateRoomTypeModal({ onCreated }: CreateRoomTypeModalProps = {}
               name="images"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Room Type Images</FormLabel>
+                  <FormLabel>Room Category Images</FormLabel>
                   <FormControl>
                     <Input
                       key={fileInputKey}
@@ -360,7 +347,7 @@ export function CreateRoomTypeModal({ onCreated }: CreateRoomTypeModalProps = {}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={closeCreateModal}>Cancel</Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Saving..." : "Save Room Type"}
+                {isLoading ? "Saving..." : "Save Room Category"}
               </Button>
             </DialogFooter>
           </form>

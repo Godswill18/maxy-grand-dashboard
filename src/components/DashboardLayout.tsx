@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 // We don't need useToast here for logout anymore, but maybe for other things
 // import { useToast } from "@/hooks/use-toast"; 
 // import { useSimulatedNotifications } from "@/hooks/useSimulatedNotifications";
@@ -8,6 +8,7 @@ import { StaffAnnouncementBanner } from "@/components/StaffAnnouncementBanner";
 import { NavItem } from "@/config/navigation";
 import { useAuthStore } from "../store/useAuthStore"; // Import the store
 import { toast } from "sonner"; // Use sonner for logout toast
+import { isDarkMode, setDarkMode } from "@/lib/theme";
 
 // Define the props
 interface DashboardLayoutProps {
@@ -28,11 +29,15 @@ export function DashboardLayout({
   // Get the logout action from the store
   const { user, logout } = useAuthStore();
 
-  // State for dark mode
-  const [isDark, setIsDark] = useState(() => {
-    const saved = localStorage.getItem("darkMode");
-    return saved === "true";
-  });
+  // State for dark mode — theme.ts is the single source of truth (also
+  // applied synchronously pre-render in main.tsx); this just mirrors it for
+  // the toggle UI and applies both the class and the persisted value
+  // together, at the moment of change, rather than in a deferred effect.
+  const [isDark, setIsDarkState] = useState(isDarkMode);
+  const setIsDark = (value: boolean) => {
+    setDarkMode(value);
+    setIsDarkState(value);
+  };
 
   // State for mobile sidebar visibility
   const [isSidebarOpen, setIsSidebarOpen] =useState(false);
@@ -47,15 +52,6 @@ export function DashboardLayout({
     // No navigation needed, App.tsx will handle the redirect
   };
 
-  // Effect for toggling dark mode class
-  useEffect(() => {
-    localStorage.setItem("darkMode", String(isDark));
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [isDark]);
 
    // ✅ NEW: Get the actual role key from the auth store
   // This is used by Sidebar to determine which profile route to navigate to
