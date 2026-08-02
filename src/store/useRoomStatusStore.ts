@@ -55,6 +55,7 @@ interface RoomStatusState {
   // Action functions
   acceptCleaningRequest: (requestId: string) => Promise<void>;
   updateRoomStatus: (roomId: string, status: RoomStatus['status']) => Promise<void>;
+  completeCleaningRequest: (requestId: string) => Promise<void>;
   createCleaningRequest: (roomId: string, cleanerId: string, notes?: string, priority?: string) => Promise<void>;
 }
 
@@ -169,6 +170,33 @@ export const useRoomStatusStore = create<RoomStatusState>((set, get) => ({
     } catch (error: any) {
       console.error('❌ Failed to accept cleaning request:', error);
       console.error('❌ Error details:', error.response?.data);
+      throw error;
+    }
+  },
+
+  // Complete an in-progress cleaning request — goes through /complete so the
+  // CleaningRequest record (finishTime, actualDuration, status) stays in
+  // sync with the room status instead of just flipping the room directly.
+  completeCleaningRequest: async (requestId: string) => {
+    try {
+      const { token } = useAuthStore.getState();
+
+      await axios.patch(
+        `${VITE_API_URL}/api/cleaning/${requestId}/complete`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          withCredentials: true,
+        }
+      );
+
+      // Refresh both — the backend already flipped Room status server-side.
+      await Promise.all([
+        get().fetchCleaningRequests(),
+        get().fetchAllRooms(),
+      ]);
+    } catch (error: any) {
+      console.error('Failed to complete cleaning request:', error);
       throw error;
     }
   },

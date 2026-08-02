@@ -20,6 +20,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
+const REQUEST_TYPE_LABELS: Record<string, string> = {
+  checkout: "Guest Checkout",
+  "guest-request": "Guest Cleaning Request",
+  "staff-request": "Receptionist Request",
+  manual: "Manual",
+};
+
 export const NotificationBell = () => {
   const {
     notifications,
@@ -123,12 +130,14 @@ export const NotificationBell = () => {
                       {notification.title}
                     </p>
                     {/* ✅ Priority indicator */}
-                    {notification.priority && notification.priority !== 'medium' && (
+                    {notification.priority && (
                       <span className={cn(
-                        "text-xs",
+                        "text-[10px] uppercase tracking-wide flex-shrink-0",
                         priorityColors[notification.priority]
                       )}>
-                        {'!'.repeat(notification.priority === 'urgent' ? 3 : notification.priority === 'high' ? 2 : 1)}
+                        {notification.priority !== 'medium' &&
+                          '!'.repeat(notification.priority === 'urgent' ? 3 : notification.priority === 'high' ? 2 : 1) + ' '}
+                        {notification.priority}
                       </span>
                     )}
                   </div>
@@ -136,6 +145,35 @@ export const NotificationBell = () => {
                   <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
                     {notification.message}
                   </p>
+
+                  {/* Structured fields (Room Number, Category, Branch,
+                      Request Type, Status) — currently only populated on
+                      housekeeping/cleaning notifications' metadata. */}
+                  {(notification.metadata?.roomNumber || notification.metadata?.branchName) && (
+                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground mt-1">
+                      {notification.metadata?.roomNumber && (
+                        <span>Room {notification.metadata.roomNumber}</span>
+                      )}
+                      {notification.metadata?.roomCategory && (
+                        <span>· {notification.metadata.roomCategory}</span>
+                      )}
+                      {notification.metadata?.branchName && (
+                        <span>· {notification.metadata.branchName}</span>
+                      )}
+                      {notification.metadata?.requestType && (
+                        <span>· {REQUEST_TYPE_LABELS[notification.metadata.requestType] || notification.metadata.requestType}</span>
+                      )}
+                      {notification.metadata?.status && (
+                        <span>· {notification.metadata.status}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {notification.metadata?.checkoutTime && (
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Checked out {formatDistanceToNow(new Date(notification.metadata.checkoutTime), { addSuffix: true })}
+                    </p>
+                  )}
 
                   <p className="text-xs text-muted-foreground mt-1">
                     {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}

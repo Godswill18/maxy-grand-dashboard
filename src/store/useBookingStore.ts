@@ -54,6 +54,29 @@ interface Hotel {
   name: string;
 }
 
+export interface AuditLogChange {
+  field: string;
+  from: any;
+  to: any;
+}
+
+export interface AuditLogEntry {
+  _id: string;
+  bookingId: string;
+  hotelId: string;
+  eventType: string;
+  description: string;
+  actorType: 'staff' | 'guest' | 'system';
+  performedBy: string | null;
+  performedByName: string | null;
+  performedByRole: string | null;
+  performedByBranch: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  changes: AuditLogChange[];
+  createdAt: string;
+}
+
 const BOOKING_TTL = 2 * 60 * 1000; // 2 minutes
 
 // Define the state and actions for your store
@@ -72,7 +95,18 @@ interface BookingState {
   cancelBooking: (id: string) => Promise<void>;
   deleteBooking: (id: string) => Promise<void>;
   createBooking: (data: any) => Promise<void>;
-  
+
+  // Activity log (audit trail)
+  auditLog: AuditLogEntry[];
+  auditLogPage: number;
+  auditLogTotalPages: number;
+  auditLogSort: 'newest' | 'oldest';
+  isLoadingAuditLog: boolean;
+  fetchBookingAuditLog: (bookingId: string, page?: number, sort?: 'newest' | 'oldest') => Promise<void>;
+  setAuditLogSort: (sort: 'newest' | 'oldest') => void;
+  exportBookingAuditLog: (bookingId: string, confirmationCode?: string) => Promise<void>;
+  refundBooking: (id: string, amount: number, reason: string, notes?: string) => Promise<{ success: boolean; message?: string }>;
+
   // Socket.io listeners
   initSocketListeners: () => void;
   closeSocketListeners: () => void;
@@ -95,6 +129,12 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   isLoading: false,
   error: null,
   lastFetched: null,
+
+  auditLog: [],
+  auditLogPage: 1,
+  auditLogTotalPages: 1,
+  auditLogSort: 'newest',
+  isLoadingAuditLog: false,
 
   // --- 1. AXIOS ACTIONS (for initial load and updates) ---
 
@@ -285,6 +325,82 @@ cancelBooking: async (id: string) => {
       });
       toast.error(`Failed to create booking: ${err.response?.data?.error || "Booking failed"}`);
       throw err;
+    }
+  },
+
+  // --- Activity log (audit trail) ---
+
+  fetchBookingAuditLog: async (bookingId: string, page = 1, sort?: 'newest' | 'oldest') => {
+    const resolvedSort = sort ?? get().auditLogSort;
+    set({ isLoadingAuditLog: true, auditLogSort: resolvedSort });
+    try {
+      const token = getToken();
+      const response = await axios.get(`${VITE_API_URL}/api/bookings/${bookingId}/audit-log`, {
+        params: { page, limit: 20, sort: resolvedSort },
+        headers: { Authorization: `Bearer ${token}` },
+        withCredentials: true,
+      });
+      if (response.data.success) {
+        set({
+          auditLog: response.data.data,
+          auditLogPage: response.data.page,
+          auditLogTotalPages: response.data.totalPages,
+          isLoadingAuditLog: false,
+        });
+      } else {
+        set({ isLoadingAuditLog: false });
+      }
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      set({ isLoadingAuditLog: false });
+      toast.error(error.response?.data?.error || 'Failed to load activity log');
+    }
+  },
+
+  setAuditLogSort: (sort) => set({ auditLogSort: sort }),
+
+  exportBookingAuditLog: async (bookingId: string, confirmationCode?: string) => {
+    try {
+      const token = getToken();
+      const response = await axios.get(`${VITE_API_URL}/api/bookings/${bookingId}/audit-log/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+        withCredentials: true,
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `booking-${confirmationCode || bookingId}-audit-log.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      toast.error(error.response?.data?.error || 'Failed to export activity log');
+    }
+  },
+
+  refundBooking: async (id: string, amount: number, reason: string, notes?: string) => {
+    try {
+      const token = getToken();
+      const response = await axios.patch(
+        `${VITE_API_URL}/api/bookings/${id}/refund`,
+        { amount, reason, notes },
+        {
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          withCredentials: true,
+        }
+      );
+      await get().fetchBookings(get().currentHotelId || undefined, true);
+      await get().fetchBookingAuditLog(id, 1, get().auditLogSort);
+      toast.success('Refund recorded successfully');
+      return { success: true, message: response.data.message };
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      const message = error.response?.data?.error || 'Failed to record refund';
+      toast.error(message);
+      return { success: false, message };
     }
   },
 

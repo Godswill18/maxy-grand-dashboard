@@ -22,6 +22,7 @@ export default function RoomStatus() {
     fetchCleaningRequests,
     acceptCleaningRequest,
     updateRoomStatus,
+    completeCleaningRequest,
   } = useRoomStatusStore();
 
   useEffect(() => {
@@ -34,11 +35,14 @@ export default function RoomStatus() {
     loadData();
   }, [fetchAllRooms, fetchCleaningRequests]);
 
-  // Combine room data with cleaning request data
+  // Combine room data with cleaning request data. This page only handles
+  // the legacy Room model — v2/category-model checkouts produce requests
+  // with roomId: null (roomUnitId set instead), which must be skipped here
+  // rather than dereferenced.
   const roomsWithRequests = useMemo(() => {
     return rooms.map(room => {
       const activeRequest = cleaningRequests.find(
-        req => req.roomId._id === room._id && req.status !== 'completed'
+        req => req.roomId?._id === room._id && req.status !== 'completed'
       );
       return {
         ...room,
@@ -64,9 +68,17 @@ export default function RoomStatus() {
     }
   };
 
-  const handleMarkAsClean = async (roomId: string, roomNumber: string) => {
+  // When a CleaningRequest is associated, complete it via /complete so the
+  // task record (finishTime, actualDuration, status) stays in sync with the
+  // room status instead of desyncing — falls back to the raw room-status
+  // update only when there's genuinely no associated request.
+  const handleMarkAsClean = async (roomId: string, roomNumber: string, requestId?: string) => {
     try {
-      await updateRoomStatus(roomId, 'available');
+      if (requestId) {
+        await completeCleaningRequest(requestId);
+      } else {
+        await updateRoomStatus(roomId, 'available');
+      }
       toast.success(`Room ${roomNumber} marked as clean`);
     } catch (error) {
       toast.error("Failed to update room status");
@@ -308,7 +320,7 @@ export default function RoomStatus() {
                     <Button
                       size="sm"
                       className="w-full bg-green-600 hover:bg-green-700"
-                      onClick={() => handleMarkAsClean(room._id, room.roomNumber)}
+                      onClick={() => handleMarkAsClean(room._id, room.roomNumber, request._id)}
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
                       Mark as Clean

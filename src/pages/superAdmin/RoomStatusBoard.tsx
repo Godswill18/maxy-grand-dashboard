@@ -13,7 +13,7 @@
 // 60s poll's fresh array reference doesn't force every card to re-render —
 // only ones whose data actually changed re-paint; the per-card countdown
 // still ticks independently every second regardless (isolated interval).
-import { useEffect, useMemo, useState, memo } from "react";
+import { useEffect, useMemo, useRef, useState, memo } from "react";
 import type { ComponentType, ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,8 +29,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { BedDouble, Clock, Sparkles, Wrench, CheckCircle2, User, UserCheck, DoorOpen, AlertTriangle } from "lucide-react";
+import { BedDouble, Clock, Sparkles, Wrench, CheckCircle2, User, UserCheck, DoorOpen, AlertTriangle, Search } from "lucide-react";
 import { useRoomTypeV2Store, type RoomUnit } from "@/store/useRoomTypeV2Store";
 import { useBranchStore } from "@/store/useBranchStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -277,6 +279,15 @@ const RoomCard = memo(function RoomCard({
               Housekeeping
             </Badge>
           )}
+          {/* Combined state — occupied AND flagged for maintenance. Status
+              correctly stays 'occupied' now (see updateRoomUnitStatus),
+              so this is the only visual signal the flag is present. */}
+          {unit.status === "occupied" && unit.maintenanceReason && (
+            <Badge className="text-xs font-semibold border shrink-0 gap-1 bg-red-100 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800">
+              <Wrench className="h-3 w-3" />
+              Maintenance
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -309,8 +320,10 @@ const RoomCard = memo(function RoomCard({
         </div>
       )}
 
-      {/* Maintenance reason */}
-      {unit.status === "maintenance" && unit.maintenanceReason && (
+      {/* Maintenance reason — shown whenever flagged, whether the room is
+          vacant (status:'maintenance') or occupied+flagged (status stays
+          'occupied', badge above signals the flag). */}
+      {unit.maintenanceReason && (
         <div className="flex items-start gap-2 text-sm text-muted-foreground italic">
           <Wrench className="h-4 w-4 mt-0.5 shrink-0" />
           <span className="line-clamp-2">"{unit.maintenanceReason}"</span>
@@ -330,17 +343,27 @@ const RoomCard = memo(function RoomCard({
             {isMarkingClean ? "Marking..." : "Mark Clean"}
           </Button>
         )}
-        {unit.status === "occupied" && (
+        {/* Completion now flows through the cleaner's Accept→Start→Complete
+            task pipeline on the Housekeeping dashboard, not a manual
+            receptionist toggle-off — once requested, this becomes a
+            disabled status indicator rather than a "Finish" action. */}
+        {unit.status === "occupied" && !unit.housekeepingInProgress && (
           <Button size="sm" variant="outline" onClick={() => onToggleHousekeeping(unit)} disabled={isTogglingHousekeeping}>
             <Sparkles className="h-4 w-4 mr-1.5" />
-            {isTogglingHousekeeping
-              ? "Saving..."
-              : unit.housekeepingInProgress ? "Finish Housekeeping" : "Start Housekeeping"}
+            {isTogglingHousekeeping ? "Requesting..." : "Request Cleaning"}
+          </Button>
+        )}
+        {unit.status === "occupied" && unit.housekeepingInProgress && (
+          <Button size="sm" variant="outline" disabled>
+            <Sparkles className="h-4 w-4 mr-1.5" />
+            Cleaning Requested
           </Button>
         )}
         <Button size="sm" variant="ghost" onClick={() => onFlagMaintenance(unit)}>
           <Wrench className="h-4 w-4 mr-1.5" />
-          {unit.status === "maintenance" ? "Restore" : unit.status === "occupied" ? "Flag Issue" : "Maintenance"}
+          {/* Keyed on the flag, not status — an occupied+flagged room
+              still shows "Restore" even though status stays 'occupied'. */}
+          {unit.maintenanceReason ? "Restore" : unit.status === "occupied" ? "Flag Issue" : "Maintenance"}
         </Button>
       </div>
     </>
@@ -386,7 +409,9 @@ function MaintenanceDialog({
   const { updateRoomUnitStatus } = useRoomTypeV2Store();
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const goingIntoMaintenance = unit?.status !== "maintenance";
+  // Keyed on the flag itself, not `status` — an occupied+flagged room
+  // correctly keeps status:'occupied' now, it never becomes 'maintenance'.
+  const goingIntoMaintenance = !unit?.maintenanceReason;
 
   useEffect(() => {
     if (isOpen) setReason("");
@@ -445,6 +470,31 @@ export default function RoomStatusBoard() {
   const [maintenanceTarget, setMaintenanceTarget] = useState<RoomUnit | null>(null);
   const [markingCleanId, setMarkingCleanId] = useState<string | null>(null);
   const [togglingHousekeepingId, setTogglingHousekeepingId] = useState<string | null>(null);
+  // Independent of unitsBoard on purpose — a live socket patch only ever
+  // touches unitsBoard, never this, so an in-progress filter selection
+  // survives real-time updates untouched.
+  const [statusFilter, setStatusFilter] = useState<RoomUnit["status"] | "all">("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all"); // category _id
+  const [roomNumberQuery, setRoomNumberQuery] = useState("");
+  const [isFilterBarStuck, setIsFilterBarStuck] = useState(false);
+  const filterBarSentinelRef = useRef<HTMLDivElement>(null);
+  const activeFilterCardRef = useRef<HTMLButtonElement>(null);
+
+  // There's no CSS ":stuck" selector for position:sticky — this is the
+  // standard scroll-listener-free technique: a 1px sentinel placed just
+  // above the sticky bar, observed via IntersectionObserver. Once it
+  // scrolls out of view, the bar is "stuck"; toggling one boolean class
+  // this way causes no layout thrash and no reflow-triggering scroll handler.
+  useEffect(() => {
+    const sentinel = filterBarSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsFilterBarStuck(!entry.isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -489,9 +539,44 @@ export default function RoomStatusBoard() {
     };
   }, [isSuperAdmin, selectedBranchId, user?.hotelId, fetchUnitsBoard, initRoomUnitSocketListeners, closeRoomUnitSocketListeners]);
 
+  // Filtering happens upstream of grouping, over the live in-memory array —
+  // no API call, no reload. Both this and `stats` below re-derive
+  // automatically whenever unitsBoard or statusFilter change, so a live
+  // status update (targeted patch, see useRoomTypeV2Store.ts) naturally
+  // re-applies the active filter: a room that stops matching leaves the
+  // grid, a newly-matching one enters.
+  const filteredUnits = useMemo(() => {
+    // "Maintenance" matches by flag, not status equality — an occupied
+    // room stays status:'occupied' while flagged, so it must still be
+    // findable under this filter rather than only vacant-maintenance rooms.
+    let result = statusFilter === "all"
+      ? unitsBoard
+      : statusFilter === "maintenance"
+        ? unitsBoard.filter((u) => !!u.maintenanceReason)
+        : unitsBoard.filter((u) => u.status === statusFilter);
+    if (categoryFilter !== "all") {
+      result = result.filter((u) => typeof u.roomTypeId === "object" && u.roomTypeId._id === categoryFilter);
+    }
+    if (roomNumberQuery.trim()) {
+      const q = roomNumberQuery.trim().toLowerCase();
+      result = result.filter((u) => u.roomNumber.toLowerCase().includes(q));
+    }
+    return result;
+  }, [unitsBoard, statusFilter, categoryFilter, roomNumberQuery]);
+
+  // Options for the category dropdown, derived from the live board — not a
+  // separate fetch, same "derived from the in-memory array" principle as stats.
+  const availableCategories = useMemo(() => {
+    const map = new Map<string, string>(); // id -> name
+    for (const u of unitsBoard) {
+      if (typeof u.roomTypeId === "object") map.set(u.roomTypeId._id, u.roomTypeId.name);
+    }
+    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [unitsBoard]);
+
   const grouped = useMemo(() => {
     const map = new Map<string, { id: string; name: string; units: RoomUnit[] }>();
-    for (const unit of unitsBoard) {
+    for (const unit of filteredUnits) {
       const category = typeof unit.roomTypeId === "object" ? unit.roomTypeId : null;
       const key = category?._id || "unknown";
       const name = category?.name || "Unassigned";
@@ -499,14 +584,27 @@ export default function RoomStatusBoard() {
       map.get(key)!.units.push(unit);
     }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [unitsBoard]);
+  }, [filteredUnits]);
 
   const stats = useMemo(() => ({
     available: unitsBoard.filter((u) => u.status === "available").length,
     occupied: unitsBoard.filter((u) => u.status === "occupied").length,
     cleaning: unitsBoard.filter((u) => u.status === "cleaning").length,
-    maintenance: unitsBoard.filter((u) => u.status === "maintenance").length,
+    // Counts every flagged room, not just vacant ones — an occupied room
+    // stays status:'occupied' while flagged (see updateRoomUnitStatus), so
+    // status === 'maintenance' alone would undercount.
+    maintenance: unitsBoard.filter((u) => !!u.maintenanceReason).length,
   }), [unitsBoard]);
+
+  // Only user-initiated clicks scroll the active card into view (mobile
+  // horizontal scroll) — never triggered by remote/socket-driven updates,
+  // which only ever touch unitsBoard, not this handler.
+  const handleSelectFilter = (value: RoomUnit["status"] | "all") => {
+    setStatusFilter(value);
+    requestAnimationFrame(() => {
+      activeFilterCardRef.current?.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+    });
+  };
 
   const handleMarkClean = async (unit: RoomUnit) => {
     setMarkingCleanId(unit._id);
@@ -519,19 +617,35 @@ export default function RoomStatusBoard() {
     setMarkingCleanId(null);
   };
 
+  // Only ever called to request cleaning (the button no longer offers a
+  // "Finish" path) — completion happens via the cleaner's task pipeline.
   const handleToggleHousekeeping = async (unit: RoomUnit) => {
     setTogglingHousekeepingId(unit._id);
-    const nextInProgress = !unit.housekeepingInProgress;
-    const result = await toggleHousekeeping(unit._id, nextInProgress);
+    const result = await toggleHousekeeping(unit._id, true);
     if (result.success) {
-      toast.success(nextInProgress ? `Housekeeping started in Room ${unit.roomNumber}` : `Housekeeping finished in Room ${unit.roomNumber}`);
+      toast.success(
+        result.alreadyQueued
+          ? `Room ${unit.roomNumber} already has a cleaning request queued`
+          : `Cleaning requested for Room ${unit.roomNumber} — housekeepers notified`
+      );
     } else {
-      toast.error(result.error || "Failed to update housekeeping status");
+      toast.error(result.error || "Failed to request cleaning");
     }
     setTogglingHousekeepingId(null);
   };
 
   const showBoard = !isSuperAdmin || selectedBranchId;
+
+  // "All Rooms" first — the single, unambiguous reset control (clicking a
+  // status card sets the filter; it doesn't toggle, so there's never an
+  // ambiguous "click again to clear" state).
+  const filterEntries: { key: RoomUnit["status"] | "all"; label: string; value: number; icon: JSX.Element; bg: string }[] = [
+    { key: "all", label: "All Rooms", value: unitsBoard.length, icon: <BedDouble className="h-5 w-5 text-foreground" />, bg: "bg-muted" },
+    { key: "available", label: "Available", value: stats.available, icon: <CheckCircle2 className={cn("h-5 w-5", STATUS_THEME.available.accent)} />, bg: STATUS_THEME.available.iconBg },
+    { key: "occupied", label: "Occupied", value: stats.occupied, icon: <User className={cn("h-5 w-5", STATUS_THEME.occupied.accent)} />, bg: STATUS_THEME.occupied.iconBg },
+    { key: "cleaning", label: "Cleaning", value: stats.cleaning, icon: <Sparkles className={cn("h-5 w-5", STATUS_THEME.cleaning.accent)} />, bg: STATUS_THEME.cleaning.iconBg },
+    { key: "maintenance", label: "Maintenance", value: stats.maintenance, icon: <Wrench className={cn("h-5 w-5", STATUS_THEME.maintenance.accent)} />, bg: STATUS_THEME.maintenance.iconBg },
+  ];
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -565,23 +679,66 @@ export default function RoomStatusBoard() {
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { label: "Available", value: stats.available, icon: <CheckCircle2 className={cn("h-5 w-5", STATUS_THEME.available.accent)} />, bg: STATUS_THEME.available.iconBg },
-              { label: "Occupied", value: stats.occupied, icon: <User className={cn("h-5 w-5", STATUS_THEME.occupied.accent)} />, bg: STATUS_THEME.occupied.iconBg },
-              { label: "Cleaning", value: stats.cleaning, icon: <Sparkles className={cn("h-5 w-5", STATUS_THEME.cleaning.accent)} />, bg: STATUS_THEME.cleaning.iconBg },
-              { label: "Maintenance", value: stats.maintenance, icon: <Wrench className={cn("h-5 w-5", STATUS_THEME.maintenance.accent)} />, bg: STATUS_THEME.maintenance.iconBg },
-            ].map((s) => (
-              <Card key={s.label}>
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", s.bg)}>{s.icon}</div>
-                  <div>
-                    <p className="text-xs text-muted-foreground leading-tight">{s.label}</p>
-                    <p className="text-2xl font-bold leading-tight">{isBoardLoading ? "—" : s.value}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          {/* 1px sentinel — IntersectionObserver watches this to detect when
+              the bar below has actually become stuck (no CSS ":stuck"
+              selector exists for position:sticky). */}
+          <div ref={filterBarSentinelRef} className="h-px" />
+          <div
+            className={cn(
+              "sticky top-0 z-10 bg-background py-3 -mt-3 transition-shadow duration-200",
+              isFilterBarStuck && "border-b border-border shadow-sm"
+            )}
+          >
+            <div className="flex overflow-x-auto snap-x snap-mandatory gap-3 pb-1 sm:pb-0 sm:grid sm:grid-cols-3 lg:grid-cols-5 sm:overflow-visible">
+              {filterEntries.map((s) => {
+                const isActive = statusFilter === s.key;
+                return (
+                  <button
+                    key={s.key}
+                    ref={isActive ? activeFilterCardRef : undefined}
+                    type="button"
+                    onClick={() => handleSelectFilter(s.key)}
+                    aria-pressed={isActive}
+                    className={cn(
+                      "text-left rounded-xl border bg-card p-4 flex items-center gap-3 shrink-0 min-w-[150px] sm:min-w-0 sm:shrink snap-start",
+                      "transition-all duration-150 hover:shadow-sm",
+                      isActive
+                        ? "ring-2 ring-primary ring-offset-2 ring-offset-background bg-primary/5 border-primary/40"
+                        : "border-border"
+                    )}
+                  >
+                    <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", s.bg)}>{s.icon}</div>
+                    <div>
+                      <p className="text-xs text-muted-foreground leading-tight">{s.label}</p>
+                      <p className="text-2xl font-bold leading-tight">{isBoardLoading ? "—" : s.value}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1 sm:max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by room number..."
+                value={roomNumberQuery}
+                onChange={(e) => setRoomNumberQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="sm:w-56">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {availableCategories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {isBoardLoading ? (
@@ -595,9 +752,20 @@ export default function RoomStatusBoard() {
                 <p className="text-sm text-muted-foreground">No room units found for this branch yet.</p>
               </CardContent>
             </Card>
+          ) : grouped.length === 0 ? (
+            <Card className="border-dashed bg-muted/20 animate-in fade-in duration-300">
+              <CardContent className="flex flex-col items-center justify-center py-14 text-center gap-2">
+                <BedDouble className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  {categoryFilter !== "all" || roomNumberQuery.trim()
+                    ? "No rooms match the current filters."
+                    : `No rooms are currently ${STATUS_LABELS[statusFilter as RoomUnit["status"]]?.toLowerCase() || statusFilter}.`}
+                </p>
+              </CardContent>
+            </Card>
           ) : (
             grouped.map((group) => (
-              <Card key={group.id}>
+              <Card key={group.id} className="animate-in fade-in duration-300">
                 <CardHeader>
                   <CardTitle className="text-lg">{group.name}</CardTitle>
                 </CardHeader>

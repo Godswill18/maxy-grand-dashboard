@@ -303,6 +303,8 @@ function UpdateStatusDialog({ room, open, onOpenChange, onUpdateStatus }: Update
         return { label: 'Reserved', color: 'bg-blue-100 text-blue-800', icon: '📅' };
       case 'maintenance':
         return { label: 'Maintenance', color: 'bg-gray-200 text-gray-800', icon: '🔧' };
+      case 'occupied-needs-cleaning':
+        return { label: 'Needs Cleaning (In-Stay)', color: 'bg-orange-100 text-orange-800', icon: '🧹' };
       default:
         return { label: status, color: 'bg-gray-100 text-gray-800', icon: '' };
     }
@@ -372,10 +374,19 @@ function UpdateStatusDialog({ room, open, onOpenChange, onUpdateStatus }: Update
                     <span>Reserved</span>
                   </span>
                 </SelectItem>
+                {room.status === 'occupied' && (
+                  <SelectItem value="occupied-needs-cleaning">
+                    <span className="flex items-center gap-2">
+                      <span>🧹</span>
+                      <span>Needs Cleaning (In-Stay)</span>
+                    </span>
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground mt-1">
-              Note: "Occupied" status is set automatically during check-in
+              Note: "Occupied" status is set automatically during check-in. "Needs
+              Cleaning (In-Stay)" notifies housekeepers without affecting the guest's stay.
             </p>
           </div>
 
@@ -480,6 +491,8 @@ function StatusUpdateDialog({ room, open, onOpenChange, onUpdateStatus }: Status
         return { label: 'Reserved', color: 'bg-blue-200 text-blue-800 border-blue-400', icon: '📅' };
       case 'maintenance':
         return { label: 'Maintenance', color: 'bg-gray-300 text-gray-800 border-gray-500', icon: '🔧' };
+      case 'occupied-needs-cleaning':
+        return { label: 'Needs Cleaning (In-Stay)', color: 'bg-orange-200 text-orange-800 border-orange-400', icon: '🧹' };
       default:
         return { label: status, color: 'bg-gray-200 text-gray-700', icon: '' };
     }
@@ -517,8 +530,16 @@ function StatusUpdateDialog({ room, open, onOpenChange, onUpdateStatus }: Status
                 <SelectItem value="cleaning">🧹 Cleaning</SelectItem>
                 <SelectItem value="reserved">📅 Reserved</SelectItem>
                 <SelectItem value="maintenance">🔧 Maintenance</SelectItem>
+                {room.status === 'occupied' && (
+                  <SelectItem value="occupied-needs-cleaning">🧹 Needs Cleaning (In-Stay)</SelectItem>
+                )}
               </SelectContent>
             </Select>
+            {selectedStatus === 'occupied-needs-cleaning' && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Notifies housekeepers without affecting the guest's stay — the room stays occupied.
+              </p>
+            )}
           </div>
 
           {/* Status Change Preview */}

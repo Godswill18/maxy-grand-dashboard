@@ -33,7 +33,7 @@ interface CurrentBooking {
 export interface ReceptionistRoom {
   _id: string;
   roomNumber: string;
-  status: "available" | "occupied" | "cleaning" | "maintenance" | "reserved";
+  status: "available" | "occupied" | "cleaning" | "maintenance" | "reserved" | "occupied-needs-cleaning";
   hotelId: string;
   roomTypeId: RoomType; // This is now a populated object
   currentBookingId: CurrentBooking | null; // Can be null if available

@@ -81,7 +81,7 @@ interface RoomTypeV2State {
   addRoomUnit: (roomTypeId: string, data: { roomNumber: string; floor?: number }) => Promise<{ success: boolean; error?: string }>;
   updateRoomUnit: (unitId: string, data: Partial<Pick<RoomUnit, 'roomNumber' | 'floor' | 'isActive'>>) => Promise<{ success: boolean; error?: string }>;
   updateRoomUnitStatus: (unitId: string, status: RoomUnit['status'], maintenanceReason?: string) => Promise<{ success: boolean; error?: string }>;
-  toggleHousekeeping: (unitId: string, inProgress: boolean) => Promise<{ success: boolean; error?: string }>;
+  toggleHousekeeping: (unitId: string, inProgress: boolean) => Promise<{ success: boolean; error?: string; alreadyQueued?: boolean }>;
   deleteRoomUnit: (unitId: string) => Promise<{ success: boolean; error?: string }>;
 
   // --- Rooms status board (hotel-wide, grouped client-side by category) ---
@@ -356,7 +356,7 @@ export const useRoomTypeV2Store = create<RoomTypeV2State>((set, get) => ({
         units: state.units.map((u) => (u._id === unitId ? updated : u)),
         unitsBoard: state.unitsBoard.map((u) => (u._id === unitId ? { ...u, ...updated, roomTypeId: u.roomTypeId } : u)),
       }));
-      return { success: true };
+      return { success: true, alreadyQueued: res.data.alreadyQueued };
     } catch (err) {
       const error = err as AxiosError<any>;
       return { success: false, error: error.response?.data?.error || error.message };

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MapPin, Clock, CheckCircle, AlertCircle, User, Edit, CalendarIcon, Bed, Timer } from "lucide-react";
+import { MapPin, Clock, CheckCircle, AlertCircle, User, Edit, CalendarIcon, Bed, Timer, Building2, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,17 +15,35 @@ import {
 import { Calendar } from "@/components/ui/calendar"
 import { format, formatDistanceToNow } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useHousekeepingStore } from "@/store/useHousekeepingStore"; // Adjust path
+import { useHousekeepingStore, type CleaningRequest } from "@/store/useHousekeepingStore";
+
+const REQUEST_TYPE_LABELS: Record<string, string> = {
+  checkout: "Guest Checkout",
+  "guest-request": "Guest Cleaning Request",
+  "staff-request": "Receptionist Request",
+  manual: "Manual",
+};
+
+// Room is populated identically whether it came from roomId (legacy) or
+// roomUnitId (v2/category model) — exactly one of the pair is ever set.
+const getRequestRoom = (r: CleaningRequest) => r.roomId ?? r.roomUnitId ?? null;
+const getRequestCategory = (r: CleaningRequest) =>
+  getRequestRoom(r)?.roomTypeId?.categoryTag || getRequestRoom(r)?.roomTypeId?.name || "Unknown category";
+const getRequestBranch = (r: CleaningRequest) =>
+  typeof r.hotelId === "object" ? r.hotelId?.name : undefined;
 
 interface UnassignedRoomCardProps {
-  room: any; // CleaningRoom
-  onAssign: (roomId: string, cleanerId: string, notes: string) => void;
+  request: CleaningRequest;
+  onAssign: (requestId: string, cleanerId: string) => void;
   cleaners: any[]; // Cleaner[]
 }
 
-const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign, cleaners }) => {
+const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ request, onAssign, cleaners }) => {
   const [selectedCleanerId, setSelectedCleanerId] = useState("");
-  const [notes, setNotes] = useState("");
+  const room = getRequestRoom(request);
+  const branch = getRequestBranch(request);
+  const requestType = request.requestType || "manual";
+  const guestName = request.bookingId?.guestName;
 
   return (
     <Card className="hover:shadow-lg transition-shadow">
@@ -41,8 +59,36 @@ const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign,
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
             <Bed className="h-4 w-4 text-muted-foreground" />
-            <span>{room?.roomTypeId?.name ?? 'Unknown room type'}</span>
+            <span>{getRequestCategory(request)}</span>
           </div>
+          {branch && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Building2 className="h-4 w-4" />
+              <span>{branch}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <ClipboardList className="h-4 w-4" />
+            <span>{REQUEST_TYPE_LABELS[requestType] || requestType}</span>
+          </div>
+          {guestName && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <User className="h-4 w-4" />
+              <span>Guest: {guestName}</span>
+            </div>
+          )}
+          {requestType === "checkout" && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="h-4 w-4" />
+              <span>Checked out {formatDistanceToNow(new Date(request.createdAt))} ago</span>
+            </div>
+          )}
+          {request.notes && (
+            <div className="flex items-start gap-2 text-sm p-2 bg-blue-50 rounded-md border border-blue-100">
+              <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+              <span className="text-blue-700">{request.notes}</span>
+            </div>
+          )}
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">Assign Cleaner</label>
@@ -59,15 +105,6 @@ const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign,
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Notes (optional)</label>
-          <Textarea
-            placeholder="Any special instructions..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-          />
-        </div>
         <Button
           size="sm"
           className="w-full"
@@ -76,9 +113,8 @@ const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign,
               toast.error("Please select a cleaner");
               return;
             }
-            onAssign(room._id, selectedCleanerId, notes);
+            onAssign(request._id, selectedCleanerId);
             setSelectedCleanerId("");
-            setNotes("");
           }}
           disabled={!selectedCleanerId}
         >
@@ -90,7 +126,12 @@ const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ room, onAssign,
   );
 };
 
-const AssignedTaskCard: React.FC<{ task: any }> = ({ task }) => {
+const AssignedTaskCard: React.FC<{ task: CleaningRequest }> = ({ task }) => {
+  const room = getRequestRoom(task);
+  const branch = getRequestBranch(task);
+  const requestType = task.requestType || "manual";
+  const guestName = task.bookingId?.guestName;
+
   const getStatusBadge = () => {
     switch (task.status) {
       case 'pending':
@@ -108,7 +149,7 @@ const AssignedTaskCard: React.FC<{ task: any }> = ({ task }) => {
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Room {task.roomId?.roomNumber ?? 'N/A'}</CardTitle>
+          <CardTitle className="text-lg">Room {room?.roomNumber ?? 'N/A'}</CardTitle>
           {getStatusBadge()}
         </div>
       </CardHeader>
@@ -116,8 +157,30 @@ const AssignedTaskCard: React.FC<{ task: any }> = ({ task }) => {
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
             <Bed className="h-4 w-4 text-muted-foreground" />
-            <span>{task.roomId?.roomTypeId?.name ?? 'Unknown room type'}</span>
+            <span>{getRequestCategory(task)}</span>
           </div>
+          {branch && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Building2 className="h-4 w-4" />
+              <span>{branch}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <ClipboardList className="h-4 w-4" />
+            <span>{REQUEST_TYPE_LABELS[requestType] || requestType}</span>
+          </div>
+          {guestName && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <User className="h-4 w-4" />
+              <span>Guest: {guestName}</span>
+            </div>
+          )}
+          {task.priority && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <AlertCircle className="h-4 w-4" />
+              <span>Priority: {task.priority}</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 text-sm">
             <User className="h-4 w-4 text-muted-foreground" />
             <span>{task.assignedCleaner?.firstName} {task.assignedCleaner?.lastName}</span>
@@ -131,10 +194,12 @@ const AssignedTaskCard: React.FC<{ task: any }> = ({ task }) => {
             </div>
           )}
 
-          {/* Time when task was assigned */}
+          {/* Checkout-triggered tasks are created at the exact moment of
+              checkout (inside the same transaction) — createdAt IS the
+              checkout time for these; label it accordingly. */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Clock className="h-4 w-4" />
-            <span>Assigned {formatDistanceToNow(new Date(task.createdAt))} ago</span>
+            <span>{requestType === "checkout" ? "Checked out" : "Assigned"} {formatDistanceToNow(new Date(task.createdAt))} ago</span>
           </div>
 
           {/* Time when task was started (for in-progress tasks) */}
@@ -232,62 +297,74 @@ export default function Housekeeping() {
   const [fromDate, setFromDate] = useState<Date | undefined>();
   const [toDate, setToDate] = useState<Date | undefined>();
   const [isLoading, setIsLoading] = useState(true);
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [requestTypeFilter, setRequestTypeFilter] = useState<string>("all");
 
   const {
-    cleaningRooms,
+    unassignedRequests,
     pendingTasks,
+    inProgressTasks,
     completedTasks,
+    allRequests,
     cleaners,
-    fetchCleaningRooms,
+    fetchUnassignedRequests,
     fetchAllRequests,
     fetchCleaners,
-    assignCleaner,
+    assignCleanerToRequest,
+    initSocketListeners,
+    closeSocketListeners,
   } = useHousekeepingStore();
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       await Promise.all([
-        fetchCleaningRooms(),
+        fetchUnassignedRequests(),
         fetchAllRequests(),
         fetchCleaners(),
       ]);
       setIsLoading(false);
     };
     loadData();
-  }, [fetchCleaningRooms, fetchAllRequests, fetchCleaners]);
+  }, [fetchUnassignedRequests, fetchAllRequests, fetchCleaners]);
 
-  const unassignedRooms = useMemo(
-    () =>
-      cleaningRooms.filter(
-        (room) => !pendingTasks.some((task) => task.roomId._id === room._id)
-      ),
-    [cleaningRooms, pendingTasks]
+  // Live updates (new checkout/guest-request tasks, status changes from
+  // other sessions) — without this the board was fetch-on-mount only.
+  useEffect(() => {
+    initSocketListeners();
+    return () => closeSocketListeners();
+  }, [initSocketListeners, closeSocketListeners]);
+
+  const availableCategories = useMemo(
+    () => Array.from(new Set(allRequests.map(getRequestCategory))).sort(),
+    [allRequests]
   );
 
-  // Separate pending and in-progress tasks
-  const actualPendingTasks = useMemo(
-    () => pendingTasks.filter((task) => task.status === 'pending'),
-    [pendingTasks]
-  );
+  const matchesFilters = (task: CleaningRequest) => {
+    if (priorityFilter !== "all" && (task.priority || "Medium") !== priorityFilter) return false;
+    if (categoryFilter !== "all" && getRequestCategory(task) !== categoryFilter) return false;
+    if (requestTypeFilter !== "all" && (task.requestType || "manual") !== requestTypeFilter) return false;
+    return true;
+  };
 
-  const inProgressTasks = useMemo(
-    () => pendingTasks.filter((task) => task.status === 'in progress'),
-    [pendingTasks]
-  );
+  const filteredUnassigned = useMemo(() => unassignedRequests.filter(matchesFilters), [unassignedRequests, priorityFilter, categoryFilter, requestTypeFilter]);
+  const actualPendingTasks = useMemo(() => pendingTasks.filter(matchesFilters), [pendingTasks, priorityFilter, categoryFilter, requestTypeFilter]);
+  const filteredInProgressTasks = useMemo(() => inProgressTasks.filter(matchesFilters), [inProgressTasks, priorityFilter, categoryFilter, requestTypeFilter]);
 
   const filteredCompletedTasks = useMemo(() => {
     return completedTasks.filter((task) => {
+      if (!matchesFilters(task)) return false;
       const taskDate = new Date(task.updatedAt);
       if (fromDate && taskDate < fromDate) return false;
       if (toDate && taskDate > toDate) return false;
       return true;
     });
-  }, [completedTasks, fromDate, toDate]);
+  }, [completedTasks, fromDate, toDate, priorityFilter, categoryFilter, requestTypeFilter]);
 
   const stats = [
-    { label: "Rooms Needing Cleaning", value: cleaningRooms.length, color: "text-warning" },
-    { label: "Assigned", value: pendingTasks.length, color: "text-info" },
+    { label: "Rooms Needing Cleaning", value: unassignedRequests.length, color: "text-warning" },
+    { label: "Assigned", value: pendingTasks.length + inProgressTasks.length, color: "text-info" },
     { label: "Completed", value: filteredCompletedTasks.length, color: "text-success" },
   ];
 
@@ -332,17 +409,58 @@ export default function Housekeeping() {
           </Card>
         ))}
       </div>
+      <Card>
+        <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="text-sm font-medium block mb-1">Priority</label>
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="High">High</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="Low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm font-medium block mb-1">Room Category</label>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {availableCategories.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm font-medium block mb-1">Request Type</label>
+            <Select value={requestTypeFilter} onValueChange={setRequestTypeFilter}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="checkout">Guest Checkout</SelectItem>
+                <SelectItem value="guest-request">Guest Cleaning Request</SelectItem>
+                <SelectItem value="staff-request">Receptionist Request</SelectItem>
+                <SelectItem value="manual">Manual</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
       <Tabs defaultValue="unassigned" className="space-y-4">
         <TabsList>
           <TabsTrigger value="unassigned">
-            Unassigned ({unassignedRooms.length})
+            Unassigned ({filteredUnassigned.length})
           </TabsTrigger>
           <TabsTrigger value="pending">Pending ({actualPendingTasks.length})</TabsTrigger>
-          <TabsTrigger value="in-progress">In Progress ({inProgressTasks.length})</TabsTrigger>
+          <TabsTrigger value="in-progress">In Progress ({filteredInProgressTasks.length})</TabsTrigger>
           <TabsTrigger value="completed">Completed ({filteredCompletedTasks.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="unassigned" className="space-y-4">
-          {unassignedRooms.length === 0 ? (
+          {filteredUnassigned.length === 0 ? (
             <div className="flex flex-1 items-center justify-center h-[50vh]">
               <Card className="w-full max-w-md border-dashed bg-muted/30">
                 <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -351,19 +469,19 @@ export default function Housekeeping() {
                   </div>
                   <h3 className="font-semibold text-lg">All Caught Up!</h3>
                   <p className="text-muted-foreground mt-2">
-                    No unassigned cleaning rooms.
+                    No unassigned cleaning requests.
                   </p>
                 </CardContent>
               </Card>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {unassignedRooms.map((room) => (
+              {filteredUnassigned.map((request) => (
                 <UnassignedRoomCard
-                  key={room._id}
-                  room={room}
+                  key={request._id}
+                  request={request}
                   cleaners={cleaners}
-                  onAssign={assignCleaner}
+                  onAssign={assignCleanerToRequest}
                 />
               ))}
             </div>
@@ -393,7 +511,7 @@ export default function Housekeeping() {
           )}
         </TabsContent>
         <TabsContent value="in-progress" className="space-y-4">
-          {inProgressTasks.length === 0 ? (
+          {filteredInProgressTasks.length === 0 ? (
                <div className="flex flex-1 items-center justify-center h-[50vh]">
               <Card className="w-full max-w-md border-dashed bg-muted/30">
                 <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -409,7 +527,7 @@ export default function Housekeeping() {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {inProgressTasks.map((task) => (
+              {filteredInProgressTasks.map((task) => (
                 <AssignedTaskCard key={task._id} task={task} />
               ))}
             </div>
