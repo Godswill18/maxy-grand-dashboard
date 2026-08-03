@@ -3,6 +3,7 @@ import { useAuthStore } from './useAuthStore';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { socket } from '../lib/socket';
+import { getBookingRoomDisplay } from '../lib/bookingDisplay';
 
 export interface Guest {
   id: string;
@@ -22,6 +23,11 @@ export interface Guest {
   roomRate?: number;
   bookingType?: 'online' | 'walk-in';
   updatedAt?: string;
+  // v2 (RoomTypeV2/RoomUnit) bookings vs. legacy (RoomType/Room) — extend
+  // stay, and several other actions, need to route to a different endpoint
+  // depending on which model this booking uses.
+  roomTypeV2Id?: string | null;
+  isV2: boolean;
 }
 
 const mapBookingStatusToFrontend = (status: string): Guest['status'] => {
@@ -68,7 +74,8 @@ interface CheckInState {
   verifyConfirmationCode: (bookingId: string, code: string) => Promise<boolean>;
   checkInWithRegistration: (bookingId: string, formData: any) => Promise<void>;
   createGuestAccountAndCheckIn: (data: any) => Promise<string>;
-  extendGuestStay: (bookingId: string, days: number, additionalAmount: number) => Promise<void>;
+  extendGuestStayLegacy: (bookingId: string, days: number, additionalAmount: number) => Promise<void>;
+  extendGuestStayV2: (bookingId: string, additionalNights: number, amountCollected: number, paymentNote?: string) => Promise<any>;
   getCheckoutAlerts: () => Promise<{ urgent: Guest[]; overdue: Guest[] }>;
   initSocketListeners: () => void;
   closeSocketListeners: () => void;
@@ -78,10 +85,18 @@ const mapBookingToGuest = (booking: any): Guest => {
   const room = booking.roomId;
   const guestUser = booking.guestId;
   const roomType = room?.roomTypeId;
+  const isV2 = !!booking.roomTypeV2Id;
 
   const guestName = guestUser
     ? `${guestUser.firstName} ${guestUser.lastName}`
     : booking.guestName;
+
+  // v2 bookings have no roomId/roomTypeId — fall back to the v2 fields via
+  // the shared display helper (same source of truth used everywhere else a
+  // booking's room/category is shown) so this doesn't silently show
+  // "N/A"/₦0 for a v2 guest, as it did before getDashboardBookings started
+  // populating roomTypeV2Id/roomUnitId.
+  const { roomNumber: v2RoomNumber } = getBookingRoomDisplay(booking);
 
   return {
     id: booking._id,
@@ -90,7 +105,7 @@ const mapBookingToGuest = (booking: any): Guest => {
     email: guestUser?.email || booking.guestEmail || 'N/A',
     phone: guestUser?.phoneNumber || booking.guestPhone || 'N/A',
     bookingId: booking._id,
-    room: room?.roomNumber || 'N/A',
+    room: room?.roomNumber || v2RoomNumber || 'N/A',
     checkInDate: formatDateTime(booking.checkInDate),
     checkOutDate: formatDateTime(booking.checkOutDate),
     rawCheckOutDate: booking.checkOutDate,
@@ -98,9 +113,11 @@ const mapBookingToGuest = (booking: any): Guest => {
     status: mapBookingStatusToFrontend(booking.bookingStatus),
     guests: booking.guests || roomType?.capacity || 1,
     specialRequests: booking.specialRequests || undefined,
-    roomRate: roomType?.price || 0,
+    roomRate: roomType?.price || booking.roomTypeV2Id?.basePrice || 0,
     bookingType: booking.bookingType || 'online',
     updatedAt: booking.updatedAt,
+    roomTypeV2Id: typeof booking.roomTypeV2Id === 'object' ? booking.roomTypeV2Id?._id : booking.roomTypeV2Id,
+    isV2,
   };
 };
 
@@ -361,7 +378,8 @@ export const useCheckInStore = create<CheckInState>((set, get) => ({
     }
   },
 
-  extendGuestStay: async (bookingId: string, days: number, additionalAmount: number) => {
+  // Legacy (Room/RoomType) bookings only — unchanged behavior, same endpoint.
+  extendGuestStayLegacy: async (bookingId: string, days: number, additionalAmount: number) => {
     set({ loading: true });
     try {
       const token = useAuthStore.getState().token;
@@ -383,6 +401,42 @@ export const useCheckInStore = create<CheckInState>((set, get) => ({
         loading: false,
         guests: state.guests.map((guest) => guest.id === bookingId ? updatedGuest : guest),
       }));
+    } catch (error: any) {
+      set({ loading: false });
+      throw error;
+    }
+  },
+
+  // v2 (RoomTypeV2/RoomUnit) bookings — capacity-checked, payment-gated.
+  // Returns the raw response so the caller (ExtendStayDialog) can handle a
+  // 409 BLOCKED_CAPACITY response without it being swallowed as a thrown error.
+  extendGuestStayV2: async (bookingId: string, additionalNights: number, amountCollected: number, paymentNote?: string) => {
+    set({ loading: true });
+    try {
+      const token = useAuthStore.getState().token;
+      const response = await fetch(`${VITE_API_URL}/api/bookings/${bookingId}/extend-stay-v2`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({ additionalNights, amountCollected, paymentNote }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        const updatedGuest = mapBookingToGuest(result.data);
+        set((state) => ({
+          loading: false,
+          guests: state.guests.map((guest) => guest.id === bookingId ? updatedGuest : guest),
+        }));
+      } else {
+        set({ loading: false });
+      }
+
+      return result;
     } catch (error: any) {
       set({ loading: false });
       throw error;

@@ -38,6 +38,8 @@ import { useBranchStore } from "@/store/useBranchStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { socket } from "@/lib/socket";
 import { cn } from "@/lib/utils";
+import ExtendStayDialog, { type BlockedCapacityData } from "@/components/ExtendStayDialog";
+import ReassignRoomDialog from "@/components/ReassignRoomDialog";
 
 const STATUS_LABELS: Record<RoomUnit["status"], string> = {
   available: "Available",
@@ -243,6 +245,22 @@ interface RoomCardProps {
 const RoomCard = memo(function RoomCard({
   unit, roomTypeName, isMarkingClean, isTogglingHousekeeping, onMarkClean, onFlagMaintenance, onToggleHousekeeping,
 }: RoomCardProps) {
+  const { extendStay } = useRoomTypeV2Store();
+
+  // Blocked-capacity remedy for Extend Stay — same shared reassignment
+  // dialog Booking Management uses, excluding the category the extension
+  // was blocked on (moving within it wouldn't free any capacity).
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [blockedCategoryId, setBlockedCategoryId] = useState<string | undefined>(undefined);
+
+  const handleExtendV2 = (bookingId: string, additionalNights: number, amountCollected: number, paymentNote?: string) =>
+    extendStay(bookingId, additionalNights, amountCollected, paymentNote);
+
+  const handleBlockedCapacity = (data: BlockedCapacityData) => {
+    setBlockedCategoryId(data.roomTypeId);
+    setReassignOpen(true);
+  };
+
   // Shared body — rendered either directly (static statuses) or once per
   // second from inside OccupiedRoomFrame's tick (occupied), so the exact
   // same markup/behavior applies either way; only the surrounding
@@ -359,6 +377,18 @@ const RoomCard = memo(function RoomCard({
             Cleaning Requested
           </Button>
         )}
+        {unit.status === "occupied" && unit.currentBookingId && unit.checkOutAt && (
+          <ExtendStayDialog
+            bookingId={unit.currentBookingId}
+            guestName={unit.currentGuestName || "Guest"}
+            currentCheckOut={unit.checkOutAt}
+            roomRate={(typeof unit.roomTypeId === "object" ? unit.roomTypeId.basePrice : undefined) || 0}
+            isV2={true}
+            onExtendLegacy={async () => {}}
+            onExtendV2={handleExtendV2}
+            onBlockedCapacity={handleBlockedCapacity}
+          />
+        )}
         <Button size="sm" variant="ghost" onClick={() => onFlagMaintenance(unit)}>
           <Wrench className="h-4 w-4 mr-1.5" />
           {/* Keyed on the flag, not status — an occupied+flagged room
@@ -366,6 +396,22 @@ const RoomCard = memo(function RoomCard({
           {unit.maintenanceReason ? "Restore" : unit.status === "occupied" ? "Flag Issue" : "Maintenance"}
         </Button>
       </div>
+
+      {unit.status === "occupied" && unit.currentBookingId && (
+        <ReassignRoomDialog
+          open={reassignOpen}
+          onOpenChange={setReassignOpen}
+          booking={{
+            _id: unit.currentBookingId,
+            guestName: unit.currentGuestName,
+            checkInDate: unit.checkedInAt,
+            checkOutDate: unit.checkOutAt,
+            roomTypeV2Id: unit.roomTypeId,
+            roomUnitId: { _id: unit._id },
+          }}
+          excludeCategoryId={blockedCategoryId}
+        />
+      )}
     </>
   );
 

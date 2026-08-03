@@ -11,7 +11,8 @@ import { UserCheck, LogOut, Search, Phone, Mail, Calendar, BedDouble, Clock, Loa
 import { useCheckInStore, Guest } from "../../store/useCheckInStore";
 import { Skeleton } from "@/components/ui/skeleton";
 import BookGuestForm from "@/components/BookGuestForm";
-import ExtendStayDialog from "@/components/ExtendStayDialog";
+import ExtendStayDialog, { type BlockedCapacityData } from "@/components/ExtendStayDialog";
+import ReassignRoomDialog from "@/components/ReassignRoomDialog";
 import { toast } from "sonner";
 import CheckInForm from "@/components/modals/CheckInForm";
 
@@ -109,9 +110,15 @@ const getFormattedCheckInDate = (rawCheckInDate: string): string => {
 
 
 const GuestCard = ({ guest }: { guest: Guest }) => {
-  const { checkInWithRegistration, checkOutGuest, extendGuestStay } = useCheckInStore();
+  const { checkInWithRegistration, checkOutGuest, extendGuestStayLegacy, extendGuestStayV2, fetchGuests } = useCheckInStore();
   const [isCheckOutOpen, setIsCheckOutOpen] = useState(false);
-  
+
+  // Blocked-capacity remedy for Extend Stay — reuses the same reassignment
+  // dialog Booking Management uses, excluding the category the extension
+  // was blocked on (moving within it wouldn't free any capacity).
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [blockedCategoryId, setBlockedCategoryId] = useState<string | undefined>(undefined);
+
   // ✅ Walk-in confirmation dialog
   const [isWalkInConfirmOpen, setIsWalkInConfirmOpen] = useState(false);
   
@@ -156,8 +163,17 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
     setIsCheckOutOpen(false);
   };
 
-  const handleExtendStay = async (bookingId: string, days: number, additionalAmount: number) => {
-    await extendGuestStay(bookingId, days, additionalAmount);
+  const handleExtendStayLegacy = async (bookingId: string, days: number, additionalAmount: number) => {
+    await extendGuestStayLegacy(bookingId, days, additionalAmount);
+  };
+
+  const handleExtendStayV2 = async (bookingId: string, additionalNights: number, amountCollected: number, paymentNote?: string) => {
+    return extendGuestStayV2(bookingId, additionalNights, amountCollected, paymentNote);
+  };
+
+  const handleBlockedCapacity = (data: BlockedCapacityData) => {
+    setBlockedCategoryId(data.roomTypeId);
+    setReassignOpen(true);
   };
 
   const isWalkIn = guest.bookingType === 'walk-in';
@@ -309,9 +325,33 @@ const GuestCard = ({ guest }: { guest: Guest }) => {
                   guestName={guest.name}
                   currentCheckOut={guest.rawCheckOutDate}
                   roomRate={guest.roomRate || 0}
-                  onExtend={handleExtendStay}
+                  isV2={guest.isV2}
+                  onExtendLegacy={handleExtendStayLegacy}
+                  onExtendV2={handleExtendStayV2}
+                  onBlockedCapacity={handleBlockedCapacity}
                 />
-                
+
+                {/* Blocked-capacity remedy — a lightweight booking-shaped
+                    object built from Guest, which (unlike BookingHistory's
+                    raw booking objects) doesn't carry a populated
+                    roomTypeV2Id/roomUnitId. The dialog degrades gracefully
+                    without them (no price-preview banner, no special
+                    exclusion of the current unit — harmless since an
+                    occupied unit never shows as "available" anyway). */}
+                <ReassignRoomDialog
+                  open={reassignOpen}
+                  onOpenChange={setReassignOpen}
+                  booking={{
+                    _id: guest.bookingId,
+                    guestName: guest.name,
+                    checkInDate: guest.rawCheckInDate,
+                    checkOutDate: guest.rawCheckOutDate,
+                    roomTypeV2Id: guest.roomTypeV2Id,
+                  }}
+                  excludeCategoryId={blockedCategoryId}
+                  onSuccess={() => fetchGuests()}
+                />
+
                 <Dialog open={isCheckOutOpen} onOpenChange={setIsCheckOutOpen}>
                   <DialogTrigger asChild>
                     <Button size="sm" variant="outline" className="flex-1">

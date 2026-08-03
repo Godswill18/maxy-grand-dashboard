@@ -54,31 +54,20 @@ import {
   ArrowRight,
   Receipt,
   CalendarDays,
-  LogIn,
-  LogOut,
-  RefreshCw,
-  Ban,
-  Timer,
-  Banknote,
   Undo2,
-  Download,
   Loader2,
 } from "lucide-react";
 import { useBookingStore } from "@/store/useBookingStore";
-import type { AuditLogEntry } from "@/store/useBookingStore";
+import type { PaymentLedgerEntry } from "@/store/useBookingStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { getBookingRoomDisplay } from "@/lib/bookingDisplay";
+import ExtendStayDialog, { type BlockedCapacityData } from "@/components/ExtendStayDialog";
+import ReassignRoomDialog from "@/components/ReassignRoomDialog";
+import BookingActivityLog from "@/components/BookingActivityLog";
 
 // ── Types ──────────────────────────────────────────────────────────────────
-interface PaymentEntry {
-  amount: number;
-  date: string;
-  note?: string;
-  receivedBy?: string;
-}
-
 interface BookingWithHistory {
   _id: string;
   guestName: string;
@@ -117,7 +106,10 @@ interface BookingWithHistory {
     extraBedding?: boolean;
     specialRequests?: string;
   };
-  paymentHistory?: PaymentEntry[];
+  // Structured payment ledger — replaces a paymentHistory field that was
+  // never actually populated by the backend (silently dropped by Mongoose,
+  // since it was never added to the schema).
+  payments?: PaymentLedgerEntry[];
 }
 
 // ── Color maps ─────────────────────────────────────────────────────────────
@@ -149,59 +141,6 @@ const STATUS_GRADIENT: Record<string, string> = {
   "checked-in":  "from-blue-50   to-blue-100/50   dark:from-blue-900/20   dark:to-blue-800/10   border-blue-200/60",
   "checked-out": "from-gray-50   to-gray-100/50   dark:from-gray-900/20   dark:to-gray-800/10   border-gray-200/60",
   cancelled:     "from-red-50    to-red-100/50    dark:from-red-900/20    dark:to-red-800/10    border-red-200/60",
-};
-
-// ── Activity log event styling ────────────────────────────────────────────
-const AUDIT_EVENT_ICON: Record<string, React.ElementType> = {
-  booking_created: FileText,
-  booking_updated: RefreshCw,
-  booking_confirmed: CheckCircle2,
-  booking_cancelled: Ban,
-  booking_expired: Timer,
-  checked_in: LogIn,
-  checked_out: LogOut,
-  booking_extended: CalendarDays,
-  room_reassigned: ArrowRight,
-  payment_received: Banknote,
-  payment_refunded: Undo2,
-};
-
-const AUDIT_EVENT_COLOR: Record<string, string> = {
-  booking_created: "bg-blue-100 border-blue-200 text-blue-600",
-  booking_updated: "bg-gray-100 border-gray-200 text-gray-600",
-  booking_confirmed: "bg-green-100 border-green-200 text-green-600",
-  booking_cancelled: "bg-red-100 border-red-200 text-red-600",
-  booking_expired: "bg-amber-100 border-amber-200 text-amber-600",
-  checked_in: "bg-blue-100 border-blue-200 text-blue-600",
-  checked_out: "bg-emerald-100 border-emerald-200 text-emerald-600",
-  booking_extended: "bg-violet-100 border-violet-200 text-violet-600",
-  room_reassigned: "bg-orange-100 border-orange-200 text-orange-600",
-  payment_received: "bg-emerald-100 border-emerald-200 text-emerald-600",
-  payment_refunded: "bg-rose-100 border-rose-200 text-rose-600",
-};
-
-const AUDIT_EVENT_LABEL: Record<string, string> = {
-  booking_created: "Booking Created",
-  booking_updated: "Booking Updated",
-  booking_confirmed: "Booking Confirmed",
-  booking_cancelled: "Booking Cancelled",
-  booking_expired: "Booking Expired",
-  checked_in: "Checked In",
-  checked_out: "Checked Out",
-  booking_extended: "Booking Extended",
-  room_reassigned: "Room Reassigned",
-  payment_received: "Payment Received",
-  payment_refunded: "Payment Refunded",
-};
-
-const fmtFieldValue = (v: any) => {
-  if (v === null || v === undefined || v === "") return "—";
-  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)) return fmtDateForDisplay(v);
-  return String(v);
-};
-const fmtDateForDisplay = (d: string) => {
-  const parsed = new Date(d);
-  return isNaN(parsed.getTime()) ? d : parsed.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -638,35 +577,33 @@ function BookingDetailPanel({ booking: b }: { booking: BookingWithHistory }) {
   const gradCls = STATUS_GRADIENT[b.bookingStatus] ?? STATUS_GRADIENT.pending;
 
   const { user } = useAuthStore();
-  const {
-    auditLog, auditLogPage, auditLogTotalPages, auditLogSort, isLoadingAuditLog,
-    fetchBookingAuditLog, setAuditLogSort, exportBookingAuditLog, refundBooking,
-  } = useBookingStore();
+  // fetchBookingAuditLog/auditLogSort are only needed here to refresh the
+  // shared audit-log state after a reassignment succeeds (below) — the
+  // Activity Log's own rendering/pagination/export is now fully owned by
+  // BookingActivityLog, which fetches on mount itself.
+  const { refundBooking, extendStayV2, fetchBookingAuditLog, auditLogSort } = useBookingStore();
 
   const canViewAuditLog = user?.role === 'receptionist' || user?.role === 'admin' || user?.role === 'superadmin';
   const canRecordRefund = canViewAuditLog;
-  const isSuperAdmin = user?.role === 'superadmin';
+  const canExtendStay = canViewAuditLog;
 
   const [refundOpen, setRefundOpen] = useState(false);
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
   const [refundNotes, setRefundNotes] = useState("");
   const [isRefunding, setIsRefunding] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
 
-  const handleSortToggle = (sort: 'newest' | 'oldest') => {
-    setAuditLogSort(sort);
-    fetchBookingAuditLog(b._id, 1, sort);
-  };
+  // Extend Stay — blocked-capacity remedy shares the same reassignment
+  // dialog used by Booking Management.
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [blockedCategoryId, setBlockedCategoryId] = useState<string | undefined>(undefined);
 
-  const handleAuditPageChange = (nextPage: number) => {
-    fetchBookingAuditLog(b._id, nextPage, auditLogSort);
-  };
+  const handleExtendV2 = (bookingId: string, additionalNights: number, amountCollected: number, paymentNote?: string) =>
+    extendStayV2(bookingId, additionalNights, amountCollected, paymentNote);
 
-  const handleExport = async () => {
-    setIsExporting(true);
-    await exportBookingAuditLog(b._id, b.confirmationCode);
-    setIsExporting(false);
+  const handleBlockedCapacity = (data: BlockedCapacityData) => {
+    setBlockedCategoryId(data.roomTypeId);
+    setReassignOpen(true);
   };
 
   const handleRefundSubmit = async () => {
@@ -813,6 +750,28 @@ function BookingDetailPanel({ booking: b }: { booking: BookingWithHistory }) {
               <DetailItem label="Last Updated" value={fmtDateTime(b.updatedAt)} className="col-span-2" />
             )}
           </DetailGrid>
+
+          {canExtendStay && b.bookingStatus === 'checked-in' && b.roomTypeV2Id && (
+            <div className="mt-3">
+              <ExtendStayDialog
+                bookingId={b._id}
+                guestName={b.guestName}
+                currentCheckOut={b.checkOutDate}
+                roomRate={(typeof b.roomTypeV2Id === "object" ? b.roomTypeV2Id?.basePrice : undefined) || 0}
+                isV2={true}
+                onExtendLegacy={async () => {}}
+                onExtendV2={handleExtendV2}
+                onBlockedCapacity={handleBlockedCapacity}
+              />
+              <ReassignRoomDialog
+                open={reassignOpen}
+                onOpenChange={setReassignOpen}
+                booking={b}
+                excludeCategoryId={blockedCategoryId}
+                onSuccess={() => fetchBookingAuditLog(b._id, 1, auditLogSort)}
+              />
+            </div>
+          )}
         </Section>
 
         <Separator />
@@ -913,32 +872,53 @@ function BookingDetailPanel({ booking: b }: { booking: BookingWithHistory }) {
           </div>
         </Section>
 
-        {/* 6 · Payment History */}
+        {/* 6 · Payment History — structured ledger (payment/refund/adjustment
+            entries), replacing a paymentHistory field the backend never
+            actually populated. */}
         <Section icon={Receipt} title="Payment History">
-          {b.paymentHistory && b.paymentHistory.length > 0 ? (
+          {b.payments && b.payments.length > 0 ? (
             <div className="space-y-3">
-              {b.paymentHistory.map((entry, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <div className="h-7 w-7 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0">
-                    <Receipt className="h-3.5 w-3.5 text-emerald-600" />
-                  </div>
-                  <div className="flex-1 rounded-lg border bg-card p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-emerald-700">{fmtMoney(entry.amount)}</span>
-                      <span className="text-xs text-muted-foreground">{fmtDate(entry.date)}</span>
+              {b.payments.map((entry) => {
+                const badge = entry.type === 'payment'
+                  ? { label: 'Payment', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' }
+                  : entry.type === 'refund'
+                  ? { label: 'Refund', cls: 'bg-rose-100 text-rose-700 border-rose-200' }
+                  : { label: 'Adjustment', cls: 'bg-amber-100 text-amber-700 border-amber-200' };
+                const recordedByName = typeof entry.recordedBy === 'object'
+                  ? `${entry.recordedBy.firstName} ${entry.recordedBy.lastName}`
+                  : null;
+                return (
+                  <div key={entry._id} className="flex items-start gap-3">
+                    <div className={cn("h-7 w-7 rounded-full border flex items-center justify-center shrink-0", badge.cls)}>
+                      <Receipt className="h-3.5 w-3.5" />
                     </div>
-                    {entry.note && (
-                      <p className="text-xs text-muted-foreground mt-1">{entry.note}</p>
-                    )}
-                    {entry.receivedBy && (
-                      <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        Received by staff ID: {entry.receivedBy}
+                    <div className="flex-1 rounded-lg border bg-card p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className={cn("text-xs border", badge.cls)}>{badge.label}</Badge>
+                          <span className={cn("text-sm font-bold", entry.type === 'refund' ? "text-rose-600" : "text-emerald-700")}>
+                            {entry.type === 'refund' ? '-' : ''}{fmtMoney(entry.amount)}
+                          </span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">{fmtDate(entry.paymentDate)}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 capitalize">
+                        {entry.method?.replace('_', ' ')}
+                        {entry.referenceNumber ? ` · Ref: ${entry.referenceNumber}` : ""}
                       </p>
-                    )}
+                      {entry.notes && (
+                        <p className="text-xs text-muted-foreground mt-1">{entry.notes}</p>
+                      )}
+                      {recordedByName && (
+                        <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+                          <User className="h-3 w-3" />
+                          Recorded by {recordedByName}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground italic">No payment records found</p>
@@ -947,105 +927,7 @@ function BookingDetailPanel({ booking: b }: { booking: BookingWithHistory }) {
 
         {/* 7 · Activity Log / Audit Trail */}
         {canViewAuditLog && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <History className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold text-foreground">Activity Log</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex rounded-md border overflow-hidden text-xs">
-                  <button
-                    type="button"
-                    onClick={() => handleSortToggle('newest')}
-                    className={cn("px-2 py-1", auditLogSort === 'newest' ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground")}
-                  >
-                    Newest
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSortToggle('oldest')}
-                    className={cn("px-2 py-1", auditLogSort === 'oldest' ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground")}
-                  >
-                    Oldest
-                  </button>
-                </div>
-                {isSuperAdmin && (
-                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={handleExport} disabled={isExporting}>
-                    {isExporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                    Export
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {isLoadingAuditLog ? (
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
-              </div>
-            ) : auditLog.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">No activity recorded yet</p>
-            ) : (
-              <>
-                <div className="space-y-3">
-                  {auditLog.map((entry: AuditLogEntry) => {
-                    const Icon = AUDIT_EVENT_ICON[entry.eventType] || FileText;
-                    const color = AUDIT_EVENT_COLOR[entry.eventType] || "bg-gray-100 border-gray-200 text-gray-600";
-                    return (
-                      <div key={entry._id} className="flex items-start gap-3">
-                        <div className={cn("h-7 w-7 rounded-full border flex items-center justify-center shrink-0 mt-0.5", color)}>
-                          <Icon className="h-3.5 w-3.5" />
-                        </div>
-                        <div className="flex-1 rounded-lg border bg-card p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-medium text-foreground">{AUDIT_EVENT_LABEL[entry.eventType] || entry.eventType}</p>
-                            <span className="text-xs text-muted-foreground shrink-0">{fmtDateTime(entry.createdAt)}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">{entry.description}</p>
-                          {entry.performedByName && (
-                            <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              {entry.performedByName} ({entry.performedByRole}){entry.performedByBranch ? ` · ${entry.performedByBranch}` : ""}
-                            </p>
-                          )}
-                          {entry.changes && entry.changes.length > 0 && (
-                            <div className="mt-2 space-y-1 border-t pt-2">
-                              {entry.changes.map((c, i) => (
-                                <p key={i} className="text-[11px] text-muted-foreground">
-                                  <span className="font-medium text-foreground">{c.field}:</span>{" "}
-                                  {fmtFieldValue(c.from)} <ArrowRight className="inline h-2.5 w-2.5 mx-0.5" /> {fmtFieldValue(c.to)}
-                                </p>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {auditLogTotalPages > 1 && (
-                  <div className="flex items-center justify-between pt-2">
-                    <Button
-                      variant="outline" size="sm"
-                      onClick={() => handleAuditPageChange(auditLogPage - 1)}
-                      disabled={auditLogPage <= 1}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <span className="text-xs text-muted-foreground">Page {auditLogPage} of {auditLogTotalPages}</span>
-                    <Button
-                      variant="outline" size="sm"
-                      onClick={() => handleAuditPageChange(auditLogPage + 1)}
-                      disabled={auditLogPage >= auditLogTotalPages}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          <BookingActivityLog bookingId={b._id} confirmationCode={b.confirmationCode} />
         )}
 
       </div>

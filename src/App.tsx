@@ -87,6 +87,7 @@ import Announcements from "./pages/superAdmin/Announcements";
 import ManagerAnnouncements from "./pages/manager/Announcements";
 import HelpPage from "./pages/HelpPage";
 import BookingHistory from "./pages/BookingHistory";
+import OutstandingBalances from "./pages/OutstandingBalances";
 import RestaurantOrders from "./pages/superAdmin/RestaurantOrders";
 import Notifications from "./pages/Notifications";
 
@@ -367,6 +368,7 @@ const App = () => {
                 <Route path="/bookings" element={<Bookings />} />
                 <Route path="/bookings/calendar" element={<BookingCalendarPage />} />
                 <Route path="/booking-history" element={<BookingHistory />} />
+                <Route path="/outstanding-balances" element={<OutstandingBalances />} />
                 <Route path="/cleaners" element={<Cleaners />} />
                 <Route path="/transactions" element={<Transactions />} />
                 <Route path="/requests" element={<Requests />} />
@@ -425,6 +427,7 @@ const App = () => {
                 <Route path="/manager/bookings" element={<BookingManagement />} />
                 <Route path="/manager/booking-calendar" element={<BookingCalendarPage />} />
                 <Route path="/manager/booking-history" element={<BookingHistory />} />
+                <Route path="/manager/outstanding-balances" element={<OutstandingBalances />} />
                 <Route path="/manager/orders" element={<Restaurant />} />
                 <Route path="/manager/reviews" element={<Reviews />} />
                 <Route path="/manager/announcements" element={<ManagerAnnouncements />} />
@@ -465,6 +468,7 @@ const App = () => {
                 <Route path="/receptionist/bookings" element={<BookingManagement />} />
                 <Route path="/receptionist/calendar" element={<BookingCalendar />} />
                 <Route path="/receptionist/booking-history" element={<BookingHistory />} />
+                <Route path="/receptionist/outstanding-balances" element={<OutstandingBalances />} />
                 <Route path="/receptionist/my-shift" element={<MySchedule />} />
                 <Route path="/receptionist/payments" element={<PaymentProcessing />} />
                 <Route path="/receptionist/notifications" element={<Notifications />} />

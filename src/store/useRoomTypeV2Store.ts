@@ -99,6 +99,12 @@ interface RoomTypeV2State {
     reason: 'upgrade' | 'downgrade' | 'lateral' | 'other',
     note?: string
   ) => Promise<{ success: boolean; data?: any; error?: string }>;
+  extendStay: (
+    bookingId: string,
+    additionalNights: number,
+    amountCollected: number,
+    paymentNote?: string
+  ) => Promise<{ success: boolean; data?: any; error?: string; message?: string }>;
   initRoomUnitSocketListeners: () => void;
   closeRoomUnitSocketListeners: () => void;
 }
@@ -436,6 +442,27 @@ export const useRoomTypeV2Store = create<RoomTypeV2State>((set, get) => ({
     } catch (err) {
       const error = err as AxiosError<any>;
       return { success: false, error: error.response?.data?.error || error.message };
+    }
+  },
+
+  extendStay: async (bookingId, additionalNights, amountCollected, paymentNote) => {
+    try {
+      const res = await axios.patch(
+        `${VITE_API_URL}/api/bookings/${bookingId}/extend-stay-v2`,
+        { additionalNights, amountCollected, paymentNote },
+        { headers: { 'Content-Type': 'application/json', ...authHeaders() }, withCredentials: true }
+      );
+      return { success: true, data: res.data.data, message: res.data.message };
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      // On BLOCKED_CAPACITY, error.response.data.data carries the
+      // blocked-night details the caller needs for the reassignment remedy.
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message,
+        message: error.response?.data?.message,
+        data: error.response?.data?.data,
+      };
     }
   },
 

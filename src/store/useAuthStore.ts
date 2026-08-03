@@ -17,6 +17,7 @@ interface AuthState {
   user: User | null;
   isLoading: boolean;
   token: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
   error: string | null;
   login: (credentials: {email: string; password: string;}) => Promise<{ success: boolean; message: string; code?: string; retryAfter?: number }>;
@@ -24,9 +25,18 @@ interface AuthState {
   getMe: (silent?: boolean) => Promise<User>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
+  refreshAccessToken: () => Promise<boolean>;
 }
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
+
+// Module-scoped (not store state) so every caller — including the global
+// fetch patch in lib/authFetchPatch.ts — shares the SAME in-flight refresh
+// call instead of each independently rotating the refresh token. Refresh
+// tokens are single-use; two concurrent rotations of the same token would
+// make the second one look like a stolen/replayed token and revoke the
+// whole session family (see services/tokenService.js's reuse detection).
+let refreshInFlight: Promise<boolean> | null = null;
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -36,6 +46,7 @@ export const useAuthStore = create<AuthState>()(
       // Initialise synchronously from localStorage so stores that call
       // useAuthStore.getState().token on first render never get null after a reload.
       token: localStorage.getItem('token'),
+      refreshToken: localStorage.getItem('refreshToken'),
       isAuthenticated: false,
       error: null,
 
@@ -67,6 +78,7 @@ export const useAuthStore = create<AuthState>()(
             set({
               user: data.data as User,
               token: data.token,
+              refreshToken: data.refreshToken ?? null,
               isAuthenticated: true,
               error: null,
             });
@@ -74,10 +86,13 @@ export const useAuthStore = create<AuthState>()(
             if (data.token) {
               localStorage.setItem("token", data.token);
             }
-            
-            return { 
-              success: true, 
-              message: data.message || "Login successful" 
+            if (data.refreshToken) {
+              localStorage.setItem("refreshToken", data.refreshToken);
+            }
+
+            return {
+              success: true,
+              message: data.message || "Login successful"
             };
           }
 
@@ -350,25 +365,69 @@ export const useAuthStore = create<AuthState>()(
 
       logout: async () => {
         set({ isLoading: true, error: null });
+        const currentRefreshToken = get().refreshToken || localStorage.getItem('refreshToken');
         try {
           await fetch(`${VITE_API_URL}/api/users/logout-user`, {
             credentials: 'include',
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: currentRefreshToken }),
           });
-          localStorage.removeItem('token');
         } catch (err: any) {
           console.error('Logout API call failed:', err.message);
-          localStorage.removeItem('token');
         } finally {
           localStorage.removeItem('token');
-          set({ 
-            user: null, 
-            isLoading: false, 
-            error: null, 
-            token: null, 
-            isAuthenticated: false 
+          localStorage.removeItem('refreshToken');
+          set({
+            user: null,
+            isLoading: false,
+            error: null,
+            token: null,
+            refreshToken: null,
+            isAuthenticated: false
           });
         }
+      },
+
+      // Rotates the stored refresh token for a fresh access+refresh pair.
+      // Shares one in-flight call across every caller (see refreshInFlight
+      // above) so concurrent 401s never double-rotate the same token.
+      // Returns false — never throws — on any failure, since callers treat
+      // "couldn't refresh" as "fall back to today's behavior" (hard logout).
+      refreshAccessToken: async () => {
+        if (refreshInFlight) return refreshInFlight;
+
+        refreshInFlight = (async () => {
+          try {
+            const currentRefreshToken = get().refreshToken || localStorage.getItem('refreshToken');
+            if (!currentRefreshToken) return false;
+
+            const response = await fetch(`${VITE_API_URL}/api/users/refresh-token`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ refreshToken: currentRefreshToken }),
+            });
+
+            if (!response.ok) return false;
+            const data = await response.json();
+            if (!data.success || !data.token) return false;
+
+            localStorage.setItem('token', data.token);
+            if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+            set({
+              token: data.token,
+              refreshToken: data.refreshToken ?? get().refreshToken,
+            });
+            return true;
+          } catch {
+            return false;
+          } finally {
+            refreshInFlight = null;
+          }
+        })();
+
+        return refreshInFlight;
       },
     }),
     {

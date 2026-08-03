@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 
 // Define the shape of your booking data based on the controller
 // Includes populated fields
-interface Booking {
+export interface Booking {
   _id: string;
   guestName: string;
   guestEmail: string;
@@ -47,6 +47,32 @@ interface Booking {
   };
   amountPaid?: number;
   confirmationCode?: string;
+  // Structured payment ledger — replaces the never-actually-populated
+  // paymentHistory field this codebase used to reference.
+  payments?: PaymentLedgerEntry[];
+  outstanding?: number; // present on rows returned by the outstanding-balances endpoints
+  overdue?: boolean;
+}
+
+export interface PaymentLedgerEntry {
+  _id: string;
+  type: 'payment' | 'refund' | 'adjustment';
+  amount: number;
+  method: 'cash' | 'card' | 'bank_transfer' | 'pos' | 'other';
+  referenceNumber?: string | null;
+  paymentDate: string;
+  notes?: string | null;
+  recordedBy: string | { _id: string; firstName: string; lastName: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OutstandingSummary {
+  totalOutstandingAmount: number;
+  outstandingCount: number;
+  fullyPaidCount: number;
+  partiallyPaidCount: number;
+  overdueCount: number;
 }
 
 interface Hotel {
@@ -106,6 +132,37 @@ interface BookingState {
   setAuditLogSort: (sort: 'newest' | 'oldest') => void;
   exportBookingAuditLog: (bookingId: string, confirmationCode?: string) => Promise<void>;
   refundBooking: (id: string, amount: number, reason: string, notes?: string) => Promise<{ success: boolean; message?: string }>;
+  extendStayV2: (
+    bookingId: string,
+    additionalNights: number,
+    amountCollected: number,
+    paymentNote?: string
+  ) => Promise<{ success: boolean; message?: string; error?: string; data?: any }>;
+
+  // Outstanding Balance Management
+  outstandingBookings: Booking[];
+  outstandingSummary: OutstandingSummary | null;
+  outstandingCurrentHotelId: string | null;
+  isLoadingOutstanding: boolean;
+  outstandingLastFetched: number | null;
+  fetchOutstandingBalances: (hotelId?: string, force?: boolean) => Promise<void>;
+  recordPayment: (
+    bookingId: string,
+    data: { amount: number; method?: string; referenceNumber?: string; paymentDate?: string; notes?: string }
+  ) => Promise<{ success: boolean; message?: string }>;
+  editPayment: (
+    bookingId: string,
+    entryId: string,
+    data: { amount?: number; method?: string; referenceNumber?: string; paymentDate?: string; notes?: string; reason: string }
+  ) => Promise<{ success: boolean; message?: string }>;
+  recordAdjustment: (
+    bookingId: string,
+    data: { amount: number; reason: string; method?: string; referenceNumber?: string; paymentDate?: string }
+  ) => Promise<{ success: boolean; message?: string }>;
+  exportOutstandingCSV: (bookingIds?: string[]) => Promise<void>;
+  exportOutstandingExcel: (bookingIds?: string[]) => Promise<void>;
+  exportOutstandingPDF: (bookingIds?: string[]) => Promise<void>;
+  exportPaymentReceipt: (bookingId: string, confirmationCode?: string) => Promise<void>;
 
   // Socket.io listeners
   initSocketListeners: () => void;
@@ -135,6 +192,12 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   auditLogTotalPages: 1,
   auditLogSort: 'newest',
   isLoadingAuditLog: false,
+
+  outstandingBookings: [],
+  outstandingSummary: null,
+  outstandingCurrentHotelId: null,
+  isLoadingOutstanding: false,
+  outstandingLastFetched: null,
 
   // --- 1. AXIOS ACTIONS (for initial load and updates) ---
 
@@ -394,6 +457,7 @@ cancelBooking: async (id: string) => {
       );
       await get().fetchBookings(get().currentHotelId || undefined, true);
       await get().fetchBookingAuditLog(id, 1, get().auditLogSort);
+      await get().fetchOutstandingBalances(get().outstandingCurrentHotelId || undefined, true);
       toast.success('Refund recorded successfully');
       return { success: true, message: response.data.message };
     } catch (err) {
@@ -401,6 +465,222 @@ cancelBooking: async (id: string) => {
       const message = error.response?.data?.error || 'Failed to record refund';
       toast.error(message);
       return { success: false, message };
+    }
+  },
+
+  extendStayV2: async (bookingId, additionalNights, amountCollected, paymentNote) => {
+    try {
+      const token = getToken();
+      const response = await axios.patch(
+        `${VITE_API_URL}/api/bookings/${bookingId}/extend-stay-v2`,
+        { additionalNights, amountCollected, paymentNote },
+        {
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          withCredentials: true,
+        }
+      );
+      await get().fetchBookings(get().currentHotelId || undefined, true);
+      await get().fetchBookingAuditLog(bookingId, 1, get().auditLogSort);
+      toast.success(response.data.message || 'Stay extended successfully');
+      return { success: true, message: response.data.message, data: response.data.data };
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      const errorCode = (error.response?.data as any)?.error;
+      if (errorCode === 'BLOCKED_CAPACITY') {
+        // No toast here — the caller renders a dedicated blocked-state UI
+        // with the reassignment remedy instead of a generic error toast.
+        return {
+          success: false,
+          error: errorCode,
+          message: (error.response?.data as any)?.message,
+          data: (error.response?.data as any)?.data,
+        };
+      }
+      const message = (error.response?.data as any)?.message || errorCode || 'Failed to extend stay';
+      toast.error(message);
+      return { success: false, message, error: errorCode };
+    }
+  },
+
+  // --- Outstanding Balance Management ---
+
+  fetchOutstandingBalances: async (hotelId?: string, force = false) => {
+    const { outstandingLastFetched, outstandingCurrentHotelId: prevHotelId } = get();
+    const hotelChanged = hotelId !== prevHotelId;
+    const isFresh = outstandingLastFetched && Date.now() - outstandingLastFetched < BOOKING_TTL;
+    if (isFresh && !force && !hotelChanged) return;
+
+    set({ isLoadingOutstanding: true, outstandingCurrentHotelId: hotelId || null });
+    try {
+      const token = getToken();
+      const params: any = {};
+      if (hotelId) params.hotelId = hotelId;
+      const response = await axios.get(`${VITE_API_URL}/api/bookings/outstanding`, {
+        params,
+        headers: { Authorization: `Bearer ${token}` },
+        withCredentials: true,
+      });
+      if (response.data.success) {
+        set({
+          outstandingBookings: response.data.data.bookings,
+          outstandingSummary: response.data.data.summary,
+          isLoadingOutstanding: false,
+          outstandingLastFetched: Date.now(),
+        });
+      } else {
+        set({ isLoadingOutstanding: false });
+      }
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      set({ isLoadingOutstanding: false });
+      toast.error(error.response?.data?.error || 'Failed to load outstanding balances');
+    }
+  },
+
+  recordPayment: async (bookingId, data) => {
+    try {
+      const token = getToken();
+      const response = await axios.patch(
+        `${VITE_API_URL}/api/bookings/${bookingId}/payment`,
+        data,
+        { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, withCredentials: true }
+      );
+      await get().fetchBookings(get().currentHotelId || undefined, true);
+      await get().fetchOutstandingBalances(get().outstandingCurrentHotelId || undefined, true);
+      await get().fetchBookingAuditLog(bookingId, 1, get().auditLogSort);
+      toast.success(response.data.message || 'Payment recorded successfully');
+      return { success: true, message: response.data.message };
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      const message = error.response?.data?.error || 'Failed to record payment';
+      toast.error(message);
+      return { success: false, message };
+    }
+  },
+
+  editPayment: async (bookingId, entryId, data) => {
+    try {
+      const token = getToken();
+      const response = await axios.patch(
+        `${VITE_API_URL}/api/bookings/${bookingId}/payments/${entryId}`,
+        data,
+        { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, withCredentials: true }
+      );
+      await get().fetchBookings(get().currentHotelId || undefined, true);
+      await get().fetchOutstandingBalances(get().outstandingCurrentHotelId || undefined, true);
+      await get().fetchBookingAuditLog(bookingId, 1, get().auditLogSort);
+      toast.success(response.data.message || 'Payment entry updated successfully');
+      return { success: true, message: response.data.message };
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      const message = error.response?.data?.error || 'Failed to edit payment entry';
+      toast.error(message);
+      return { success: false, message };
+    }
+  },
+
+  recordAdjustment: async (bookingId, data) => {
+    try {
+      const token = getToken();
+      const response = await axios.patch(
+        `${VITE_API_URL}/api/bookings/${bookingId}/adjustment`,
+        data,
+        { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, withCredentials: true }
+      );
+      await get().fetchBookings(get().currentHotelId || undefined, true);
+      await get().fetchOutstandingBalances(get().outstandingCurrentHotelId || undefined, true);
+      await get().fetchBookingAuditLog(bookingId, 1, get().auditLogSort);
+      toast.success(response.data.message || 'Adjustment recorded successfully');
+      return { success: true, message: response.data.message };
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      const message = error.response?.data?.error || 'Failed to record adjustment';
+      toast.error(message);
+      return { success: false, message };
+    }
+  },
+
+  exportOutstandingCSV: async (bookingIds?: string[]) => {
+    try {
+      const token = getToken();
+      const response = await axios.post(
+        `${VITE_API_URL}/api/bookings/outstanding/export/csv`,
+        { bookingIds },
+        { headers: { Authorization: `Bearer ${token}` }, withCredentials: true, responseType: 'blob' }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `outstanding-balances-${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error('Failed to export CSV');
+    }
+  },
+
+  exportOutstandingExcel: async (bookingIds?: string[]) => {
+    try {
+      const token = getToken();
+      const response = await axios.post(
+        `${VITE_API_URL}/api/bookings/outstanding/export/excel`,
+        { bookingIds },
+        { headers: { Authorization: `Bearer ${token}` }, withCredentials: true, responseType: 'blob' }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `outstanding-balances-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error('Failed to export Excel');
+    }
+  },
+
+  exportOutstandingPDF: async (bookingIds?: string[]) => {
+    try {
+      const token = getToken();
+      const response = await axios.post(
+        `${VITE_API_URL}/api/bookings/outstanding/export/pdf`,
+        { bookingIds },
+        { headers: { Authorization: `Bearer ${token}` }, withCredentials: true, responseType: 'blob' }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'outstanding-balances-report.pdf');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error('Failed to export PDF');
+    }
+  },
+
+  exportPaymentReceipt: async (bookingId: string, confirmationCode?: string) => {
+    try {
+      const token = getToken();
+      const response = await axios.get(`${VITE_API_URL}/api/bookings/${bookingId}/receipt/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+        withCredentials: true,
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `receipt-${confirmationCode || bookingId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error('Failed to generate receipt');
     }
   },
 
@@ -418,6 +698,10 @@ cancelBooking: async (id: string) => {
       if (currentHotelId === null || hotelId === currentHotelId) {
         get().fetchBookings(currentHotelId || undefined, true);
       }
+      const outstandingHotelId = get().outstandingCurrentHotelId;
+      if (outstandingHotelId === null || hotelId === outstandingHotelId) {
+        get().fetchOutstandingBalances(outstandingHotelId || undefined, true);
+      }
       toast.info(`New booking created for ${newBooking.guestName}`);
     };
 
@@ -427,11 +711,16 @@ cancelBooking: async (id: string) => {
       if (currentHotelId === null || hotelId === currentHotelId) {
         get().fetchBookings(currentHotelId || undefined, true);
       }
+      const outstandingHotelId = get().outstandingCurrentHotelId;
+      if (outstandingHotelId === null || hotelId === outstandingHotelId) {
+        get().fetchOutstandingBalances(outstandingHotelId || undefined, true);
+      }
       toast.info(`Booking for ${updatedBooking.guestName} was updated`);
     };
 
     _bsDeletedHandler = (_bookingId: string) => {
       get().fetchBookings(get().currentHotelId || undefined, true);
+      get().fetchOutstandingBalances(get().outstandingCurrentHotelId || undefined, true);
       toast.warning('A booking was deleted');
     };
 

@@ -10,6 +10,7 @@ import {
   DollarSign,
   Edit,
   Lock,
+  LogOut,
   Loader2,
   AlertCircle,
   CheckCircle,
@@ -17,6 +18,8 @@ import {
   MapPin,
 } from 'lucide-react';
 import axios from 'axios';
+import { toast } from 'sonner';
+import { useAuthStore } from '@/store/useAuthStore';
 import { getChangePasswordRoute, getProfileUpdateRoute, getSettingsRoute } from '@/components/utils/GetprofileRoute';
 
 interface UserProfile {
@@ -46,6 +49,7 @@ export const StaffProfile = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loggingOutEverywhere, setLoggingOutEverywhere] = useState(false);
 
    // ✅ Get role-based routes using the utility function
   const profileUpdateRoute = getProfileUpdateRoute(user?.role || '');
@@ -72,6 +76,38 @@ export const StaffProfile = () => {
 
     fetchProfile();
   }, []);
+
+  const handleLogoutEverywhere = async () => {
+    try {
+      setLoggingOutEverywhere(true);
+      const response = await axios.post(
+        `${API_URL}/api/users/logout-everywhere`,
+        {},
+        { withCredentials: true }
+      );
+
+      // The backend issues a fresh token/refreshToken for THIS session so
+      // it keeps working while every other device is signed out — mirror
+      // that into local storage the same way login() does, since several
+      // stores build their Authorization header from localStorage('token').
+      if (response.data?.token) {
+        localStorage.setItem('token', response.data.token);
+      }
+      if (response.data?.refreshToken) {
+        localStorage.setItem('refreshToken', response.data.refreshToken);
+      }
+      useAuthStore.setState({
+        token: response.data?.token ?? useAuthStore.getState().token,
+        refreshToken: response.data?.refreshToken ?? useAuthStore.getState().refreshToken,
+      });
+
+      toast.success('You have been logged out of all other devices.');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to log out of other devices');
+    } finally {
+      setLoggingOutEverywhere(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -323,13 +359,27 @@ export const StaffProfile = () => {
             <p className="text-gray-600 mb-4">
               Keep your account secure by regularly updating your password
             </p>
-            <Button
-              onClick={() => navigate(changePasswordRoute)}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              <Lock size={16} className="mr-2" />
-              Change Password
-            </Button>
+            <div className="flex flex-col md:flex-row gap-3">
+              <Button
+                onClick={() => navigate(changePasswordRoute)}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                <Lock size={16} className="mr-2" />
+                Change Password
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleLogoutEverywhere}
+                disabled={loggingOutEverywhere}
+              >
+                {loggingOutEverywhere ? (
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                ) : (
+                  <LogOut size={16} className="mr-2" />
+                )}
+                Log Out of All Other Devices
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

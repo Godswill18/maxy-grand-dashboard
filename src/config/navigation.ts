@@ -31,6 +31,7 @@ import {
   Calendar1Icon,
   ImagesIcon,
   HelpCircle,
+  Wallet,
 } from "lucide-react";
 
 // Define a reusable NavItem type
@@ -54,6 +55,7 @@ export const superAdminNav: NavItem[] = [
   { name: "Bookings", href: "/bookings", icon: Calendar },
   { name: "Booking Calendar", href: "/bookings/calendar", icon: Calendar1Icon },
   { name: "Booking History", href: "/booking-history", icon: History },
+  { name: "Outstanding Balances", href: "/outstanding-balances", icon: Wallet },
   { name: "Cleaners", href: "/cleaners", icon: Sparkles },
   { name: "Transactions", href: "/transactions", icon: CreditCard },
   { name: "Requests", href: "/requests", icon: FileText },
@@ -95,6 +97,7 @@ export const managerNav: NavItem[] = [
   { name: "Bookings", href: "/manager/bookings", icon: Calendar },
   { name: "Booking Calendar", href: "/manager/booking-calendar", icon: Calendar1Icon },
   { name: "Booking History", href: "/manager/booking-history", icon: History },
+  { name: "Outstanding Balances", href: "/manager/outstanding-balances", icon: Wallet },
   // { name: "Transactions", href: "/manager/transactions", icon: CreditCard },
   { name: "Housekeeping", href: "/manager/house-keeping", icon: Sparkles },
   { name: "Orders", href: "/manager/orders", icon: UtensilsCrossed },
@@ -126,6 +129,7 @@ export const receptionistNav: NavItem[] = [
   { name: "Bookings", href: "/receptionist/bookings", icon: Calendar },
   { name: "Booking Calendar", href: "/receptionist/calendar", icon: Calendar1Icon },
   { name: "Booking History", href: "/receptionist/booking-history", icon: History },
+  { name: "Outstanding Balances", href: "/receptionist/outstanding-balances", icon: Wallet },
   { name: "My Shift", href: "/receptionist/my-shift", icon: CalendarDays },
   // { name: "Settings", href: "/receptionist/settings", icon: Settings },
   { name: "Help & Guide", href: "/receptionist/help", icon: HelpCircle },

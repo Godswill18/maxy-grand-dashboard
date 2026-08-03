@@ -21,6 +21,7 @@ import { getBookingRoomDisplay } from "@/lib/bookingDisplay";
 import { useAuthStore } from "@/store/useAuthStore";
 import BookingManagementSkeleton from "../../components/skeleton/BookingManagementSkeleton";
 import BookGuestForm from "@/components/BookGuestForm";
+import ReassignRoomDialog from "@/components/ReassignRoomDialog";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -96,7 +97,7 @@ interface AvailableRoom {
 export default function BookingManagement() {
   const { bookings, isLoading, fetchBookings, updateBooking, cancelBooking, initSocketListeners, closeSocketListeners } = useBookingStore();
   const { checkInWithRegistration } = useCheckInStore();
-  const { checkInAndAssignRoom, checkOutRoom, reassignRoom } = useRoomTypeV2Store();
+  const { checkInAndAssignRoom, checkOutRoom } = useRoomTypeV2Store();
   const { user } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -132,13 +133,11 @@ export default function BookingManagement() {
   // backend). The booked category is immutable, so unlike the legacy
   // "Change Room" flow this replaces, this can move a guest across
   // categories only through this explicit, price-delta-aware action.
+  // The dialog itself (unit fetching, price preview, submit) is the shared
+  // ReassignRoomDialog component — also used by ExtendStayDialog's
+  // blocked-capacity remedy.
   const [reassignOpen,     setReassignOpen]     = useState(false);
   const [reassignBooking,  setReassignBooking]  = useState<any>(null);
-  const [reassignUnits,    setReassignUnits]    = useState<RoomUnit[]>([]);
-  const [reassignSelected, setReassignSelected] = useState("");
-  const [reassignReason,   setReassignReason]   = useState<"upgrade" | "downgrade" | "lateral" | "other">("lateral");
-  const [reassignNote,     setReassignNote]     = useState("");
-  const [reassignLoading,  setReassignLoading]  = useState(false);
 
   const [earlyCheckInErrorOpen, setEarlyCheckInErrorOpen] = useState(false);
   const [earlyCheckInMessage, setEarlyCheckInMessage] = useState("");
@@ -563,64 +562,9 @@ export default function BookingManagement() {
     }
   };
 
-  const handleOpenReassignRoom = async (booking: any) => {
+  const handleOpenReassignRoom = (booking: any) => {
     setReassignBooking(booking);
-    setReassignSelected("");
-    setReassignReason("lateral");
-    setReassignNote("");
     setReassignOpen(true);
-    setReassignLoading(true);
-    try {
-      const res = await fetch(`${VITE_API_URL}/api/room-types-v2/units/board`, { credentials: "include" });
-      const data = await res.json();
-      const currentUnitId = booking.roomUnitId?._id;
-      const available = ((data.data || []) as RoomUnit[]).filter(
-        (u) => u.status === "available" && u.isActive && u._id !== currentUnitId
-      );
-      setReassignUnits(available);
-    } catch {
-      toast.error("Failed to load available rooms.");
-    } finally {
-      setReassignLoading(false);
-    }
-  };
-
-  // Price comparison baseline: the booked category's rate. (A guest who was
-  // already reassigned once would ideally compare against their most recent
-  // rate, but that history isn't populated on the booking object returned to
-  // this list — the backend's own delta calculation, which does use the
-  // correct baseline, is authoritative; this is just a client-side preview.)
-  const currentCategoryPrice = typeof reassignBooking?.roomTypeV2Id === "object"
-    ? reassignBooking.roomTypeV2Id.basePrice
-    : undefined;
-
-  const reassignSelectedUnit = reassignUnits.find((u) => u._id === reassignSelected);
-  const reassignNights = reassignBooking
-    ? Math.max(1, Math.round((new Date(reassignBooking.checkOutDate).getTime() - new Date(reassignBooking.checkInDate).getTime()) / 86400000))
-    : 1;
-  const reassignNewPrice = reassignSelectedUnit && typeof reassignSelectedUnit.roomTypeId === "object"
-    ? reassignSelectedUnit.roomTypeId.basePrice
-    : undefined;
-  const reassignPricePreview = reassignNewPrice !== undefined && currentCategoryPrice !== undefined
-    ? Math.round(reassignNights * (reassignNewPrice - currentCategoryPrice))
-    : null;
-
-  const confirmReassignRoom = async () => {
-    if (!reassignBooking || !reassignSelected) return;
-    setReassignLoading(true);
-    try {
-      const result = await reassignRoom(reassignBooking._id, reassignSelected, reassignReason, reassignNote || undefined);
-      if (result.success) {
-        toast.success("Room reassigned successfully.");
-        setReassignOpen(false);
-        setReassignBooking(null);
-        await fetchBookings();
-      } else {
-        toast.error(result.error || "Failed to reassign room.");
-      }
-    } finally {
-      setReassignLoading(false);
-    }
   };
 
   const handleCheckOut = (booking: any) => {
@@ -1352,90 +1296,14 @@ export default function BookingManagement() {
       {/* Reassign Room Dialog — v2/category-model bookings only. The booked
           category (roomTypeV2Id) is never changed; this records an
           authorized move (possibly cross-category) with its price delta,
-          atomically on the backend. */}
-      <Dialog open={reassignOpen} onOpenChange={(open) => { if (!open) { setReassignOpen(false); setReassignBooking(null); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Reassign Room</DialogTitle>
-            <DialogDescription>
-              Move {reassignBooking?.guestName} to a different available room — same or a different category.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="p-3 rounded-lg border bg-muted/40 text-sm">
-            <p className="text-muted-foreground">Currently</p>
-            <p className="font-medium mt-0.5">
-              {reassignBooking ? getBookingRoomDisplay(reassignBooking).label : ""}
-            </p>
-          </div>
-
-          {reassignLoading && reassignUnits.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">Loading available rooms...</p>
-          ) : reassignUnits.length === 0 ? (
-            <p className="text-sm text-destructive py-4 text-center">No other rooms available right now.</p>
-          ) : (
-            <div className="space-y-1.5">
-              <Label>Select New Room</Label>
-              <Select value={reassignSelected} onValueChange={setReassignSelected}>
-                <SelectTrigger><SelectValue placeholder="Choose a room" /></SelectTrigger>
-                <SelectContent>
-                  {reassignUnits.map((u) => {
-                    const catName = (typeof u.roomTypeId === "object" ? u.roomTypeId.name : "") || "Unknown Category";
-                    const catPrice = typeof u.roomTypeId === "object" ? u.roomTypeId.basePrice : undefined;
-                    return (
-                      <SelectItem key={u._id} value={u._id}>
-                        Room {u.roomNumber} — {catName}{catPrice !== undefined ? ` (₦${catPrice.toLocaleString()}/night)` : ""}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <Label>Reason</Label>
-            <Select value={reassignReason} onValueChange={(v) => setReassignReason(v as typeof reassignReason)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="upgrade">Upgrade</SelectItem>
-                <SelectItem value="downgrade">Downgrade</SelectItem>
-                <SelectItem value="lateral">Same category / lateral move</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Note (optional)</Label>
-            <Textarea rows={2} value={reassignNote} onChange={(e) => setReassignNote(e.target.value)} placeholder="e.g. guest requested a quieter room" />
-          </div>
-
-          {reassignSelected && reassignPricePreview !== null && reassignPricePreview !== 0 && (
-            <div className={cn(
-              "p-3 rounded-lg border text-sm font-medium",
-              reassignPricePreview > 0 ? "border-amber-300 bg-amber-50 text-amber-800" : "border-blue-300 bg-blue-50 text-blue-800"
-            )}>
-              {reassignPricePreview > 0
-                ? `Guest owes ₦${reassignPricePreview.toLocaleString()} more — recorded as due at desk.`
-                : `Guest overpaid by ₦${Math.abs(reassignPricePreview).toLocaleString()} — recorded for manual resolution.`}
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
-            <Button variant="outline" className="flex-1" onClick={() => { setReassignOpen(false); setReassignBooking(null); }}>
-              Cancel
-            </Button>
-            <Button
-              className="flex-1"
-              onClick={confirmReassignRoom}
-              disabled={!reassignSelected || reassignLoading}
-            >
-              {reassignLoading ? "Saving..." : "Confirm Reassignment"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          atomically on the backend. Shared with ExtendStayDialog's
+          blocked-capacity remedy — see components/ReassignRoomDialog.tsx. */}
+      <ReassignRoomDialog
+        open={reassignOpen}
+        onOpenChange={(open) => { setReassignOpen(open); if (!open) setReassignBooking(null); }}
+        booking={reassignBooking}
+        onSuccess={() => { setReassignBooking(null); fetchBookings(); }}
+      />
 
       {/* Check-out Confirmation Modal */}
       <AlertDialog open={checkOutConfirmOpen} onOpenChange={setCheckOutConfirmOpen}>
