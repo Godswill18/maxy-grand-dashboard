@@ -2,7 +2,7 @@
 // A Room Category's details plus the list of physical Room Units
 // that belong to it. Used by both superadmin (/room-types-v2/:id) and
 // manager (/manager/room-types-v2/:id).
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, MapPin, Users, BedDouble, Pencil, Trash2, Plus, Check, X, ImagePlus, XCircle, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ArrowLeft, ArrowRightLeft, MapPin, Users, BedDouble, Pencil, Trash2, Plus, Check, X, ImagePlus, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRoomTypeV2Store, type RoomUnit } from "@/store/useRoomTypeV2Store";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -57,6 +58,7 @@ export default function RoomTypeDetails() {
     currentRoomType, units, isLoading,
     fetchRoomTypeById, deleteRoomType, updateRoomUnitStatus, updateRoomUnit, deleteRoomUnit,
     openAddUnitModal, addRoomTypeImages, deleteRoomTypeImage, replaceRoomTypeImage,
+    roomTypes, fetchRoomTypesByHotel, fetchAllRoomTypes, reassignRoomUnitCategory,
   } = useRoomTypeV2Store();
 
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -65,6 +67,9 @@ export default function RoomTypeDetails() {
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
   const [editRoomNumber, setEditRoomNumber] = useState("");
   const [editFloor, setEditFloor] = useState("");
+  const [unitPendingReassign, setUnitPendingReassign] = useState<RoomUnit | null>(null);
+  const [reassignTargetId, setReassignTargetId] = useState("");
+  const [isReassigning, setIsReassigning] = useState(false);
 
   // Manage Images state
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
@@ -77,6 +82,22 @@ export default function RoomTypeDetails() {
   useEffect(() => {
     if (id) fetchRoomTypeById(id);
   }, [id, fetchRoomTypeById]);
+
+  // This page never loads the full room-types list on its own — fetch it so
+  // the Reassign dialog has sibling categories to offer as targets.
+  useEffect(() => {
+    if (isSuperAdmin) fetchAllRoomTypes();
+    else if (user?.hotelId) fetchRoomTypesByHotel(user.hotelId);
+  }, [isSuperAdmin, user?.hotelId, fetchAllRoomTypes, fetchRoomTypesByHotel]);
+
+  const siblingRoomTypes = useMemo(() => {
+    if (!currentRoomType) return [];
+    const currentHotelId = typeof currentRoomType.hotelId === "object" ? currentRoomType.hotelId._id : currentRoomType.hotelId;
+    return roomTypes.filter((rt) => {
+      const hotelId = typeof rt.hotelId === "object" ? rt.hotelId._id : rt.hotelId;
+      return hotelId === currentHotelId && rt._id !== currentRoomType._id;
+    });
+  }, [roomTypes, currentRoomType]);
 
   const backHref = isSuperAdmin ? '/room-types-v2' : '/manager/room-types-v2';
 
@@ -129,6 +150,20 @@ export default function RoomTypeDetails() {
       toast.error(result.error || "Failed to delete room unit");
     }
     setUnitPendingDelete(null);
+  };
+
+  const handleReassignUnit = async () => {
+    if (!unitPendingReassign || !reassignTargetId) return;
+    setIsReassigning(true);
+    const result = await reassignRoomUnitCategory(unitPendingReassign._id, reassignTargetId);
+    if (result.success) {
+      toast.success(`Room ${unitPendingReassign.roomNumber} reassigned successfully`);
+      setUnitPendingReassign(null);
+      setReassignTargetId("");
+    } else {
+      toast.error(result.error || "Failed to reassign room unit");
+    }
+    setIsReassigning(false);
   };
 
   const handleAddImages = async () => {
@@ -355,6 +390,15 @@ export default function RoomTypeDetails() {
                         <Button size="icon" variant="ghost" onClick={() => startEditingUnit(unit)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={unit.status === 'occupied'}
+                          title={unit.status === 'occupied' ? 'Occupied — check out first' : 'Reassign to a different category'}
+                          onClick={() => { setUnitPendingReassign(unit); setReassignTargetId(""); }}
+                        >
+                          <ArrowRightLeft className="h-4 w-4" />
+                        </Button>
                         <Button size="icon" variant="ghost" onClick={() => setUnitPendingDelete(unit)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
@@ -512,6 +556,41 @@ export default function RoomTypeDetails() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!unitPendingReassign} onOpenChange={(open) => !open && setUnitPendingReassign(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reassign Room {unitPendingReassign?.roomNumber}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="reassign-target">Move to category</Label>
+            {siblingRoomTypes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No other room categories exist yet for this branch — create one first.
+              </p>
+            ) : (
+              <Select value={reassignTargetId} onValueChange={setReassignTargetId}>
+                <SelectTrigger id="reassign-target">
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {siblingRoomTypes.map((rt) => (
+                    <SelectItem key={rt._id} value={rt._id}>{rt.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUnitPendingReassign(null)} disabled={isReassigning}>
+              Cancel
+            </Button>
+            <Button onClick={handleReassignUnit} disabled={!reassignTargetId || isReassigning}>
+              {isReassigning ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Reassigning...</> : "Reassign"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

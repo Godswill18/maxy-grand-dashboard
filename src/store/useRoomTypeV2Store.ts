@@ -80,6 +80,7 @@ interface RoomTypeV2State {
 
   addRoomUnit: (roomTypeId: string, data: { roomNumber: string; floor?: number }) => Promise<{ success: boolean; error?: string }>;
   updateRoomUnit: (unitId: string, data: Partial<Pick<RoomUnit, 'roomNumber' | 'floor' | 'isActive'>>) => Promise<{ success: boolean; error?: string }>;
+  reassignRoomUnitCategory: (unitId: string, newRoomTypeId: string) => Promise<{ success: boolean; error?: string }>;
   updateRoomUnitStatus: (unitId: string, status: RoomUnit['status'], maintenanceReason?: string) => Promise<{ success: boolean; error?: string }>;
   toggleHousekeeping: (unitId: string, inProgress: boolean) => Promise<{ success: boolean; error?: string; alreadyQueued?: boolean }>;
   deleteRoomUnit: (unitId: string) => Promise<{ success: boolean; error?: string }>;
@@ -333,6 +334,28 @@ export const useRoomTypeV2Store = create<RoomTypeV2State>((set, get) => ({
     }
   },
 
+  reassignRoomUnitCategory: async (unitId, newRoomTypeId) => {
+    try {
+      await axios.patch(`${VITE_API_URL}/api/room-types-v2/units/${unitId}/reassign-category`, { roomTypeId: newRoomTypeId }, {
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        withCredentials: true,
+      });
+      // Unit moves OUT of the category currently being viewed — remove it,
+      // same local patch shape as deleteRoomUnit (not an in-place update
+      // like updateRoomUnit, since it no longer belongs on this page).
+      set((state) => ({
+        units: state.units.filter((u) => u._id !== unitId),
+        currentRoomType: state.currentRoomType
+          ? { ...state.currentRoomType, unitCount: Math.max(0, (state.currentRoomType.unitCount || 1) - 1) }
+          : state.currentRoomType,
+      }));
+      return { success: true };
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      return { success: false, error: error.response?.data?.error || error.message };
+    }
+  },
+
   updateRoomUnitStatus: async (unitId, status, maintenanceReason) => {
     try {
       const res = await axios.patch(`${VITE_API_URL}/api/room-types-v2/units/${unitId}/status`, { status, maintenanceReason }, {
@@ -476,10 +499,16 @@ export const useRoomTypeV2Store = create<RoomTypeV2State>((set, get) => ({
     _rtuUpdatedHandler = (updatedUnit: RoomUnit) => {
       set((state) => {
         const exists = state.unitsBoard.some((u) => u._id === updatedUnit._id);
-        // The socket payload's roomTypeId is a raw ObjectId (not populated) —
-        // preserve the already-populated {_id,name} shape already on the board.
+        // The socket payload's roomTypeId is a raw ObjectId (not populated).
+        // Normally we preserve the already-populated {_id,name} shape already
+        // on the board — but if the category actually changed (reassignRoomUnitCategory),
+        // the old populated object is now WRONG, not just unpopulated, so it
+        // must not be kept. Trust the incoming id in that case; the board's
+        // next full fetch re-populates it with the new category's name.
         const existing = state.unitsBoard.find((u) => u._id === updatedUnit._id);
-        const merged = { ...updatedUnit, roomTypeId: existing?.roomTypeId ?? updatedUnit.roomTypeId };
+        const existingCategoryId = typeof existing?.roomTypeId === 'object' ? existing.roomTypeId._id : existing?.roomTypeId;
+        const categoryChanged = existingCategoryId && existingCategoryId !== updatedUnit.roomTypeId;
+        const merged = { ...updatedUnit, roomTypeId: !categoryChanged && existing?.roomTypeId ? existing.roomTypeId : updatedUnit.roomTypeId };
         return {
           unitsBoard: exists
             ? state.unitsBoard.map((u) => (u._id === updatedUnit._id ? merged : u))
