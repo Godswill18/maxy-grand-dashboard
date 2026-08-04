@@ -39,6 +39,7 @@ import {
   useDashboardActions,
 } from '@/store/useDashboardStore';
 import { formatCurrencyAxis } from '@/lib/chartFormatters';
+import MaintenanceSummarySection from '@/components/MaintenanceSummarySection';
 
 const calculateTrend = (current: number, previous: number) => {
   if (previous === 0) return { value: current > 0 ? 100 : 0, isPositive: current > 0 };
@@ -502,6 +503,8 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      <MaintenanceSummarySection role="superadmin" />
 
     </div>
   );

@@ -73,6 +73,7 @@ import RoomTypes from "./pages/superAdmin/RoomTypes";
 import RoomTypeDetails from "./pages/superAdmin/RoomTypeDetails";
 import RoomStatusBoard from "./pages/superAdmin/RoomStatusBoard";
 import Housekeeping from "./pages/manager/HouseKeeping";
+import MaintenanceComplaints from "./pages/superAdmin/MaintenanceComplaints";
 import Restaurant from "./pages/manager/Restaurant";
 import BookingCalendar from "./pages/receptionist/Bookingcalendar";
 import OrderDetail from "./pages/waiter/Orderdetail";
@@ -365,6 +366,8 @@ const App = () => {
                 <Route path="/room-types-v2" element={<RoomTypes />} />
                 <Route path="/room-types-v2/:id" element={<RoomTypeDetails />} />
                 <Route path="/room-status-v2" element={<RoomStatusBoard />} />
+                <Route path="/house-keeping" element={<Housekeeping />} />
+                <Route path="/maintenance" element={<MaintenanceComplaints />} />
                 <Route path="/bookings" element={<Bookings />} />
                 <Route path="/bookings/calendar" element={<BookingCalendarPage />} />
                 <Route path="/booking-history" element={<BookingHistory />} />
@@ -424,6 +427,7 @@ const App = () => {
                 <Route path="/manager/room-categories" element={<Navigate to="/manager/room-types-v2" replace />} />
                 <Route path="/manager/operations" element={<Operations />} />
                 <Route path="/manager/house-keeping" element={<Housekeeping />} />
+                <Route path="/manager/maintenance" element={<MaintenanceComplaints />} />
                 <Route path="/manager/bookings" element={<BookingManagement />} />
                 <Route path="/manager/booking-calendar" element={<BookingCalendarPage />} />
                 <Route path="/manager/booking-history" element={<BookingHistory />} />
@@ -465,6 +469,8 @@ const App = () => {
                 <Route path="/receptionist/checkin" element={<CheckInOut />} />
                 <Route path="/receptionist/rooms" element={<RoomReceptionist />} />
                 <Route path="/receptionist/room-status-v2" element={<RoomStatusBoard />} />
+                <Route path="/receptionist/house-keeping" element={<Housekeeping />} />
+                <Route path="/receptionist/maintenance" element={<MaintenanceComplaints />} />
                 <Route path="/receptionist/bookings" element={<BookingManagement />} />
                 <Route path="/receptionist/calendar" element={<BookingCalendar />} />
                 <Route path="/receptionist/booking-history" element={<BookingHistory />} />

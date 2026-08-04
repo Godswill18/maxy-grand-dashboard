@@ -42,7 +42,7 @@ export interface CleaningRequest {
   requestType?: 'checkout' | 'guest-request' | 'manual';
   assignedCleaner: StaffRef | null;
   requestedBy: StaffRef;
-  status: 'pending' | 'in-progress' | 'completed';
+  status: 'pending' | 'in-progress' | 'completed' | 'cancelled';
   priority?: 'High' | 'Medium' | 'Low';
   notes?: string;
   estimatedDuration?: string;
@@ -75,6 +75,7 @@ interface HousekeepingState {
   fetchAllRequests: () => Promise<void>;
   fetchCleaners: () => Promise<void>;
   assignCleanerToRequest: (requestId: string, cleanerId: string) => Promise<void>;
+  cancelCleaningRequest: (requestId: string, reason?: string) => Promise<void>;
   initSocketListeners: () => void;
   closeSocketListeners: () => void;
 }
@@ -175,6 +176,30 @@ export const useHousekeepingStore = create<HousekeepingState>((set, get) => ({
       get().fetchAllRequests();
     } catch (error: any) {
       toast.error(error.message || 'Failed to assign cleaner');
+      console.error(error);
+    }
+  },
+
+  cancelCleaningRequest: async (requestId: string, reason?: string) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${VITE_API_URL}/api/cleaning/${requestId}/cancel`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason }),
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || 'Failed to cancel cleaning request');
+      }
+      toast.success('Cleaning request cancelled');
+      get().fetchAllRequests();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to cancel cleaning request');
       console.error(error);
     }
   },

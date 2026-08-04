@@ -32,6 +32,7 @@ import {
   ImagesIcon,
   HelpCircle,
   Wallet,
+  Wrench,
 } from "lucide-react";
 
 // Define a reusable NavItem type
@@ -52,6 +53,8 @@ export const superAdminNav: NavItem[] = [
   { name: "Rooms", href: "/rooms", icon: Bed },
   { name: "Room Categories", href: "/room-types-v2", icon: BedDouble },
   { name: "Room Status (New)", href: "/room-status-v2", icon: DoorOpen },
+  { name: "Housekeeping", href: "/house-keeping", icon: Sparkles },
+  { name: "Maintenance & Complaints", href: "/maintenance", icon: Wrench },
   { name: "Bookings", href: "/bookings", icon: Calendar },
   { name: "Booking Calendar", href: "/bookings/calendar", icon: Calendar1Icon },
   { name: "Booking History", href: "/booking-history", icon: History },
@@ -100,6 +103,7 @@ export const managerNav: NavItem[] = [
   { name: "Outstanding Balances", href: "/manager/outstanding-balances", icon: Wallet },
   // { name: "Transactions", href: "/manager/transactions", icon: CreditCard },
   { name: "Housekeeping", href: "/manager/house-keeping", icon: Sparkles },
+  { name: "Maintenance & Complaints", href: "/manager/maintenance", icon: Wrench },
   { name: "Orders", href: "/manager/orders", icon: UtensilsCrossed },
   { name: "Operations", href: "/manager/operations", icon: ClipboardList },
   { name: "Reviews", href: "/manager/reviews", icon: Star },
@@ -126,6 +130,8 @@ export const receptionistNav: NavItem[] = [
   { name: "Check-In/Out", href: "/receptionist/checkin", icon: UserCheck },
   { name: "Rooms", href: "/receptionist/rooms", icon: BedDouble },
   { name: "Room Status (New)", href: "/receptionist/room-status-v2", icon: DoorOpen },
+  { name: "Housekeeping", href: "/receptionist/house-keeping", icon: Sparkles },
+  { name: "Maintenance & Complaints", href: "/receptionist/maintenance", icon: Wrench },
   { name: "Bookings", href: "/receptionist/bookings", icon: Calendar },
   { name: "Booking Calendar", href: "/receptionist/calendar", icon: Calendar1Icon },
   { name: "Booking History", href: "/receptionist/booking-history", icon: History },

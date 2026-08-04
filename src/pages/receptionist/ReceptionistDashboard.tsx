@@ -7,6 +7,7 @@ import { useReceptionistDashboardStore } from "@/store/usereceptionistdashboardS
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBranchName } from "@/hooks/useBranchName";
 import { Building } from "lucide-react";
+import MaintenanceSummarySection from "@/components/MaintenanceSummarySection";
 
 export default function ReceptionistDashboard() {
   const {
@@ -313,6 +314,8 @@ export default function ReceptionistDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <MaintenanceSummarySection role="receptionist" />
     </div>
   );
 }

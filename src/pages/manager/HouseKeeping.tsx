@@ -3,10 +3,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MapPin, Clock, CheckCircle, AlertCircle, User, Edit, CalendarIcon, Bed, Timer, Building2, ClipboardList } from "lucide-react";
+import { MapPin, Clock, CheckCircle, AlertCircle, User, Edit, CalendarIcon, Bed, Timer, Building2, ClipboardList, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Popover,
   PopoverContent,
@@ -31,6 +42,57 @@ const getRequestCategory = (r: CleaningRequest) =>
   getRequestRoom(r)?.roomTypeId?.categoryTag || getRequestRoom(r)?.roomTypeId?.name || "Unknown category";
 const getRequestBranch = (r: CleaningRequest) =>
   typeof r.hotelId === "object" ? r.hotelId?.name : undefined;
+
+// Authorized staff (receptionist/branch manager/superadmin — this page is
+// reachable by all three) explicitly cancelling a housekeeping request:
+// removes it from the cleaner's list, notifies them, records an audit entry
+// (if linked to a booking), and leaves the booking itself untouched.
+const CancelRequestButton: React.FC<{ requestId: string; roomNumber?: string }> = ({ requestId, roomNumber }) => {
+  const [reason, setReason] = useState("");
+  const [open, setOpen] = useState(false);
+  const cancelCleaningRequest = useHousekeepingStore((s) => s.cancelCleaningRequest);
+
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>
+        <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+          <Ban className="h-4 w-4 mr-2" />
+          Cancel
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Cancel housekeeping request?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {roomNumber ? `Room ${roomNumber}'s` : "This"} cleaning request will be removed from the cleaner's task
+            list. The guest's booking is not affected.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-1 py-2">
+          <label className="text-sm font-medium">Reason (optional)</label>
+          <Textarea
+            rows={2}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Guest withdrew the request"
+          />
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setReason("")}>Keep Request</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={() => {
+              cancelCleaningRequest(requestId, reason || undefined);
+              setReason("");
+            }}
+          >
+            Cancel Request
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
 
 interface UnassignedRoomCardProps {
   request: CleaningRequest;
@@ -105,22 +167,25 @@ const UnassignedRoomCard: React.FC<UnassignedRoomCardProps> = ({ request, onAssi
             </SelectContent>
           </Select>
         </div>
-        <Button
-          size="sm"
-          className="w-full"
-          onClick={() => {
-            if (!selectedCleanerId) {
-              toast.error("Please select a cleaner");
-              return;
-            }
-            onAssign(request._id, selectedCleanerId);
-            setSelectedCleanerId("");
-          }}
-          disabled={!selectedCleanerId}
-        >
-          <User className="h-4 w-4 mr-2" />
-          Assign Cleaner
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            className="flex-1"
+            onClick={() => {
+              if (!selectedCleanerId) {
+                toast.error("Please select a cleaner");
+                return;
+              }
+              onAssign(request._id, selectedCleanerId);
+              setSelectedCleanerId("");
+            }}
+            disabled={!selectedCleanerId}
+          >
+            <User className="h-4 w-4 mr-2" />
+            Assign Cleaner
+          </Button>
+          <CancelRequestButton requestId={request._id} roomNumber={room?.roomNumber} />
+        </div>
       </CardContent>
     </Card>
   );
@@ -233,6 +298,9 @@ const AssignedTaskCard: React.FC<{ task: CleaningRequest }> = ({ task }) => {
             </div>
           )}
         </div>
+        {(task.status === "pending" || task.status === "in-progress") && (
+          <CancelRequestButton requestId={task._id} roomNumber={room?.roomNumber} />
+        )}
       </CardContent>
     </Card>
   );

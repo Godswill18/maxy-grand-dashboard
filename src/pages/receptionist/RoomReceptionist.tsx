@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { BedDouble, Search, Loader2, Clock, ArrowRightLeft, AlertTriangle, Eye, Settings } from "lucide-react";
+import { BedDouble, Search, Loader2, Clock, ArrowRightLeft, AlertTriangle, Eye, Settings, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useRoomStore as useRecepRoomStore, ReceptionistRoom } from "@/store/useRecepRoomStore";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -512,9 +512,19 @@ function StatusUpdateDialog({ room, open, onOpenChange, onUpdateStatus }: Status
           {/* Current Status */}
           <div className="p-3 bg-gray-50 rounded-lg">
             <p className="text-sm text-muted-foreground mb-2">Current Status</p>
-            <Badge className={currentStatusInfo.color}>
-              {currentStatusInfo.icon} {currentStatusInfo.label}
-            </Badge>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Badge className={currentStatusInfo.color}>
+                {currentStatusInfo.icon} {currentStatusInfo.label}
+              </Badge>
+              {/* room.status stays 'occupied' the whole time a guest is
+                  staying — housekeepingInProgress is the separate signal
+                  that a request is active, shown alongside, not instead. */}
+              {room.status === 'occupied' && room.housekeepingInProgress && (
+                <Badge className="bg-orange-200 text-orange-800 border-orange-400">
+                  🧹 Housekeeping Requested
+                </Badge>
+              )}
+            </div>
           </div>
 
           {/* Status Selection */}
@@ -530,7 +540,7 @@ function StatusUpdateDialog({ room, open, onOpenChange, onUpdateStatus }: Status
                 <SelectItem value="cleaning">🧹 Cleaning</SelectItem>
                 <SelectItem value="reserved">📅 Reserved</SelectItem>
                 <SelectItem value="maintenance">🔧 Maintenance</SelectItem>
-                {room.status === 'occupied' && (
+                {room.status === 'occupied' && !room.housekeepingInProgress && (
                   <SelectItem value="occupied-needs-cleaning">🧹 Needs Cleaning (In-Stay)</SelectItem>
                 )}
               </SelectContent>
@@ -538,6 +548,11 @@ function StatusUpdateDialog({ room, open, onOpenChange, onUpdateStatus }: Status
             {selectedStatus === 'occupied-needs-cleaning' && (
               <p className="text-xs text-muted-foreground mt-1">
                 Notifies housekeepers without affecting the guest's stay — the room stays occupied.
+              </p>
+            )}
+            {room.status === 'occupied' && room.housekeepingInProgress && (
+              <p className="text-xs text-muted-foreground mt-1">
+                A housekeeping request is already active for this room. Select "Occupied" to cancel it, or cancel it directly from the Housekeeping dashboard.
               </p>
             )}
           </div>
@@ -1058,7 +1073,15 @@ export default function RoomReceptionist() {
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">
                   <CardTitle className={`text-lg ${colors.text} min-w-0 truncate`}>Room {room.roomNumber}</CardTitle>
-                  <span className="shrink-0">{getStatusBadge(room)}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {room.status === 'occupied' && room.housekeepingInProgress && (
+                      <Badge className="text-xs font-semibold border gap-1 bg-amber-100 text-amber-700 border-amber-200">
+                        <Sparkles className="h-3 w-3" />
+                        Housekeeping
+                      </Badge>
+                    )}
+                    {getStatusBadge(room)}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">

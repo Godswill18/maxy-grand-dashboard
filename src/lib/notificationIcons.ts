@@ -22,6 +22,14 @@ export const notificationIcons: Record<string, string> = {
   escalation: '⚠️',
   user_management: '🧑‍💼',
   branch_event: '🏢',
+  // Maintenance & Complaints notifications
+  maintenance_request_created: '🔧',
+  complaint_submitted: '📣',
+  maintenance_status_changed: '🔄',
+  maintenance_request_reopened: '🔁',
+  maintenance_request_resolved: '✅',
+  maintenance_priority_changed: '⚠️',
+  maintenance_request_updated: '✏️',
 };
 
 export const priorityColors: Record<string, string> = {

@@ -34,6 +34,10 @@ export interface ReceptionistRoom {
   _id: string;
   roomNumber: string;
   status: "available" | "occupied" | "cleaning" | "maintenance" | "reserved" | "occupied-needs-cleaning";
+  // In-stay housekeeping flag — independent of `status`, which stays
+  // 'occupied' for the whole duration of a guest's stay regardless of
+  // whether housekeeping has been requested.
+  housekeepingInProgress?: boolean;
   hotelId: string;
   roomTypeId: RoomType; // This is now a populated object
   currentBookingId: CurrentBooking | null; // Can be null if available

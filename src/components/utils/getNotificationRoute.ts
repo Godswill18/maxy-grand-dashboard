@@ -21,6 +21,7 @@ const routeTable: Record<string, Record<string, string | RouteBuilder>> = {
     shift: '/shifts',
     hotel: (id) => (id ? `/branches/${id}` : '/branches'),
     user: '/staffs',
+    maintenance: (id) => (id ? `/maintenance?requestId=${id}` : '/maintenance'),
   },
   admin: {
     booking: (id) => (id ? `/manager/bookings?bookingId=${id}` : '/manager/bookings'),
@@ -30,12 +31,14 @@ const routeTable: Record<string, Record<string, string | RouteBuilder>> = {
     request: '/manager/requests',
     shift: '/manager/shifts',
     user: '/manager/staff',
+    maintenance: (id) => (id ? `/manager/maintenance?requestId=${id}` : '/manager/maintenance'),
   },
   receptionist: {
     booking: (id) => (id ? `/receptionist/bookings?bookingId=${id}` : '/receptionist/bookings'),
     room: '/receptionist/rooms',
     payment: '/receptionist/payments',
     shift: '/receptionist/my-shift',
+    maintenance: (id) => (id ? `/receptionist/maintenance?requestId=${id}` : '/receptionist/maintenance'),
   },
   cleaner: {
     cleaning: '/cleaner/tasks',

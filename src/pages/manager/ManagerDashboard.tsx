@@ -7,29 +7,39 @@ import { formatPercentAxis } from "@/lib/chartFormatters";
 import useManagerDashboardStore from "@/store/managerDashboardStore";
 import { useBranchName } from "@/hooks/useBranchName";
 import { Building } from "lucide-react";
+import MaintenanceSummarySection from "@/components/MaintenanceSummarySection";
 
 export default function ManagerDashboard() {
   const {
     stats,
     revenueData,
-    occupancyData,
+    occupancy,
     isLoading,
     error,
     fetchDashboardData,
+    initSocketListeners,
+    closeSocketListeners,
   } = useManagerDashboardStore();
   const branchName = useBranchName();
 
   // Fetch dashboard data on component mount
   useEffect(() => {
     fetchDashboardData();
-    
+
     // Set up auto-refresh every 5 minutes
     const interval = setInterval(() => {
       fetchDashboardData();
     }, 5 * 60 * 1000); // 5 minutes
-    
+
     return () => clearInterval(interval);
   }, [fetchDashboardData]);
+
+  // Live updates — check-ins/check-outs/new bookings push a fresh occupancy
+  // read instead of waiting up to 5 minutes for the poll above.
+  useEffect(() => {
+    initSocketListeners();
+    return () => closeSocketListeners();
+  }, [initSocketListeners, closeSocketListeners]);
 
   // Format currency for Nigerian Naira
   const formatCurrency = (amount: number) => {
@@ -185,27 +195,40 @@ export default function ManagerDashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Weekly Occupancy Rate</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Weekly Occupancy Rate</CardTitle>
+              {occupancy && occupancy.series.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {occupancy.weeklyAverage}% avg
+                  {occupancy.previousWeekAverage > 0 && (
+                    <span className={occupancy.weeklyAverage >= occupancy.previousWeekAverage ? "text-success" : "text-destructive"}>
+                      {" "}({occupancy.weeklyAverage >= occupancy.previousWeekAverage ? "+" : ""}
+                      {occupancy.weeklyAverage - occupancy.previousWeekAverage}% vs last week)
+                    </span>
+                  )}
+                </p>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            {occupancyData.length > 0 ? (
+            {occupancy && occupancy.series.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={occupancyData}>
+                <LineChart data={occupancy.series}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="day" className="text-xs" />
                   <YAxis className="text-xs" domain={[0, 100]} tickFormatter={formatPercentAxis} />
-                  <Tooltip 
-                    contentStyle={{ 
+                  <Tooltip
+                    contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
                       borderRadius: '8px'
                     }}
                     formatter={(value: number) => `${value}%`}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="occupancy" 
-                    stroke="hsl(var(--primary))" 
+                  <Line
+                    type="monotone"
+                    dataKey="occupancy"
+                    stroke="hsl(var(--primary))"
                     strokeWidth={2}
                     dot={{ fill: 'hsl(var(--primary))' }}
                   />
@@ -219,6 +242,8 @@ export default function ManagerDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <MaintenanceSummarySection role="admin" />
     </div>
   );
 }

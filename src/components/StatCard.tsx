@@ -12,6 +12,7 @@ interface StatCardProps {
   };
   color?: "primary" | "secondary" | "success" | "warning" | "info";
   compact?: boolean;
+  onClick?: () => void;
 }
 
 const colorMap = {
@@ -30,11 +31,15 @@ export function StatCard({
   trend,
   color = "primary",
   compact = false,
+  onClick,
 }: StatCardProps) {
   const { icon: iconClass, border } = colorMap[color];
 
   return (
-    <Card className={`hover:shadow-md transition-all duration-200 border-l-4 ${border}`}>
+    <Card
+      className={`hover:shadow-md transition-all duration-200 border-l-4 ${border} ${onClick ? "cursor-pointer" : ""}`}
+      onClick={onClick}
+    >
       <CardContent className={compact ? "p-4" : "p-5"}>
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1 min-w-0">

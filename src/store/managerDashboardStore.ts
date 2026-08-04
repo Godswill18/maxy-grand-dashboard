@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { socket } from '../lib/socket';
+import { useAuthStore } from './useAuthStore';
 
 interface StaffMember {
   _id: string;
@@ -39,9 +41,19 @@ interface RevenueData {
   expenses: number;
 }
 
-interface OccupancyData {
+interface OccupancyDay {
+  date: string;
   day: string;
   occupancy: number;
+}
+
+interface OccupancyTrend {
+  series: OccupancyDay[];
+  todayOccupancy: number;
+  weeklyAverage: number;
+  previousWeekAverage: number;
+  totalRooms: number;
+  model: 'v2' | 'legacy' | null;
 }
 
 interface DashboardStats {
@@ -64,8 +76,9 @@ interface ManagerDashboardState {
   bookings: Booking[];
   stats: DashboardStats;
   revenueData: RevenueData[];
-  occupancyData: OccupancyData[];
-  
+  occupancy: OccupancyTrend | null;
+  isLoadingOccupancy: boolean;
+
   lastFetched: number | null;
 
   // Loading states
@@ -78,12 +91,22 @@ interface ManagerDashboardState {
   fetchRequests: () => Promise<void>;
   fetchRooms: () => Promise<void>;
   fetchBookings: () => Promise<void>;
+  fetchOccupancy: () => Promise<void>;
   calculateStats: () => void;
   calculateRevenueData: () => void;
-  calculateOccupancyData: () => void;
+  initSocketListeners: () => void;
+  closeSocketListeners: () => void;
 }
 
 const VITE_API_URL = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:5000';
+
+// Module-level handler refs so closeSocketListeners only removes THIS
+// store's handlers — same pattern as useMaintenanceStore.ts/useHousekeepingStore.ts.
+let _mgrConnectHandler: (() => void) | null = null;
+let _mgrRoomUnitHandler: (() => void) | null = null;
+let _mgrRoomHandler: (() => void) | null = null;
+let _mgrBookingHandler: (() => void) | null = null;
+let _mgrOccupancyDebounce: ReturnType<typeof setTimeout> | null = null;
 
 const useManagerDashboardStore = create<ManagerDashboardState>((set, get) => ({
   // Initial state
@@ -101,7 +124,8 @@ const useManagerDashboardStore = create<ManagerDashboardState>((set, get) => ({
     availableRooms: 0,
   },
   revenueData: [],
-  occupancyData: [],
+  occupancy: null,
+  isLoadingOccupancy: false,
   isLoading: false,
   error: null,
   lastFetched: null,
@@ -180,11 +204,36 @@ const useManagerDashboardStore = create<ManagerDashboardState>((set, get) => ({
       if (data.success) {
         set({ rooms: data.data });
         get().calculateStats();
-        get().calculateOccupancyData();
       }
     } catch (error) {
       console.error('Error fetching rooms:', error);
       set({ error: (error as Error).message });
+    }
+  },
+
+  // Weekly occupancy — backend-computed (handles both the legacy Room and
+  // v2 RoomUnit models correctly, includes checked-out bookings for
+  // already-elapsed days). Also drives the top "Occupancy Rate" StatCard.
+  fetchOccupancy: async () => {
+    set({ isLoadingOccupancy: true });
+    try {
+      const response = await fetch(`${VITE_API_URL}/api/analytics/occupancy-weekly`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch occupancy');
+      const data = await response.json();
+      if (data.success) {
+        set((state) => ({
+          occupancy: data.data,
+          isLoadingOccupancy: false,
+          stats: { ...state.stats, occupancyRate: data.data.todayOccupancy },
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching occupancy:', error);
+      set({ isLoadingOccupancy: false, error: (error as Error).message });
     }
   },
 
@@ -238,11 +287,11 @@ const useManagerDashboardStore = create<ManagerDashboardState>((set, get) => ({
       })
       .reduce((sum, booking) => sum + booking.totalAmount, 0);
     
-    // Calculate occupancy rate
-    const totalRooms = rooms.length;
-    const occupiedRooms = rooms.filter(r => r.status === 'occupied').length;
-    const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
-    
+    // Occupancy rate is owned by fetchOccupancy() (backend-computed, handles
+    // both room models correctly) — deliberately not recomputed here from
+    // the legacy-Room-only `rooms` array, which silently read 0 on any
+    // hotel migrated to the v2 RoomUnit model.
+
    // Pending tasks - count rooms that need cleaning
     const pendingTasks = rooms.filter(r => r.status === 'cleaning').length;
     
@@ -262,17 +311,19 @@ const useManagerDashboardStore = create<ManagerDashboardState>((set, get) => ({
     // Available rooms
     const availableRooms = rooms.filter(r => r.status === 'available').length;
     
-    set({
+    // Merge rather than replace — preserves whatever occupancyRate
+    // fetchOccupancy() already set (or will set), regardless of call order.
+    set((state) => ({
       stats: {
+        ...state.stats,
         totalStaff,
         monthlyRevenue,
-        occupancyRate,
         pendingTasks,
         activeRequests,
         approvedThisMonth,
         availableRooms,
       },
-    });
+    }));
   },
 
   // Calculate revenue data for the last 6 months
@@ -323,50 +374,6 @@ const useManagerDashboardStore = create<ManagerDashboardState>((set, get) => ({
     set({ revenueData });
   },
 
-  // Calculate occupancy data for the last 7 days
-  calculateOccupancyData: () => {
-    const { rooms, bookings } = get();
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const occupancyData: OccupancyData[] = [];
-    
-    const totalRooms = rooms.length;
-    if (totalRooms === 0) {
-      set({ occupancyData: [] });
-      return;
-    }
-    
-    // Calculate for last 7 days
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      date.setHours(0, 0, 0, 0);
-      
-      const nextDay = new Date(date);
-      nextDay.setDate(nextDay.getDate() + 1);
-      
-      // Count bookings that overlap with this day
-      const occupiedOnDay = bookings.filter(booking => {
-        const checkIn = new Date(booking.checkInDate);
-        const checkOut = new Date(booking.checkOutDate);
-        
-        return (
-          (booking.bookingStatus === 'confirmed' || booking.bookingStatus === 'checked-in') &&
-          checkIn <= nextDay &&
-          checkOut >= date
-        );
-      }).length;
-      
-      const occupancy = Math.round((occupiedOnDay / totalRooms) * 100);
-      
-      occupancyData.push({
-        day: dayNames[date.getDay()],
-        occupancy: Math.min(occupancy, 100), // Cap at 100%
-      });
-    }
-    
-    set({ occupancyData });
-  },
-
   // Fetch all dashboard data
   fetchDashboardData: async (force = false) => {
     const { lastFetched } = get();
@@ -380,12 +387,12 @@ const useManagerDashboardStore = create<ManagerDashboardState>((set, get) => ({
         get().fetchRequests(),
         get().fetchRooms(),
         get().fetchBookings(),
+        get().fetchOccupancy(),
       ]);
 
       // Recalculate all stats after fetching
       get().calculateStats();
       get().calculateRevenueData();
-      get().calculateOccupancyData();
       set({ lastFetched: Date.now() });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -393,6 +400,56 @@ const useManagerDashboardStore = create<ManagerDashboardState>((set, get) => ({
     } finally {
       set({ isLoading: false });
     }
+  },
+
+  // Live updates — this store previously had zero socket listeners, so the
+  // Weekly Occupancy chart was fetch-on-mount-plus-5-minute-poll only.
+  // bookingUpdated is emitted globally (unscoped), not hotel-scoped like the
+  // other two, so this may debounce-refetch on another branch's booking
+  // activity too — a minor inefficiency (the fetch itself is still
+  // server-side hotel-scoped), not a correctness issue.
+  initSocketListeners: () => {
+    const hotelId = useAuthStore.getState().user?.hotelId;
+    if (!hotelId) return;
+
+    if (_mgrConnectHandler) socket.off('connect', _mgrConnectHandler);
+    _mgrConnectHandler = () => socket.emit('join_hotel', hotelId);
+    socket.on('connect', _mgrConnectHandler);
+    if (socket.connected) socket.emit('join_hotel', hotelId);
+
+    const debouncedRefetch = () => {
+      if (_mgrOccupancyDebounce) clearTimeout(_mgrOccupancyDebounce);
+      _mgrOccupancyDebounce = setTimeout(() => {
+        get().fetchOccupancy();
+        get().fetchRooms();
+        get().fetchBookings();
+      }, 1500);
+    };
+
+    if (_mgrRoomUnitHandler) socket.off('roomUnitUpdated', _mgrRoomUnitHandler);
+    _mgrRoomUnitHandler = debouncedRefetch;
+    socket.on('roomUnitUpdated', _mgrRoomUnitHandler);
+
+    if (_mgrRoomHandler) socket.off('roomUpdated', _mgrRoomHandler);
+    _mgrRoomHandler = debouncedRefetch;
+    socket.on('roomUpdated', _mgrRoomHandler);
+
+    if (_mgrBookingHandler) socket.off('bookingUpdated', _mgrBookingHandler);
+    _mgrBookingHandler = debouncedRefetch;
+    socket.on('bookingUpdated', _mgrBookingHandler);
+  },
+
+  closeSocketListeners: () => {
+    if (_mgrConnectHandler) socket.off('connect', _mgrConnectHandler);
+    if (_mgrRoomUnitHandler) socket.off('roomUnitUpdated', _mgrRoomUnitHandler);
+    if (_mgrRoomHandler) socket.off('roomUpdated', _mgrRoomHandler);
+    if (_mgrBookingHandler) socket.off('bookingUpdated', _mgrBookingHandler);
+    if (_mgrOccupancyDebounce) clearTimeout(_mgrOccupancyDebounce);
+    _mgrConnectHandler = null;
+    _mgrRoomUnitHandler = null;
+    _mgrRoomHandler = null;
+    _mgrBookingHandler = null;
+    _mgrOccupancyDebounce = null;
   },
 }));
 
